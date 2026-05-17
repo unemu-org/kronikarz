@@ -1,0 +1,78 @@
+kronikarz: "1"
+package:
+  id: P-D3-2
+  name: P-D3-2
+  doc: 12-006368-01-8A
+  status: raw
+  pages:
+  - id: 2-30
+    file: pages/2-30.sch.yaml
+    scan: scans/2-30.jpg
+    title: Schemat ideowy pakietu P-D3-2
+    status: raw
+  - id: 2-31
+    file: pages/2-31.sch.yaml
+    scan: scans/2-31.jpg
+    title: Schemat ideowy pakietu P-D3-2
+    status: raw
+  - id: 2-32
+    file: pages/2-32.sch.yaml
+    scan: scans/2-32.jpg
+    title: Schemat ideowy pakietu P-D3-2
+    status: raw
+  - id: 2-33
+    file: pages/2-33.sch.yaml
+    scan: scans/2-33.jpg
+    title: Schemat ideowy pakietu P-D3-2
+    status: raw
+  - id: 2-34
+    file: pages/2-34.sch.yaml
+    scan: scans/2-34.jpg
+    title: Schemat ideowy pakietu P-D3-2
+    status: raw
+  - id: 2-35
+    file: pages/2-35.sch.yaml
+    scan: scans/2-35.jpg
+    title: Schemat ideowy pakietu P-D3-2
+    status: raw
+  - id: 2-36
+    file: pages/2-36.sch.yaml
+    scan: scans/2-36.jpg
+    title: Schemat ideowy pakietu P-D3-2
+    status: raw
+  - id: 2-37
+    file: pages/2-37.sch.yaml
+    scan: scans/2-37.jpg
+    title: Schemat ideowy pakietu P-D3-2
+    status: raw
+  - id: 2-38
+    file: pages/2-38.sch.yaml
+    scan: scans/2-38.jpg
+    title: Schemat ideowy pakietu P-D3-2
+    status: raw
+  - id: 2-39
+    file: pages/2-39.sch.yaml
+    scan: scans/2-39.jpg
+    title: Schemat ideowy pakietu P-D3-2
+    status: raw
+  - id: 2-40
+    file: pages/2-40.sch.yaml
+    scan: scans/2-40.jpg
+    title: Schemat ideowy pakietu P-D3-2
+    status: raw
+  - id: 2-41
+    file: pages/2-41.sch.yaml
+    scan: scans/2-41.jpg
+    title: Schemat ideowy pakietu P-D3-2
+    status: raw
+  - id: 2-42
+    file: pages/2-42.sch.yaml
+    scan: scans/2-42.jpg
+    title: Schemat ideowy pakietu P-D3-2
+    status: raw
+  - id: 2-43
+    file: pages/2-43.sch.yaml
+    scan: scans/2-43.jpg
+    title: Schemat ideowy pakietu P-D3-2
+    status: raw
+components: {}

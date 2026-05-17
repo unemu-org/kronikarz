@@ -1,0 +1,68 @@
+kronikarz: "1"
+package:
+  id: P-R3-2
+  name: P-R3-2
+  doc: 12-006368-01-8A
+  status: raw
+  pages:
+  - id: 2-58
+    file: pages/2-58.sch.yaml
+    scan: scans/2-58.jpg
+    title: Schemat ideowy pakietu P-R3-2
+    status: raw
+  - id: 2-59
+    file: pages/2-59.sch.yaml
+    scan: scans/2-59.jpg
+    title: Schemat ideowy pakietu P-R3-2
+    status: raw
+  - id: 2-60
+    file: pages/2-60.sch.yaml
+    scan: scans/2-60.jpg
+    title: Schemat ideowy pakietu P-R3-2
+    status: raw
+  - id: 2-61
+    file: pages/2-61.sch.yaml
+    scan: scans/2-61.jpg
+    title: Schemat ideowy pakietu P-R3-2
+    status: raw
+  - id: 2-62
+    file: pages/2-62.sch.yaml
+    scan: scans/2-62.jpg
+    title: Schemat ideowy pakietu P-R3-2
+    status: raw
+  - id: 2-63
+    file: pages/2-63.sch.yaml
+    scan: scans/2-63.jpg
+    title: Schemat ideowy pakietu P-R3-2
+    status: raw
+  - id: 2-64
+    file: pages/2-64.sch.yaml
+    scan: scans/2-64.jpg
+    title: Schemat ideowy pakietu P-R3-2
+    status: raw
+  - id: 2-65
+    file: pages/2-65.sch.yaml
+    scan: scans/2-65.jpg
+    title: Schemat ideowy pakietu P-R3-2
+    status: raw
+  - id: 2-66
+    file: pages/2-66.sch.yaml
+    scan: scans/2-66.jpg
+    title: Schemat ideowy pakietu P-R3-2
+    status: raw
+  - id: 2-67
+    file: pages/2-67.sch.yaml
+    scan: scans/2-67.jpg
+    title: Schemat ideowy pakietu P-R3-2
+    status: raw
+  - id: 2-68
+    file: pages/2-68.sch.yaml
+    scan: scans/2-68.jpg
+    title: Schemat ideowy pakietu P-R3-2
+    status: raw
+  - id: 2-69
+    file: pages/2-69.sch.yaml
+    scan: scans/2-69.jpg
+    title: Schemat ideowy pakietu P-R3-2
+    status: raw
+components: {}

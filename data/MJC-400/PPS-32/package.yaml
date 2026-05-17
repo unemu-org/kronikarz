@@ -1,0 +1,48 @@
+kronikarz: "1"
+package:
+  id: PPS-32
+  name: PPS-32
+  doc: 12-006368-01-8A
+  status: raw
+  pages:
+  - id: 2-148
+    file: pages/2-148.sch.yaml
+    scan: scans/2-148.jpg
+    title: Schemat ideowy pakietu PPS-32
+    status: raw
+  - id: 2-149
+    file: pages/2-149.sch.yaml
+    scan: scans/2-149.jpg
+    title: Schemat ideowy pakietu PPS-32
+    status: raw
+  - id: 2-150
+    file: pages/2-150.sch.yaml
+    scan: scans/2-150.jpg
+    title: Schemat ideowy pakietu PPS-32
+    status: raw
+  - id: 2-151
+    file: pages/2-151.sch.yaml
+    scan: scans/2-151.jpg
+    title: Schemat ideowy pakietu PPS-32
+    status: raw
+  - id: 2-152
+    file: pages/2-152.sch.yaml
+    scan: scans/2-152.jpg
+    title: Schemat ideowy pakietu PPS-32
+    status: raw
+  - id: 2-153
+    file: pages/2-153.sch.yaml
+    scan: scans/2-153.jpg
+    title: Schemat ideowy pakietu PPS-32
+    status: raw
+  - id: 2-154
+    file: pages/2-154.sch.yaml
+    scan: scans/2-154.jpg
+    title: Schemat ideowy pakietu PPS-32
+    status: raw
+  - id: 2-155
+    file: pages/2-155.sch.yaml
+    scan: scans/2-155.jpg
+    title: Schemat ideowy pakietu PPS-32
+    status: raw
+components: {}

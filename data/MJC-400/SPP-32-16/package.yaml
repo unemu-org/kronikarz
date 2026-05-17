@@ -1,0 +1,88 @@
+kronikarz: "1"
+package:
+  id: SPP-32-16
+  name: SPP-32-16
+  doc: 12-006368-01-8A
+  status: raw
+  pages:
+  - id: 2-132
+    file: pages/2-132.sch.yaml
+    scan: scans/2-132.jpg
+    title: Schemat ideowy pakietu SPP-32-16
+    status: raw
+  - id: 2-133
+    file: pages/2-133.sch.yaml
+    scan: scans/2-133.jpg
+    title: Schemat ideowy pakietu SPP-32-16
+    status: raw
+  - id: 2-134
+    file: pages/2-134.sch.yaml
+    scan: scans/2-134.jpg
+    title: Schemat ideowy pakietu SPP-32-16
+    status: raw
+  - id: 2-135
+    file: pages/2-135.sch.yaml
+    scan: scans/2-135.jpg
+    title: Schemat ideowy pakietu SPP-32-16
+    status: raw
+  - id: 2-136
+    file: pages/2-136.sch.yaml
+    scan: scans/2-136.jpg
+    title: Schemat ideowy pakietu SPP-32-16
+    status: raw
+  - id: 2-137
+    file: pages/2-137.sch.yaml
+    scan: scans/2-137.jpg
+    title: Schemat ideowy pakietu SPP-32-16
+    status: raw
+  - id: 2-138
+    file: pages/2-138.sch.yaml
+    scan: scans/2-138.jpg
+    title: Schemat ideowy pakietu SPP-32-16
+    status: raw
+  - id: 2-139
+    file: pages/2-139.sch.yaml
+    scan: scans/2-139.jpg
+    title: Schemat ideowy pakietu SPP-32-16
+    status: raw
+  - id: 2-140
+    file: pages/2-140.sch.yaml
+    scan: scans/2-140.jpg
+    title: Schemat ideowy pakietu SPP-32-16
+    status: raw
+  - id: 2-141
+    file: pages/2-141.sch.yaml
+    scan: scans/2-141.jpg
+    title: Schemat ideowy pakietu SPP-32-16
+    status: raw
+  - id: 2-142
+    file: pages/2-142.sch.yaml
+    scan: scans/2-142.jpg
+    title: Schemat ideowy pakietu SPP-32-16
+    status: raw
+  - id: 2-143
+    file: pages/2-143.sch.yaml
+    scan: scans/2-143.jpg
+    title: Schemat ideowy pakietu SPP-32-16
+    status: raw
+  - id: 2-144
+    file: pages/2-144.sch.yaml
+    scan: scans/2-144.jpg
+    title: Schemat ideowy pakietu SPP-32-16
+    status: raw
+  - id: 2-145
+    file: pages/2-145.sch.yaml
+    scan: scans/2-145.jpg
+    title: Schemat ideowy pakietu SPP-32-16
+    status: raw
+  - id: 2-146
+    file: pages/2-146.sch.yaml
+    scan: scans/2-146.jpg
+    title: Schemat ideowy pakietu SPP-32-16
+    status: raw
+  - id: 2-147
+    file: pages/2-147.sch.yaml
+    scan: scans/2-147.jpg
+    title: Schemat ideowy pakietu SPP-32-16
+    status: raw
+components: {}

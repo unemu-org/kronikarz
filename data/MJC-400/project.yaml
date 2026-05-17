@@ -1,0 +1,56 @@
+kronikarz: "1"
+project:
+  name: MJC-400
+  desc: Modul Jednostki Centralnej
+  doc: 12-006368-01-8A
+  status: raw
+packages:
+- id: I-SK1-1
+  name: I-SK1-1
+  file: I-SK1-1/package.yaml
+  status: raw
+- id: JPP-16-18
+  name: JPP-16-18
+  file: JPP-16-18/package.yaml
+  status: raw
+- id: P-A3-2
+  name: P-A3-2
+  file: P-A3-2/package.yaml
+  status: raw
+- id: P-D3-2
+  name: P-D3-2
+  file: P-D3-2/package.yaml
+  status: raw
+- id: P-M3-2
+  name: P-M3-2
+  file: P-M3-2/package.yaml
+  status: raw
+- id: P-P3-2
+  name: P-P3-2
+  file: P-P3-2/package.yaml
+  status: raw
+- id: P-R3-2
+  name: P-R3-2
+  file: P-R3-2/package.yaml
+  status: raw
+- id: P-X3-2
+  name: P-X3-2
+  file: P-X3-2/package.yaml
+  status: raw
+- id: PPS-32
+  name: PPS-32
+  file: PPS-32/package.yaml
+  status: raw
+- id: SM-PKT-1
+  name: SM-PKT-1
+  file: SM-PKT-1/package.yaml
+  status: raw
+- id: SM-POSET-1
+  name: SM-POSET-1
+  file: SM-POSET-1/package.yaml
+  status: raw
+- id: SPP-32-16
+  name: SPP-32-16
+  file: SPP-32-16/package.yaml
+  status: raw
+backplane: []

@@ -1,0 +1,63 @@
+kronikarz: "1"
+package:
+  id: SM-POSET-1
+  name: SM-POSET-1
+  doc: 12-006368-01-8A
+  status: raw
+  pages:
+  - id: 2-92
+    file: pages/2-92.sch.yaml
+    scan: scans/2-92.jpg
+    title: Schemat ideowy pakietu SM-POSET-1
+    status: raw
+  - id: 2-93
+    file: pages/2-93.sch.yaml
+    scan: scans/2-93.jpg
+    title: Schemat ideowy pakietu SM-POSET-1
+    status: raw
+  - id: 2-94
+    file: pages/2-94.sch.yaml
+    scan: scans/2-94.jpg
+    title: Schemat ideowy pakietu SM-POSET-1
+    status: raw
+  - id: 2-95
+    file: pages/2-95.sch.yaml
+    scan: scans/2-95.jpg
+    title: Schemat ideowy pakietu SM-POSET-1
+    status: raw
+  - id: 2-96
+    file: pages/2-96.sch.yaml
+    scan: scans/2-96.jpg
+    title: Schemat ideowy pakietu SM-POSET-1
+    status: raw
+  - id: 2-97
+    file: pages/2-97.sch.yaml
+    scan: scans/2-97.jpg
+    title: Schemat ideowy pakietu SM-POSET-1
+    status: raw
+  - id: 2-98
+    file: pages/2-98.sch.yaml
+    scan: scans/2-98.jpg
+    title: Schemat ideowy pakietu SM-POSET-1
+    status: raw
+  - id: 2-99
+    file: pages/2-99.sch.yaml
+    scan: scans/2-99.jpg
+    title: Schemat ideowy pakietu SM-POSET-1
+    status: raw
+  - id: 2-100
+    file: pages/2-100.sch.yaml
+    scan: scans/2-100.jpg
+    title: Schemat ideowy pakietu SM-POSET-1
+    status: raw
+  - id: 2-101
+    file: pages/2-101.sch.yaml
+    scan: scans/2-101.jpg
+    title: Schemat ideowy pakietu SM-POSET-1
+    status: raw
+  - id: 2-102
+    file: pages/2-102.sch.yaml
+    scan: scans/2-102.jpg
+    title: Schemat ideowy pakietu SM-POSET-1
+    status: raw
+components: {}

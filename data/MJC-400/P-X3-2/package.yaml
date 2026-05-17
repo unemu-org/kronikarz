@@ -1,0 +1,58 @@
+kronikarz: "1"
+package:
+  id: P-X3-2
+  name: P-X3-2
+  doc: 12-006368-01-8A
+  status: raw
+  pages:
+  - id: 2-1
+    file: pages/2-1.sch.yaml
+    scan: scans/2-1.jpg
+    title: Schemat ideowy pakietu P-X3-2
+    status: raw
+  - id: 2-2
+    file: pages/2-2.sch.yaml
+    scan: scans/2-2.jpg
+    title: Schemat ideowy pakietu P-X3-2
+    status: raw
+  - id: 2-3
+    file: pages/2-3.sch.yaml
+    scan: scans/2-3.jpg
+    title: Schemat ideowy pakietu P-X3-2
+    status: raw
+  - id: 2-4
+    file: pages/2-4.sch.yaml
+    scan: scans/2-4.jpg
+    title: Schemat ideowy pakietu P-X3-2
+    status: raw
+  - id: 2-5
+    file: pages/2-5.sch.yaml
+    scan: scans/2-5.jpg
+    title: Schemat ideowy pakietu P-X3-2
+    status: raw
+  - id: 2-6
+    file: pages/2-6.sch.yaml
+    scan: scans/2-6.jpg
+    title: Schemat ideowy pakietu P-X3-2
+    status: raw
+  - id: 2-7
+    file: pages/2-7.sch.yaml
+    scan: scans/2-7.jpg
+    title: Schemat ideowy pakietu P-X3-2
+    status: raw
+  - id: 2-8
+    file: pages/2-8.sch.yaml
+    scan: scans/2-8.jpg
+    title: Schemat ideowy pakietu P-X3-2
+    status: raw
+  - id: 2-9
+    file: pages/2-9.sch.yaml
+    scan: scans/2-9.jpg
+    title: Schemat ideowy pakietu P-X3-2
+    status: raw
+  - id: 2-10
+    file: pages/2-10.sch.yaml
+    scan: scans/2-10.jpg
+    title: Schemat ideowy pakietu P-X3-2
+    status: raw
+components: {}

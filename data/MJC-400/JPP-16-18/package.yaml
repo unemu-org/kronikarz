@@ -1,0 +1,113 @@
+kronikarz: "1"
+package:
+  id: JPP-16-18
+  name: JPP-16-18
+  doc: 12-006368-01-8A
+  status: raw
+  pages:
+  - id: 2-111
+    file: pages/2-111.sch.yaml
+    scan: scans/2-111.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+  - id: 2-112
+    file: pages/2-112.sch.yaml
+    scan: scans/2-112.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+  - id: 2-113
+    file: pages/2-113.sch.yaml
+    scan: scans/2-113.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+  - id: 2-114
+    file: pages/2-114.sch.yaml
+    scan: scans/2-114.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+  - id: 2-115
+    file: pages/2-115.sch.yaml
+    scan: scans/2-115.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+  - id: 2-116
+    file: pages/2-116.sch.yaml
+    scan: scans/2-116.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+  - id: 2-117
+    file: pages/2-117.sch.yaml
+    scan: scans/2-117.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+  - id: 2-118
+    file: pages/2-118.sch.yaml
+    scan: scans/2-118.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+  - id: 2-119
+    file: pages/2-119.sch.yaml
+    scan: scans/2-119.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+  - id: 2-120
+    file: pages/2-120.sch.yaml
+    scan: scans/2-120.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+  - id: 2-121
+    file: pages/2-121.sch.yaml
+    scan: scans/2-121.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+  - id: 2-122
+    file: pages/2-122.sch.yaml
+    scan: scans/2-122.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+  - id: 2-123
+    file: pages/2-123.sch.yaml
+    scan: scans/2-123.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+  - id: 2-124
+    file: pages/2-124.sch.yaml
+    scan: scans/2-124.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+  - id: 2-125
+    file: pages/2-125.sch.yaml
+    scan: scans/2-125.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+  - id: 2-126
+    file: pages/2-126.sch.yaml
+    scan: scans/2-126.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+  - id: 2-127
+    file: pages/2-127.sch.yaml
+    scan: scans/2-127.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+  - id: 2-128
+    file: pages/2-128.sch.yaml
+    scan: scans/2-128.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+  - id: 2-129
+    file: pages/2-129.sch.yaml
+    scan: scans/2-129.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+  - id: 2-130
+    file: pages/2-130.sch.yaml
+    scan: scans/2-130.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+  - id: 2-131
+    file: pages/2-131.sch.yaml
+    scan: scans/2-131.jpg
+    title: Schemat ideowy pakietu JPP-16-18
+    status: raw
+components: {}

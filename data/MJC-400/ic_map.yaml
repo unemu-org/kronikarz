@@ -1,0 +1,146 @@
+'00':
+  name: SN7400N
+  desc: Quad 2-input NAND
+  kicad_symbol: 74xx:SN7400N
+  kicad_footprint: Package_DIP:DIP-14_W7.62mm
+  pins: 14
+  gates: 4
+  gate_pins:
+    A:
+      in:
+      - 1
+      - 2
+      out:
+      - 3
+    B:
+      in:
+      - 4
+      - 5
+      out:
+      - 6
+    C:
+      in:
+      - 9
+      - 10
+      out:
+      - 8
+    D:
+      in:
+      - 12
+      - 13
+      out:
+      - 11
+  power:
+    VCC: 14
+    GND: 7
+'04':
+  name: SN7404N
+  desc: Hex Inverter
+  kicad_symbol: 74xx:SN7404N
+  kicad_footprint: Package_DIP:DIP-14_W7.62mm
+  pins: 14
+  gates: 6
+  gate_pins:
+    A:
+      in:
+      - 1
+      out:
+      - 2
+    B:
+      in:
+      - 3
+      out:
+      - 4
+    C:
+      in:
+      - 5
+      out:
+      - 6
+    D:
+      in:
+      - 9
+      out:
+      - 8
+    E:
+      in:
+      - 11
+      out:
+      - 10
+    F:
+      in:
+      - 13
+      out:
+      - 12
+  power:
+    VCC: 14
+    GND: 7
+08:
+  name: SN7408N
+  desc: Quad 2-input AND
+  kicad_symbol: 74xx:SN7408N
+  pins: 14
+  gates: 4
+  gate_pins:
+    A:
+      in:
+      - 1
+      - 2
+      out:
+      - 3
+    B:
+      in:
+      - 4
+      - 5
+      out:
+      - 6
+    C:
+      in:
+      - 9
+      - 10
+      out:
+      - 8
+    D:
+      in:
+      - 12
+      - 13
+      out:
+      - 11
+  power:
+    VCC: 14
+    GND: 7
+'175':
+  name: SN74175N
+  desc: Quad D Flip-Flop
+  kicad_symbol: 74xx:SN74175N
+  pins: 16
+  gates: 1
+  gate_pins:
+    A:
+      clk:
+      - 9
+      clr:
+      - 1
+      d:
+      - 4
+      - 5
+      - 12
+      - 13
+      q:
+      - 2
+      - 7
+      - 10
+      - 15
+      nq:
+      - 3
+      - 6
+      - 11
+      - 14
+  power:
+    VCC: 16
+    GND: 8
+R:
+  kicad_symbol: Device:R
+  shape: resistor
+C:
+  kicad_symbol: Device:C
+  shape: capacitor

@@ -1,0 +1,168 @@
+import { useEffect, useRef, useState } from 'react';
+import { Stage, Layer, Rect } from 'react-konva';
+import type Konva from 'konva';
+import { useDocStore } from './store.ts';
+import { ImageLayer } from './layers/ImageLayer.tsx';
+import { GateLayer } from './layers/GateLayer.tsx';
+import { PinLayer } from './layers/PinLayer.tsx';
+
+export function Canvas(): JSX.Element {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const stageRef = useRef<Konva.Stage | null>(null);
+  const [size, setSize] = useState({ w: 800, h: 600 });
+  const [view, setView] = useState({ x: 0, y: 0, scale: 1 });
+  const [spaceDown, setSpaceDown] = useState(false);
+  const page = useDocStore((s) => s.page);
+  const route = useDocStore((s) => s.route);
+  const loading = useDocStore((s) => s.loading);
+  const opacity = useDocStore((s) => s.scanOpacity);
+  const setSelected = useDocStore((s) => s.setSelectedGateIdx);
+  const setZoom = useDocStore((s) => s.setZoom);
+  const setOpacity = useDocStore((s) => s.setScanOpacity);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const r = entries[0]?.contentRect;
+      if (r) setSize({ w: r.width, h: r.height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    setZoom(view.scale);
+  }, [view.scale, setZoom]);
+
+  function fitToScreen() {
+    if (!page) return;
+    const [sw, sh] = page.scan_size;
+    const scale = Math.min(size.w / sw, size.h / sh) * 0.95;
+    setView({
+      x: (size.w - sw * scale) / 2,
+      y: (size.h - sh * scale) / 2,
+      scale,
+    });
+  }
+
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+      if (e.code === 'Space') {
+        setSpaceDown(true);
+        e.preventDefault();
+      }
+      if (e.key === '0') fitToScreen();
+      if (e.key === '1') setView({ x: 0, y: 0, scale: 1 });
+      if (e.key === '2') setView({ x: 0, y: 0, scale: 2 });
+      if (e.key === '[') setOpacity(Math.max(0, opacity - 0.1));
+      if (e.key === ']') setOpacity(Math.min(1, opacity + 0.1));
+      if (e.key === '\\') setOpacity(opacity > 0 ? 0 : 0.7);
+      if (e.key === 'Escape') setSelected(null);
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.code === 'Space') setSpaceDown(false);
+    };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, size.w, size.h, opacity]);
+
+  useEffect(() => {
+    if (page) fitToScreen();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page?.page, size.w, size.h]);
+
+  const onWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
+    e.evt.preventDefault();
+    const stage = stageRef.current;
+    if (!stage) return;
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return;
+    const scaleBy = 1.1;
+    const oldScale = view.scale;
+    const dir = e.evt.deltaY > 0 ? 1 / scaleBy : scaleBy;
+    const newScale = Math.max(0.05, Math.min(20, oldScale * dir));
+    const mx = (pointer.x - view.x) / oldScale;
+    const my = (pointer.y - view.y) / oldScale;
+    setView({
+      x: pointer.x - mx * newScale,
+      y: pointer.y - my * newScale,
+      scale: newScale,
+    });
+  };
+
+  const scanUrl =
+    page && route.pkg ? `/files/MJC-400/${route.pkg}/${getScanPath(page, route.pkg)}` : null;
+
+  return (
+    <div ref={containerRef} className="relative flex-1 overflow-hidden bg-bg-main">
+      <Stage
+        ref={stageRef}
+        width={size.w}
+        height={size.h}
+        x={view.x}
+        y={view.y}
+        scaleX={view.scale}
+        scaleY={view.scale}
+        draggable={spaceDown}
+        onDragEnd={(e) => setView({ x: e.target.x(), y: e.target.y(), scale: view.scale })}
+        onWheel={onWheel}
+        onClick={(e) => {
+          if (e.target === e.target.getStage()) setSelected(null);
+        }}
+        style={{ cursor: spaceDown ? 'grab' : 'default' }}
+      >
+        {scanUrl && page && (
+          <ImageLayer
+            src={scanUrl}
+            width={page.scan_size[0]}
+            height={page.scan_size[1]}
+            opacity={opacity}
+          />
+        )}
+        {page && (
+          <>
+            <GateLayer gates={page.gates} />
+            <PinLayer gates={page.gates} />
+            <Layer listening={false}>
+              <Rect
+                x={0}
+                y={0}
+                width={page.scan_size[0]}
+                height={page.scan_size[1]}
+                stroke="#1a7a0a"
+                strokeWidth={1 / view.scale}
+              />
+            </Layer>
+          </>
+        )}
+      </Stage>
+      {!page && !loading && (
+        <div className="absolute inset-0 flex items-center justify-center text-text-dim">
+          {route.mode === 'empty' ? (
+            <span>brak trasy — sproboj #/module/MJC-400</span>
+          ) : (
+            <span>brak danych dla {JSON.stringify(route)}</span>
+          )}
+        </div>
+      )}
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center text-phosphor">
+          ladowanie...
+        </div>
+      )}
+    </div>
+  );
+}
+
+function getScanPath(page: { package: string; page: string }, pkg: string): string {
+  // Page.scan path stored relative to package dir; reconstruct
+  return `scans/${page.page}.jpg`;
+}

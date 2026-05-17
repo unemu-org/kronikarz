@@ -88,14 +88,15 @@ Artefakt: `import { loadPage, validatePage } from '@kronikarz/shared'` działa.
 
 Cel: aplikacja startuje, ładuje przez `fetch` jeden `*.sch.yaml` + skan, rysuje pusty canvas.
 
-- [ ] 3.1 `viewer/vite.config.ts` + plugin React + proxy `/files` → `http://localhost:8080`
-- [ ] 3.2 `viewer/index.html`, `src/main.tsx`, `src/App.tsx`
-- [ ] 3.3 Tailwind config + paleta z `podglad-edytor-spec.md` (zmienne CSS `--phosphor` itd.), font IBM Plex Mono
-- [ ] 3.4 Zustand store `useDocStore` — pola: `project`, `pkg`, `page`, `icMap`, `mode: 'module'|'package'|'page'`, `tool: 'select'|'edit'`
-- [ ] 3.5 Routing przez URL hash: `#/page/<pkg>/<page>`, `#/package/<pkg>`, `#/module` — pozwala deep-linkować
-- [ ] 3.6 Loader: po zmianie route fetch z `/files/...`, parse przez `shared`, zapis do store
-- [ ] 3.7 `Canvas.tsx` — `<Stage>` Konva, scroll-to-zoom, Space+drag pan, klawisze `0/1/2` (fit/100%/200%)
-- [ ] 3.8 Tło canvas + komunikat "brak danych" gdy `page === null`
+- [x] 3.1 `viewer/vite.config.ts` + plugin React + proxy `/files,/list,/health` → `:8080`
+- [x] 3.2 `viewer/index.html`, `src/main.tsx`, `src/App.tsx`
+- [x] 3.3 Tailwind + phosphor palette (`#39ff14`) + IBM Plex Mono z Google Fonts
+- [x] 3.4 Zustand `useDocStore` — `route`, `project`, `pkg`, `page`, `icMap`, `issues`, `tool`, `loading`, `loadError`
+- [x] 3.5 Hash router: `#/module/<proj>`, `#/package/<proj>/<pkg>`, `#/page/<proj>/<pkg>/<page>`
+- [x] 3.6 `useLoader` — fetch + parse (browser-safe `@kronikarz/shared` parse helpers) + walidacja
+- [x] 3.7 `Canvas.tsx` — Konva Stage, wheel zoom (centruje na kursorze), Space+drag pan, `0`/`1`/`2` keys
+- [x] 3.8 Pusty stan + ramka scan bounds gdy `page` załadowany
+- [x] 3.9 Refactor `shared`: split `parse.ts` (browser-safe) vs `io.ts` (node fs) — viewer importuje tylko `parse`/`validate`/`types`
 
 Artefakt: `just dev`, `localhost:5173/#/page/MJC-400/P-X3-2/2-1` → widać pusty stage z zoomem.
 
@@ -105,17 +106,17 @@ Artefakt: `just dev`, `localhost:5173/#/page/MJC-400/P-X3-2/2-1` → widać pust
 
 Cel: `Etap 1` z spec UX — proof of concept że pozycje z YAML siadają na skan.
 
-- [ ] 4.1 `ImageLayer` — `<Image>` Konva ze skanem strony (`pkg.pages[i].scan`), regulowana opacity, suwak w toolbarze (`[`/`]`/`\`)
-- [ ] 4.2 `GateLayer` — prostokąty z `gates[]`:
-  - bramka IC: prostokąt z `ref` (góra) i `ic` (dół) — obrys wg `verified` (zielony/żółty)
-  - rotacja 0/90/180/270 (Konva `rotation`)
-- [ ] 4.3 `PinLayer` — kropki w `pins[].px,py`, numer pinu jako label
-- [ ] 4.4 `LabelLayer` — `label_left`, `label_right` przy bramce
-- [ ] 4.5 `SelectionLayer` — highlight po kliknięciu (niebieski obrys)
-- [ ] 4.6 Panel prawy `SelectionPanel.tsx` — pokazuje dane zaznaczonej bramki: ref/gate/ic/piny/pozycja/verified/note
-- [ ] 4.7 Toolbar: zoom %, opacity, info o pakiecie/stronie
-- [ ] 4.8 Statusbar dolny: strona, pakiet, zoom, opacity, hover-info
-- [ ] 4.9 Hover tooltip nad bramką: ref, gate, ic, piny+nety
+- [x] 4.1 `ImageLayer` — Konva `<Image>` ze skanem, opacity 0-100% (suwak + `[`/`]`/`\`)
+- [x] 4.2 `GateLayer` — prostokąty z `gates[]`, rotacja, obrys wg `verified` (zielony/żółty), klik = select
+- [x] 4.3 `PinLayer` — kropki `pins[].px,py` + numer pinu
+- [x] 4.4 `LabelLayer` — `label_left`/`label_right` zintegrowane z `GateLayer`
+- [x] 4.5 `SelectionLayer` — selectedGateIdx → niebieski obrys (zintegrowane z GateLayer)
+- [x] 4.6 `SelectionPanel.tsx` (prawy) — ref/gate/ic/piny/pozycja/verified/note + walidacja
+- [x] 4.7 `Toolbar.tsx` — moduł/pakiet/strona dropdowny, V/E tool, zoom %, opacity slider
+- [x] 4.8 Statusbar — strona/pakiet/gates/nets/zoom/opacity/issues
+- [x] 4.9 `SidebarLeft.tsx` — lista pakietów + lista stron (nawigacja)
+- [x] 4.10 Stub data: `scripts/gen-stubs.py` → `project.yaml`, `ic_map.yaml`, 12 × `package.yaml`, 155 × `*.sch.yaml`
+- [ ] 4.11 Hover tooltip nad bramką (deferred)
 
 Artefakt: można otworzyć stronę i zobaczyć czy AI dobrze rozmieściła bramki.
 
