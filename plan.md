@@ -24,10 +24,28 @@ Cel: każdy klon repo daje działający shell + workspace.
 - [x] 0.7 Inicjalizacja `git init` + `git lfs install --local`
 - [x] 0.8 `prettier`/`eslint` config (root: `.prettierrc`, `.prettierignore`, `.eslintrc.cjs`)
 - [x] 0.9 `tsconfig.base.json` w root + `tsconfig.json` w `viewer` i `export`
-- [ ] 0.10 Przykładowe dane testowe `data/MJC-400/P-X3-2/` — **user**
+- [x] 0.10 Dane: `data/MJC-400/<pkg>/scans/` — 155 stron z DTR PDF, podzielone na 12 pakietów (P-X3-2, P-M3-2, P-D3-2, P-P3-2, P-R3-2, P-A3-2, I-SK1-1, SM-POSET-1, SM-PKT-1, JPP-16-18, SPP-32-16, PPS-32)
 - [x] 0.11 Smoke test: `nix develop` + `npm install` + `just --list` OK
 
 Artefakt: katalog wchodzi do shella, `just --list` pokazuje taski.
+
+---
+
+## Etap 0.5 — Ekstrakcja i klasyfikacja skanów (zrobione)
+
+Cel: skany z DTR PDF rozdzielone na pakiety zgodnie z `format-spec.md`.
+
+- [x] 0.5.1 `pdfimages -all` → `data/scans-raw/page-NNN.png` (155 stron, lossless z PDF)
+- [x] 0.5.2 `scripts/vision-classify.py` — crop title-block + `claude-opus-4-7` vision API → JSON `{package, page_id, confidence}`
+- [x] 0.5.3 Cache odpowiedzi w `data/.vision-cache/page-NNN.json` (gitignored, odtwarzalne)
+- [x] 0.5.4 Sekwencyjny fill: pojedyncze odstępstwa absorbowane przez sąsiadów (założenie: pakiety w DTR ciągłe)
+- [x] 0.5.5 Konwersja PNG → JPEG q90, kopia do `data/MJC-400/<pkg>/scans/<page-id>.jpg`
+
+Artefakt: 12 pakietów × 6-21 stron, 0 unmatched, każdy plik z page-id z DTR (2-1 ... 2-155).
+
+Odrzucone wcześniejsze podejścia:
+- `tesseract` OCR + regex — zbyt dużo OCR-misreads (P→2, X→13, D→P), wymagało ręcznej normalizacji i tak dawało błędne grupowania
+- `scripts/ocr-split.sh` + `scripts/normalize.py` — usunięte
 
 ---
 
@@ -35,14 +53,15 @@ Artefakt: katalog wchodzi do shella, `just --list` pokazuje taski.
 
 Cel: `GET/PUT /files/*` nad `KRONIKARZ_DATA`. Najprostszy fundament — viewer może działać bez bazy.
 
-- [ ] 1.1 `server/index.js` — Express + CORS, czyta `KRONIKARZ_DATA`, `KRONIKARZ_PORT`
-- [ ] 1.2 `GET /files/*path` — strumieniowo serwuje plik z `KRONIKARZ_DATA`; 404 jeśli brak
-- [ ] 1.3 `PUT /files/*path` — body do pliku; `mkdir -p` parent dir; atomic write (`.tmp` + rename)
-- [ ] 1.4 `GET /list/*path` — listing katalogu (JSON: `{files, dirs}`) — potrzebne do auto-discovery w viewerze
-- [ ] 1.5 Path traversal guard — odrzuć `..`, symlinki poza root, absolute paths
-- [ ] 1.6 Logging: metoda, path, status, bytes
-- [ ] 1.7 `watchexec` w `npm run dev -w server` — restart na zmianę
-- [ ] 1.8 Smoke test ręczny: `http PUT :8080/files/test.txt @data.txt` → odczyt → diff
+- [x] 1.1 `server/index.js` — Express + CORS, czyta `KRONIKARZ_DATA`, `KRONIKARZ_PORT`
+- [x] 1.2 `GET /files/*path` — strumieniowo serwuje plik z `KRONIKARZ_DATA`; 404 jeśli brak
+- [x] 1.3 `PUT /files/*path` — body do pliku; `mkdir -p` parent dir; atomic write (`.tmp` + rename)
+- [x] 1.4 `GET /list/*path` — listing katalogu (JSON: `{files, dirs}`)
+- [x] 1.5 Path traversal guard — odrzuć `..`, ścieżki poza ROOT
+- [x] 1.6 Logging: metoda, URL, status, ms
+- [x] 1.7 `watchexec` w `npm run dev -w server` — restart na zmianę (już w package.json)
+- [x] 1.8 Smoke test: health/list/PUT/GET/DELETE/traversal/404 wszystkie ✓
+- [x] 1.9 Bonus: `DELETE /files/*` + `/health` endpoint
 
 Artefakt: lokalny FS-as-API. Reszta to klient.
 
