@@ -38,12 +38,22 @@ export function ModuleView(): JSX.Element | null {
             {project.backplane.map((s, i) => (
               <tr key={i} className="border-b border-bg-accent">
                 <td className="text-phosphor">{s.signal}</td>
-                <td className="text-text-dim">
-                  {s.from.package}/{s.from.connector_pin}
+                <td>
+                  <button
+                    className="text-text-dim hover:text-phosphor"
+                    onClick={() => navigate({ mode: 'package', pkg: s.from.package })}
+                  >
+                    {s.from.package}/{s.from.connector_pin}
+                  </button>
                 </td>
                 <td>→</td>
-                <td className="text-text-dim">
-                  {s.to.package}/{s.to.connector_pin}
+                <td>
+                  <button
+                    className="text-text-dim hover:text-phosphor"
+                    onClick={() => navigate({ mode: 'package', pkg: s.to.package })}
+                  >
+                    {s.to.package}/{s.to.connector_pin}
+                  </button>
                 </td>
               </tr>
             ))}

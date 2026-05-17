@@ -6,6 +6,7 @@ import { SidebarLeft } from './SidebarLeft.tsx';
 import { SelectionPanel } from './SelectionPanel.tsx';
 import { PackageView } from './PackageView.tsx';
 import { ModuleView } from './ModuleView.tsx';
+import { ValidationPanel } from './ValidationPanel.tsx';
 import { useDocStore } from './store.ts';
 
 export function App(): JSX.Element {
@@ -41,6 +42,7 @@ export function App(): JSX.Element {
           </div>
         )}
       </div>
+      <ValidationPanel />
       <footer className="flex items-center gap-4 border-t border-bg-accent bg-bg-panel px-3 py-1 text-[11px] text-text-dim">
         {page && (
           <span>

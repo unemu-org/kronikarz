@@ -10,7 +10,6 @@ export function SelectionPanel(): JSX.Element | null {
   const icMap = useDocStore((s) => s.icMap);
   const pkg = useDocStore((s) => s.pkg);
   const selection = useDocStore((s) => s.selection);
-  const issues = useDocStore((s) => s.issues);
   const tool = useDocStore((s) => s.tool);
   const editPage = useDocStore((s) => s.editPage);
   const saveStatus = useDocStore((s) => s.saveStatus);
@@ -228,24 +227,6 @@ export function SelectionPanel(): JSX.Element | null {
         </div>
       )}
 
-      <hr className="my-3 border-bg-accent" />
-      <h3 className="text-text-dim">WALIDACJA — {issues.length}</h3>
-      <ul className="space-y-0.5 text-[10px]">
-        {issues.slice(0, 100).map((i, k) => (
-          <li
-            key={k}
-            className={
-              i.level === 'err'
-                ? 'text-error'
-                : i.level === 'warn'
-                  ? 'text-warning'
-                  : 'text-text-dim'
-            }
-          >
-            <span className="font-bold">{i.level.toUpperCase()}</span> {i.code}: {i.message}
-          </li>
-        ))}
-      </ul>
     </aside>
   );
 }

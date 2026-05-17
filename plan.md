@@ -210,14 +210,12 @@ Artefakt: można narysować schemat od zera, nie tylko poprawiać AI.
 
 Cel: spec `Etap 6`.
 
-- [ ] 10.1 Loader `project.yaml` (`#/module`)
-- [ ] 10.2 Layout tryb Modułu: lewy panel pakietów, prawy backplane signals
-- [ ] 10.3 Klik backplane signal → przejście do strony pakietu ze złączem `connector_pin`
-- [ ] 10.4 Panel walidacji dolny prawy (zawsze widoczny): agregat `Issue[]` z `validatePage/Package/Project`
-  - kategorie: ERR (referencje), WARN (wiszące nety, niezmapowane bramki), INFO (unverified, brak segmentów)
-  - klik w issue → nawigacja + zaznaczenie obiektu
-- [ ] 10.5 Liczniki bramek w panelu lewym pakietu — re-calculated po zmianach
-- [ ] 10.6 Cross-package linki przez backplane (kolejna warstwa cross-page — między pakietami)
+- [x] 10.1 Loader `project.yaml` (Etap 3)
+- [x] 10.2 `ModuleView` — pakiety + backplane (Etap 7)
+- [x] 10.3 Klik backplane signal → nawigacja do pakietu źródłowego lub docelowego
+- [x] 10.4 `ValidationPanel` zawsze widoczny dolny, agregat `Issue[]`, klik issue → bramka/net/pakiet
+- [x] 10.5 Liczniki bramek `mapped/total` w `PackageView` — re-calculate przy każdym renderze ze store
+- [ ] 10.6 Cross-package linki przez backplane w `CrossPageLayer` (deferred — wymaga lookup w project.yaml po connector_pin)
 
 Artefakt: widok całego modułu, pełna walidacja.
 
