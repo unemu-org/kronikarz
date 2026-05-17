@@ -3,16 +3,8 @@ import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {
-  loadProject,
-  loadPackage,
-  loadPage,
-  writeProject,
-  writePackage,
-  writePage,
-  pinId,
-  parsePinId,
-} from './io.ts';
+import { loadProject, loadPackage, loadPage, writeProject, writePackage, writePage } from './io.ts';
+import { pinId, parsePinId } from './parse.ts';
 import { validatePage, validatePackage, validateProject } from './validate.ts';
 import type { Project, Package, Page, IcMap } from './types.ts';
 

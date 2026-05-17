@@ -1,5 +1,5 @@
 import type { Project, Package, Page, IcMap, IcComponent, Component } from './types.ts';
-import { parsePinId } from './io.ts';
+import { parsePinId } from './parse.ts';
 
 export type IssueLevel = 'err' | 'warn' | 'info';
 
