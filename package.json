@@ -2,6 +2,7 @@
   "name": "kronikarz",
   "private": true,
   "workspaces": [
+    "shared",
     "viewer",
     "server",
     "export"

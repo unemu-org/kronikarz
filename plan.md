@@ -71,17 +71,14 @@ Artefakt: lokalny FS-as-API. Reszta to klient.
 
 Cel: jeden zestaw typów TS i loaderów używany przez viewer i export.
 
-- [ ] 2.1 Katalog `shared/` jako workspace (`@kronikarz/shared`) z `tsconfig` i `index.ts`
-- [ ] 2.2 Typy TS dla `project.yaml`, `package.yaml`, `*.sch.yaml`, `ic_map.yaml` (1:1 z `format-spec.md`)
-- [ ] 2.3 Loadery: `loadProject(path)`, `loadPackage(path)`, `loadPage(path)`, `loadIcMap(path)`
-  - parsują `js-yaml`, walidują wersję `kronikarz: "1"`, zwracają sparsowany obiekt + ścieżki względne rozwiązane
-- [ ] 2.4 Writery: `writePage(path, page)` etc. — używają `js-yaml.dump` z opcją zachowania kolejności kluczy + stabilny styl (cytowanie etykiet jak `"-K1"`, `"+WP"`)
-- [ ] 2.5 Helper `pinId(ref, gate, num) → "REF.GATE.NUM"` + parser odwrotny
-- [ ] 2.6 Walidatory (czysto strukturalne, nie business-logic):
-  - `validatePage(page, pkg, icMap) → Issue[]` — referencje gate'ów istnieją w `package.yaml`; piny w `ic_map`; nety mają ≥1 pin
-  - `validatePackage(pkg, projectIcMap) → Issue[]` — bramki przypisane do istniejących stron; sufiks IC w `ic_map`
-  - `validateProject(proj) → Issue[]` — backplane refs do istniejących pakietów
-- [ ] 2.7 `Issue = { level: 'err'|'warn'|'info', code, message, ref? }` — kod używany przez UI i CLI
+- [x] 2.1 Katalog `shared/` jako workspace (`@kronikarz/shared`) z `tsconfig` i `index.ts`
+- [x] 2.2 Typy TS dla `project.yaml`, `package.yaml`, `*.sch.yaml`, `ic_map.yaml` (1:1 z `format-spec.md`)
+- [x] 2.3 Loadery: `loadProject/Package/Page/IcMap` — `js-yaml`, walidacja `kronikarz: "1"`
+- [x] 2.4 Writery: `writeProject/Package/Page/IcMap` — atomic (tmp + rename), cytowanie `"-K1"`/`"+WP"`
+- [x] 2.5 Helper `pinId(ref, gate, num)` + `parsePinId` (passive: `REF.NUM`, IC: `REF.GATE.NUM`)
+- [x] 2.6 Walidatory `validatePage/Package/Project` → `Issue[]`
+- [x] 2.7 `Issue = { level, code, message, ref? }` z kodami: `NET_FLOATING`, `IC_UNKNOWN_SUFFIX`, `GATE_PAGE_UNKNOWN`, `BACKPLANE_UNKNOWN_PACKAGE`, etc.
+- [x] 2.8 Testy: `src/io.test.ts` — 8 przypadków, round-trip + walidacja
 
 Artefakt: `import { loadPage, validatePage } from '@kronikarz/shared'` działa.
 
