@@ -1,0 +1,22 @@
+{
+  "name": "kronikarz",
+  "private": true,
+  "workspaces": [
+    "viewer",
+    "server",
+    "export"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w viewer\" \"npm run dev -w server\"",
+    "build": "npm run build -w viewer",
+    "lint": "eslint viewer/src server/src export/src",
+    "fmt": "prettier --write \"**/*.{ts,tsx,js,json,yaml,md}\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.0.0",
+    "prettier": "^3.0.0",
+    "eslint": "^8.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0"
+  }
+}

@@ -1,0 +1,142 @@
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.app2{font-family:'IBM Plex Mono',monospace;font-size:12px;background:#0d1117;color:#c9d1d9;border:0.5px solid #30363d;border-radius:8px;overflow:hidden;height:420px;display:grid;grid-template-rows:36px 1fr 22px}
+.tb2{background:#161b22;border-bottom:0.5px solid #30363d;display:flex;align-items:center;gap:8px;padding:0 10px;font-size:11px}
+.tb2-link{color:#39ff14;cursor:pointer}
+.tb2-link:hover{text-decoration:underline}
+.tb2-sep{color:#30363d;margin:0 2px}
+.tb2-cur{color:#c9d1d9}
+.main2{display:grid;grid-template-columns:160px 1fr 180px;overflow:hidden}
+.p2-left{background:#161b22;border-right:0.5px solid #30363d;overflow-y:auto;padding:8px 0}
+.p2-center{background:#0d1117;padding:10px;display:flex;flex-direction:column;gap:8px}
+.p2-right{background:#161b22;border-left:0.5px solid #30363d;padding:8px}
+.sec{color:#39ff14;font-size:10px;padding:6px 10px 4px;border-bottom:0.5px solid #21262d;letter-spacing:0.05em}
+.pg{padding:4px 10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;gap:6px}
+.pg:hover{background:#1c2333}
+.pg.active{background:#1c2333;border-left:2px solid #39ff14}
+.pg-id{color:#c9d1d9;font-size:11px}
+.pg-st{font-size:10px;padding:1px 5px;border-radius:3px}
+.st-done{background:#4CAF5022;color:#4CAF50;border:0.5px solid #4CAF5044}
+.st-wip{background:#FFC10722;color:#FFC107;border:0.5px solid #FFC10744}
+.st-raw{background:#30363d;color:#8b949e;border:0.5px solid #30363d}
+.tab-row{display:flex;gap:4px}
+.tab{background:#1c2333;border:0.5px solid #30363d;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;color:#8b949e;font-family:'IBM Plex Mono',monospace}
+.tab.active{background:#39ff1422;border-color:#39ff14;color:#39ff14}
+.preview{background:#0a0f15;border:0.5px solid #21262d;border-radius:6px;flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.prev-grid{position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 20px,#1a2a1a 20px,#1a2a1a 21px),repeating-linear-gradient(90deg,transparent,transparent 20px,#1a2a1a 20px,#1a2a1a 21px);opacity:0.3}
+.prev-gate{position:absolute;border:1px solid #FFC107;border-radius:2px;background:#FFC10708;display:flex;align-items:center;justify-content:center;font-size:8px;color:#c9d1d9}
+.prev-gate.v{border-color:#4CAF50;background:#4CAF5008}
+.prev-line{position:absolute;background:#FF980055}
+.prev-label{position:absolute;bottom:8px;right:10px;font-size:9px;color:#39ff1444}
+.ic-row{padding:3px 8px;display:flex;align-items:center;gap:6px;cursor:pointer;font-size:10px}
+.ic-row:hover{background:#1c2333}
+.ic-ref2{color:#c9d1d9;min-width:28px;font-weight:500}
+.ic-code2{color:#39ff14;min-width:20px}
+.ic-cnt{font-size:10px;color:#8b949e}
+.ic-ok{color:#4CAF50;font-size:10px}
+.ic-err{color:#F44336;font-size:10px}
+.bom-card{background:#1c2333;border:0.5px solid #30363d;border-radius:6px;padding:8px;margin-top:8px}
+.bom-title{color:#39ff14;font-size:10px;margin-bottom:6px}
+.bom-row{display:flex;justify-content:space-between;font-size:10px;padding:2px 0;color:#8b949e}
+.bom-val{color:#c9d1d9}
+.exp-btn{width:100%;background:#39ff1422;border:0.5px solid #39ff1444;border-radius:4px;padding:4px;color:#39ff14;font-family:'IBM Plex Mono',monospace;font-size:10px;cursor:pointer;margin-top:8px}
+.exp-btn:hover{background:#39ff1433}
+.sb2{background:#161b22;border-top:0.5px solid #30363d;display:flex;align-items:center;padding:0 10px;gap:12px;font-size:10px;color:#8b949e}
+</style>
+
+<div class="app2">
+  <div class="tb2">
+    <span class="tb2-link">☰ MJC-400</span>
+    <span class="tb2-sep">/</span>
+    <span class="tb2-cur">P-X3-2 — Pakiet sterowania X</span>
+  </div>
+
+  <div class="main2">
+    <div class="p2-left">
+      <div class="sec">STRONY</div>
+      <div class="pg active"><span class="pg-id">2-1</span><span class="pg-st st-wip">wip</span></div>
+      <div class="pg"><span class="pg-id">2-5</span><span class="pg-st st-raw">raw</span></div>
+      <div class="pg"><span class="pg-id">2-15</span><span class="pg-st st-raw">raw</span></div>
+      <div class="pg"><span class="pg-id">2-40</span><span class="pg-st st-raw">raw</span></div>
+      <div class="pg"><span class="pg-id">2-55</span><span class="pg-st st-raw">raw</span></div>
+      <div class="pg"><span class="pg-id">2-70</span><span class="pg-st st-raw">raw</span></div>
+    </div>
+
+    <div class="p2-center">
+      <div class="tab-row">
+        <button class="tab active">Schemat</button>
+        <button class="tab">PCB Front</button>
+        <button class="tab">PCB Back</button>
+      </div>
+      <div class="preview">
+        <div class="prev-grid"></div>
+        <div class="prev-gate" style="left:80px;top:40px;width:36px;height:24px">M5</div>
+        <div class="prev-gate" style="left:80px;top:70px;width:36px;height:24px">M5</div>
+        <div class="prev-gate v" style="left:160px;top:40px;width:36px;height:24px">M8</div>
+        <div class="prev-gate" style="left:160px;top:100px;width:36px;height:40px">M34</div>
+        <div class="prev-gate" style="left:80px;top:130px;width:36px;height:24px">M8</div>
+        <div class="prev-gate" style="left:80px;top:160px;width:36px;height:24px">M8</div>
+        <div class="prev-line" style="left:116px;top:52px;width:44px;height:1.5px"></div>
+        <div class="prev-line" style="left:116px;top:82px;width:44px;height:1.5px"></div>
+        <div class="prev-line" style="left:60px;top:52px;width:20px;height:1.5px"></div>
+        <div class="prev-line" style="left:60px;top:52px;width:1.5px;height:30px"></div>
+        <div class="prev-line" style="left:60px;top:82px;width:20px;height:1.5px"></div>
+        <div class="prev-label">2-1 / P-X3-2</div>
+      </div>
+    </div>
+
+    <div class="p2-right">
+      <div class="sec">REJESTR IC</div>
+      <div class="ic-row">
+        <span class="ic-ref2">M5</span>
+        <span class="ic-code2">04</span>
+        <span class="ic-cnt">6/6</span>
+        <span class="ic-ok">✓</span>
+      </div>
+      <div class="ic-row" style="background:#F4433608">
+        <span class="ic-ref2">M8</span>
+        <span class="ic-code2">00</span>
+        <span class="ic-cnt">3/4</span>
+        <span class="ic-err">!</span>
+      </div>
+      <div class="ic-row">
+        <span class="ic-ref2">M34</span>
+        <span class="ic-code2">175</span>
+        <span class="ic-cnt">1/1</span>
+        <span class="ic-ok">✓</span>
+      </div>
+      <div class="ic-row">
+        <span class="ic-ref2">M93</span>
+        <span class="ic-code2">H06</span>
+        <span class="ic-cnt">2/2</span>
+        <span class="ic-ok">✓</span>
+      </div>
+      <div class="ic-row">
+        <span class="ic-ref2">R1</span>
+        <span class="ic-code2">—</span>
+        <span class="ic-cnt">—</span>
+        <span class="ic-ok">✓</span>
+      </div>
+
+      <div class="bom-card">
+        <div class="bom-title">BOM — P-X3-2</div>
+        <div class="bom-row"><span>SN7404N</span><span class="bom-val">6x</span></div>
+        <div class="bom-row"><span>SN7400N</span><span class="bom-val">4x</span></div>
+        <div class="bom-row"><span>SN74175N</span><span class="bom-val">1x</span></div>
+        <div class="bom-row"><span>SN74H106N</span><span class="bom-val">2x</span></div>
+        <div class="bom-row"><span>Rezystory</span><span class="bom-val">3x</span></div>
+        <button class="exp-btn">Eksportuj KiCad →</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sb2">
+    <span>pakiet: P-X3-2</span>
+    <span style="color:#30363d">|</span>
+    <span>1/6 stron wip</span>
+    <span style="color:#30363d">|</span>
+    <span style="color:#F44336">1 błąd</span>
+    <span style="color:#30363d">|</span>
+    <span>IC: 16 łącznie</span>
+  </div>
+</div>

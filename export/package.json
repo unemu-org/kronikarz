@@ -1,0 +1,20 @@
+{
+  "name": "@kronikarz/export",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "kronikarz-export": "./index.js"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "js-yaml": "^4.0.0",
+    "commander": "^11.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/js-yaml": "^4.0.0",
+    "@types/node": "^20.0.0"
+  }
+}

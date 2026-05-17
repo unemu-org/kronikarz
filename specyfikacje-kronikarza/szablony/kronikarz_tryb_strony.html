@@ -1,0 +1,305 @@
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Mono',monospace;font-size:12px;background:#0d1117;color:#c9d1d9}
+.app{display:grid;grid-template-rows:36px 1fr 22px;height:580px;border:0.5px solid #30363d;border-radius:8px;overflow:hidden}
+.toolbar{background:#161b22;border-bottom:0.5px solid #30363d;display:flex;align-items:center;gap:6px;padding:0 10px}
+.tb-sep{width:0.5px;height:18px;background:#30363d;margin:0 4px}
+.tb-btn{background:#1c2333;border:0.5px solid #30363d;border-radius:4px;padding:2px 8px;color:#c9d1d9;font-family:inherit;font-size:11px;cursor:pointer;white-space:nowrap}
+.tb-btn.active{background:#39ff1422;border-color:#39ff14;color:#39ff14}
+.tb-select{background:#1c2333;border:0.5px solid #30363d;border-radius:4px;padding:2px 6px;color:#c9d1d9;font-family:inherit;font-size:11px}
+.tb-label{color:#8b949e;font-size:11px}
+.opacity-wrap{display:flex;align-items:center;gap:6px;margin-left:auto}
+.opacity-bar{width:80px;height:6px;border-radius:3px;background:linear-gradient(to right,#30363d,#c9d1d9);position:relative}
+.opacity-thumb{position:absolute;left:48px;top:-3px;width:12px;height:12px;border-radius:50%;background:#39ff14;border:2px solid #0d1117}
+.main{display:grid;grid-template-columns:160px 1fr 200px;overflow:hidden}
+.panel-left{background:#161b22;border-right:0.5px solid #30363d;overflow-y:auto;padding:8px 0}
+.panel-right{background:#161b22;border-left:0.5px solid #30363d;overflow-y:auto;padding:8px}
+.canvas-area{background:#0d1117;position:relative;overflow:hidden}
+.section-label{color:#39ff14;font-size:10px;padding:6px 10px 4px;letter-spacing:0.05em;border-bottom:0.5px solid #21262d}
+.page-item{padding:4px 10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}
+.page-item.active{background:#1c2333;border-left:2px solid #39ff14}
+.page-item:hover{background:#1c2333}
+.page-name{color:#c9d1d9;font-size:11px}
+.page-status{font-size:10px;padding:1px 5px;border-radius:3px}
+.s-done{background:#4CAF5022;color:#4CAF50;border:0.5px solid #4CAF5044}
+.s-wip{background:#FFC10722;color:#FFC107;border:0.5px solid #FFC10744}
+.s-raw{background:#30363d;color:#8b949e;border:0.5px solid #30363d}
+.ic-item{padding:3px 10px;display:flex;align-items:center;gap:6px;cursor:pointer}
+.ic-item:hover{background:#1c2333}
+.ic-ref{color:#c9d1d9;font-size:11px;min-width:28px}
+.ic-code{color:#8b949e;font-size:10px;min-width:20px}
+.ic-name{color:#8b949e;font-size:10px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ic-count{font-size:10px;color:#8b949e}
+.ic-warn{color:#F44336;font-size:10px}
+.canvas-scan{position:absolute;inset:10px;border:0.5px solid #21262d;border-radius:4px;background:#0a0f15;overflow:hidden}
+.scan-img{position:absolute;inset:0;opacity:0.45;background:repeating-linear-gradient(0deg,transparent,transparent 18px,#1a2a1a 18px,#1a2a1a 19px),repeating-linear-gradient(90deg,transparent,transparent 18px,#1a2a1a 18px,#1a2a1a 19px)}
+.gate{position:absolute;border:1.5px solid #FFC107;background:#FFC10708;border-radius:3px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-size:9px}
+.gate.selected{border-color:#2196F3;background:#2196F310}
+.gate.verified{border-color:#4CAF50;background:#4CAF5008}
+.gate-ref{color:#c9d1d9;font-weight:500;font-size:9px}
+.gate-ic{color:#39ff14;font-size:8px}
+.net-line{position:absolute;background:#FF980066;pointer-events:none}
+.net-line.h{height:1.5px}
+.net-line.v{width:1.5px}
+.cross-arrow{position:absolute;font-size:9px;color:#8b949e;background:#0d1117;padding:1px 4px;border:0.5px solid #30363d;border-radius:2px;cursor:pointer;white-space:nowrap}
+.cross-arrow:hover{color:#39ff14;border-color:#39ff14}
+.pwr-sym{position:absolute;font-size:9px;color:#8b949e;text-align:center}
+.detail-card{background:#1c2333;border:0.5px solid #30363d;border-radius:6px;padding:8px;margin-bottom:8px}
+.detail-title{color:#39ff14;font-size:11px;font-weight:500;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between}
+.detail-sub{color:#8b949e;font-size:10px;margin-bottom:8px}
+.detail-row{display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-size:10px}
+.detail-key{color:#8b949e}
+.detail-val{color:#c9d1d9}
+.detail-val.net{color:#FF9800}
+.detail-val.cross{color:#2196F3;cursor:pointer}
+.detail-val.cross:hover{text-decoration:underline}
+.pin-row{display:flex;align-items:center;gap:6px;padding:2px 0;font-size:10px}
+.pin-num{color:#39ff14;min-width:14px}
+.pin-dir{color:#30363d;font-size:9px}
+.pin-net{color:#FF9800}
+.pin-cross{color:#2196F3;font-size:9px}
+.btn-small{background:#1c2333;border:0.5px solid #30363d;border-radius:3px;padding:2px 8px;color:#c9d1d9;font-family:inherit;font-size:10px;cursor:pointer;margin-top:4px;width:100%}
+.btn-small:hover{border-color:#39ff14;color:#39ff14}
+.btn-verified{background:#4CAF5022;border-color:#4CAF5044;color:#4CAF50}
+.gate-list{margin-top:6px}
+.gate-row{display:flex;align-items:center;gap:6px;padding:2px 0;font-size:10px}
+.gate-letter{color:#39ff14;min-width:12px}
+.gate-page{color:#8b949e;flex:1}
+.gate-link{color:#2196F3;cursor:pointer;font-size:9px}
+.gate-link:hover{text-decoration:underline}
+.val-item{padding:3px 0;font-size:10px;display:flex;align-items:flex-start;gap:6px}
+.val-err{color:#F44336}
+.val-warn{color:#FFC107}
+.val-info{color:#8b949e}
+.val-icon{min-width:14px;font-size:10px}
+.statusbar{background:#161b22;border-top:0.5px solid #30363d;display:flex;align-items:center;padding:0 10px;gap:12px;font-size:10px;color:#8b949e}
+.sb-seg{display:flex;align-items:center;gap:4px}
+.sb-val{color:#c9d1d9}
+.sb-sep{color:#30363d}
+.sb-active{color:#39ff14}
+.junc{position:absolute;width:5px;height:5px;border-radius:50%;background:#c9d1d9}
+.pin-dot{position:absolute;width:3px;height:3px;border-radius:50%;background:#FFC107}
+</style>
+
+<div class="app">
+  <div class="toolbar">
+    <span class="tb-label">KRONIKARZ</span>
+    <div class="tb-sep"></div>
+    <select class="tb-select"><option>MJC-400</option></select>
+    <select class="tb-select"><option>P-X3-2</option></select>
+    <select class="tb-select"><option>2-1</option></select>
+    <div class="tb-sep"></div>
+    <button class="tb-btn active">V Zaznacz</button>
+    <button class="tb-btn">E Edytuj</button>
+    <div class="tb-sep"></div>
+    <span class="tb-label">100%</span>
+    <div class="opacity-wrap">
+      <span class="tb-label">Opacity</span>
+      <div class="opacity-bar"><div class="opacity-thumb"></div></div>
+      <span class="tb-label">45%</span>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="panel-left">
+      <div class="section-label">STRONY</div>
+      <div class="page-item active">
+        <span class="page-name">2-1</span>
+        <span class="page-status s-wip">wip</span>
+      </div>
+      <div class="page-item">
+        <span class="page-name">2-5</span>
+        <span class="page-status s-raw">raw</span>
+      </div>
+      <div class="page-item">
+        <span class="page-name">2-15</span>
+        <span class="page-status s-raw">raw</span>
+      </div>
+      <div class="page-item">
+        <span class="page-name">2-40</span>
+        <span class="page-status s-raw">raw</span>
+      </div>
+
+      <div class="section-label" style="margin-top:8px">IC W PAKIECIE</div>
+      <div class="ic-item">
+        <span class="ic-ref">M5</span>
+        <span class="ic-code">04</span>
+        <span class="ic-name">SN7404N</span>
+        <span class="ic-count">6/6</span>
+      </div>
+      <div class="ic-item" style="background:#F4433608">
+        <span class="ic-ref">M8</span>
+        <span class="ic-code">00</span>
+        <span class="ic-name">SN7400N</span>
+        <span class="ic-warn">3/4!</span>
+      </div>
+      <div class="ic-item">
+        <span class="ic-ref">M34</span>
+        <span class="ic-code">175</span>
+        <span class="ic-name">SN74175N</span>
+        <span class="ic-count">1/1</span>
+      </div>
+      <div class="ic-item">
+        <span class="ic-ref">M93</span>
+        <span class="ic-code">H06</span>
+        <span class="ic-name">SN74H106</span>
+        <span class="ic-count">2/2</span>
+      </div>
+      <div class="ic-item">
+        <span class="ic-ref">R1</span>
+        <span class="ic-code">—</span>
+        <span class="ic-name">1k</span>
+        <span class="ic-count">—</span>
+      </div>
+    </div>
+
+    <div class="canvas-area">
+      <div class="canvas-scan">
+        <div class="scan-img"></div>
+
+        <div class="net-line h" style="left:60px;top:72px;width:120px"></div>
+        <div class="net-line h" style="left:60px;top:108px;width:80px"></div>
+        <div class="net-line v" style="left:60px;top:72px;height:36px"></div>
+        <div class="net-line h" style="left:180px;top:72px;width:60px"></div>
+        <div class="net-line h" style="left:180px;top:136px;width:100px"></div>
+        <div class="net-line v" style="left:180px;top:72px;height:64px"></div>
+        <div class="net-line h" style="left:140px;top:200px;width:90px"></div>
+        <div class="net-line h" style="left:140px;top:235px;width:90px"></div>
+        <div class="junc" style="left:58px;top:70px"></div>
+        <div class="junc" style="left:178px;top:134px"></div>
+
+        <div class="gate selected" style="left:130px;top:58px;width:44px;height:30px">
+          <span class="gate-ref">M5</span>
+          <span class="gate-ic">04</span>
+        </div>
+        <div class="gate" style="left:130px;top:94px;width:44px;height:30px">
+          <span class="gate-ref">M5</span>
+          <span class="gate-ic">04</span>
+        </div>
+        <div class="gate verified" style="left:240px;top:58px;width:44px;height:30px">
+          <span class="gate-ref">M8</span>
+          <span class="gate-ic">00</span>
+        </div>
+        <div class="gate" style="left:240px;top:120px;width:44px;height:52px">
+          <span class="gate-ref">M34</span>
+          <span class="gate-ic">175</span>
+        </div>
+        <div class="gate" style="left:130px;top:185px;width:44px;height:30px">
+          <span class="gate-ref">M8</span>
+          <span class="gate-ic">00</span>
+        </div>
+        <div class="gate" style="left:130px;top:220px;width:44px;height:30px">
+          <span class="gate-ref">M8</span>
+          <span class="gate-ic">00</span>
+        </div>
+
+        <div class="cross-arrow" style="right:8px;top:70px">&lt; A23 &gt;</div>
+        <div class="cross-arrow" style="right:8px;top:106px">&lt; B21 &gt;</div>
+        <div class="cross-arrow" style="right:8px;top:196px">&lt; A42 &gt;</div>
+        <div class="cross-arrow" style="right:8px;top:228px">&lt; B43 &gt;</div>
+
+        <div class="pwr-sym" style="left:20px;top:15px">+5V<br>↑</div>
+        <div class="pwr-sym" style="left:20px;top:260px">⊥<br>GND</div>
+
+        <div style="position:absolute;bottom:6px;right:8px;font-size:9px;color:#39ff1455">KRONIKARZ — P-X3-2 / 2-1</div>
+      </div>
+    </div>
+
+    <div class="panel-right">
+      <div class="detail-card">
+        <div class="detail-title">
+          <span>M5 — gate A</span>
+          <span style="font-size:9px;color:#FFC107">unverified</span>
+        </div>
+        <div class="detail-sub">SN7404N — Hex Inverter</div>
+        <div class="detail-row">
+          <span class="detail-key">pozycja</span>
+          <span class="detail-val">340, 120</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-key">rotacja</span>
+          <span class="detail-val">0°</span>
+        </div>
+        <div style="margin-top:8px;margin-bottom:4px;font-size:10px;color:#8b949e">Piny:</div>
+        <div class="pin-row">
+          <span class="pin-num">1</span>
+          <span class="pin-dir">in</span>
+          <span class="pin-net">NET_BUS_13</span>
+        </div>
+        <div class="pin-row">
+          <span class="pin-num">2</span>
+          <span class="pin-dir">out</span>
+          <span class="pin-net">-K1</span>
+          <span class="pin-cross">→ A23</span>
+        </div>
+        <button class="btn-small" style="margin-top:8px">Oznacz jako verified</button>
+        <button class="btn-small" style="margin-top:4px">Dodaj notatkę</button>
+      </div>
+
+      <div class="detail-card">
+        <div class="detail-title">Inne bramki M5</div>
+        <div class="gate-list">
+          <div class="gate-row">
+            <span class="gate-letter">A</span>
+            <span class="gate-page">2-1 (ta strona)</span>
+          </div>
+          <div class="gate-row">
+            <span class="gate-letter">B</span>
+            <span class="gate-page">2-1</span>
+          </div>
+          <div class="gate-row">
+            <span class="gate-letter">C</span>
+            <span class="gate-page">2-5</span>
+            <span class="gate-link">→</span>
+          </div>
+          <div class="gate-row">
+            <span class="gate-letter">D</span>
+            <span class="gate-page">2-5</span>
+            <span class="gate-link">→</span>
+          </div>
+          <div class="gate-row">
+            <span class="gate-letter">E</span>
+            <span class="gate-page">2-15</span>
+            <span class="gate-link">→</span>
+          </div>
+          <div class="gate-row">
+            <span class="gate-letter">F</span>
+            <span class="gate-page" style="color:#30363d">nieużywana</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-card">
+        <div class="detail-title" style="color:#FFC107">Walidacja</div>
+        <div class="val-item">
+          <span class="val-icon val-err">ERR</span>
+          <span class="val-err">M8.D nie zmapowana</span>
+        </div>
+        <div class="val-item">
+          <span class="val-icon val-warn">WRN</span>
+          <span class="val-warn">NET_BUS_9: 1 pin</span>
+        </div>
+        <div class="val-item">
+          <span class="val-icon val-info">INF</span>
+          <span class="val-info">8 netów bez segmentów</span>
+        </div>
+        <div class="val-item">
+          <span class="val-icon val-info">INF</span>
+          <span class="val-info">4 bramki unverified</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <div class="sb-seg"><span>strona:</span><span class="sb-val">2-1</span></div>
+    <span class="sb-sep">|</span>
+    <div class="sb-seg"><span>pakiet:</span><span class="sb-val">P-X3-2</span></div>
+    <span class="sb-sep">|</span>
+    <div class="sb-seg"><span>zoom:</span><span class="sb-val">100%</span></div>
+    <span class="sb-sep">|</span>
+    <div class="sb-seg"><span>opacity:</span><span class="sb-val">45%</span></div>
+    <span class="sb-sep">|</span>
+    <span class="sb-active">M5.A — SN7404N — gate A — pin 1: NET_BUS_13</span>
+  </div>
+</div>

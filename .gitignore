@@ -1,0 +1,20 @@
+# Nix
+.direnv/
+result
+
+# Node
+node_modules/
+dist/
+.parcel-cache/
+
+# Lokalne
+.env
+*.local
+
+# KiCad output
+dist/kicad/
+
+# Cache klasyfikacji vision — odtwarzalne z PDF + API
+data/.vision-cache/
+data/.ocr-cache/
+data/unmatched/
