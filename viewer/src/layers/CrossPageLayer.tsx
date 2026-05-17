@@ -1,5 +1,7 @@
-import { Layer, Line, Text, Group } from 'react-konva';
+import { Layer, Line, Text, Group, Rect } from 'react-konva';
 import type { Page } from '@kronikarz/shared';
+import { useDocStore } from '../store.ts';
+import { navigate } from '../router.ts';
 
 interface Props {
   page: Page;
@@ -7,11 +9,13 @@ interface Props {
 }
 
 // Cross-page arrows at pins with a `cross` reference.
-// Triangle pointing away from gate + label.
+// Triangle pointing away from gate + label. Click → navigate if target
+// page exists in current package.
 export function CrossPageLayer({ page, zoom }: Props): JSX.Element {
+  const pkg = useDocStore((s) => s.pkg);
   const w = 1.5 / zoom;
   return (
-    <Layer listening={false}>
+    <Layer>
       {page.gates.flatMap((g, gi) =>
         g.pins
           .filter((p) => p.cross)
@@ -21,12 +25,30 @@ export function CrossPageLayer({ page, zoom }: Props): JSX.Element {
             const size = 8;
             const tx = p.px + dir * size * 2;
             const ty = p.py + dy * size * 2;
+            const cross = p.cross!;
+            const targetPage = pkg?.package.pages.find((pg) => pg.id === cross.page);
+            const clickable = !!targetPage;
+            const onClick = () => {
+              if (targetPage && pkg) {
+                navigate({ mode: 'page', pkg: pkg.package.id, page: targetPage.id });
+              }
+            };
             return (
-              <Group key={`${gi}-${p.num}`}>
+              <Group
+                key={`${gi}-${p.num}`}
+                onClick={(e) => {
+                  if (clickable) {
+                    e.cancelBubble = true;
+                    onClick();
+                  }
+                }}
+                onTap={() => clickable && onClick()}
+              >
                 <Line
                   points={[p.px, p.py, tx, ty]}
                   stroke="#FFC107"
                   strokeWidth={w}
+                  listening={false}
                 />
                 <Line
                   points={[
@@ -41,16 +63,25 @@ export function CrossPageLayer({ page, zoom }: Props): JSX.Element {
                   ]}
                   closed
                   stroke="#FFC107"
-                  fill="#FFC10733"
+                  fill={clickable ? '#FFC10788' : '#FFC10733'}
                   strokeWidth={w}
                 />
                 <Text
                   x={tx + dir * 4 - (dir === -1 ? 30 : 0)}
                   y={ty - 5}
-                  text={`<${p.cross!.page}>`}
+                  text={`<${cross.page}>`}
                   fontSize={10}
                   fontFamily="IBM Plex Mono"
-                  fill="#FFC107"
+                  fill={clickable ? '#39ff14' : '#FFC107'}
+                  listening={false}
+                />
+                {/* Bigger hit area */}
+                <Rect
+                  x={Math.min(tx, tx - dir * size) - 4}
+                  y={ty - 10}
+                  width={Math.abs(size) + 40}
+                  height={20}
+                  fill="transparent"
                 />
               </Group>
             );

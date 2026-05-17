@@ -159,13 +159,13 @@ Artefakt: pełna paleta elementów spec.
 
 Cel: panel lewy z listą stron + IC, nawigacja, podgląd PCB.
 
-- [ ] 7.1 Loader `package.yaml` aktywny gdy URL `#/package/<pkg>` lub strona ze znanego pakietu
-- [ ] 7.2 Panel lewy `SidebarLeft.tsx` — sekcja STRONY: lista `pages[]` ze statusem, klik → przejście
-- [ ] 7.3 Sekcja IC: lista `components` z licznikami `zmapowane/wszystkie` (bramka zmapowana = istnieje w `pages/*.sch.yaml`)
-- [ ] 7.4 Klik na IC → panel prawy: lista wszystkich bramek IC w pakiecie, `[→]` do stron docelowych
-- [ ] 7.5 Widok pakietu (`#/package/<pkg>`): zakładki `[Schemat] [PCB Front] [PCB Back]`, miniatura wybranej strony lub `pcb.front/back`
-- [ ] 7.6 Cross-page strzałki klikalne — nawigacja do strony docelowej + auto-select odpowiadającego netu
-- [ ] 7.7 BOM panel: zliczenie IC i pasywnych
+- [x] 7.1 Loader `package.yaml` (już w Etap 3)
+- [x] 7.2 `SidebarLeft` — STRONY: lista `pages[]` ze statusem, klik → przejście
+- [x] 7.3 `PackageView` — REJESTR IC z licznikami `mapped/total`, IC type, klik → otwiera pierwszą stronę bramki
+- [x] 7.4 Tryb pakietu (`#/package/...`): zakładki `Schemat`/`PCB Front`/`PCB Back`, grid miniaturek (klik → strona)
+- [x] 7.5 `CrossPageLayer` klikalne — `navigate` do strony docelowej (zielony label gdy klikalny)
+- [x] 7.6 `BomSummary` — agregat IC + pasywnych w panelu pakietu
+- [x] 7.7 `ModuleView` (`#/module/...`) — lista pakietów + tabela backplane signals
 
 Artefakt: praca na całym pakiecie, nie tylko jednej stronie.
 

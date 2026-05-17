@@ -4,6 +4,8 @@ import { Canvas } from './Canvas.tsx';
 import { Toolbar } from './Toolbar.tsx';
 import { SidebarLeft } from './SidebarLeft.tsx';
 import { SelectionPanel } from './SelectionPanel.tsx';
+import { PackageView } from './PackageView.tsx';
+import { ModuleView } from './ModuleView.tsx';
 import { useDocStore } from './store.ts';
 
 export function App(): JSX.Element {
@@ -23,11 +25,22 @@ export function App(): JSX.Element {
       {loadError && (
         <div className="bg-error/30 px-4 py-1 text-xs text-error">! {loadError}</div>
       )}
-      <main className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden">
         <SidebarLeft />
-        <Canvas />
-        <SelectionPanel />
-      </main>
+        {route.mode === 'page' && (
+          <>
+            <Canvas />
+            <SelectionPanel />
+          </>
+        )}
+        {route.mode === 'package' && <PackageView />}
+        {route.mode === 'module' && <ModuleView />}
+        {route.mode === 'empty' && (
+          <div className="flex flex-1 items-center justify-center text-text-dim">
+            <span>otwórz #/module/MJC-400</span>
+          </div>
+        )}
+      </div>
       <footer className="flex items-center gap-4 border-t border-bg-accent bg-bg-panel px-3 py-1 text-[11px] text-text-dim">
         {page && (
           <span>
