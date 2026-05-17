@@ -1,10 +1,23 @@
 import express from 'express';
 import cors from 'cors';
-import { promises as fs, createReadStream } from 'node:fs';
+import { promises as fs, createReadStream, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import url from 'node:url';
 import { randomBytes } from 'node:crypto';
 
-const ROOT = path.resolve(process.env.KRONIKARZ_DATA || './data');
+// Repo root: server/ → ..
+const REPO = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..');
+
+// Load .env from repo root if present
+const envFile = path.join(REPO, '.env');
+if (existsSync(envFile)) {
+  for (const line of readFileSync(envFile, 'utf-8').split('\n')) {
+    const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
+  }
+}
+
+const ROOT = path.resolve(REPO, process.env.KRONIKARZ_DATA || './data');
 const PORT = Number(process.env.KRONIKARZ_PORT || 8080);
 
 const app = express();
