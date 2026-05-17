@@ -8,6 +8,7 @@ import { PinLayer } from './layers/PinLayer.tsx';
 import { NetLayer } from './layers/NetLayer.tsx';
 import { PowerLayer } from './layers/PowerLayer.tsx';
 import { CrossPageLayer } from './layers/CrossPageLayer.tsx';
+import { AddGateDialog } from './AddGateDialog.tsx';
 
 export function Canvas(): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -15,6 +16,7 @@ export function Canvas(): JSX.Element {
   const [size, setSize] = useState({ w: 800, h: 600 });
   const [view, setView] = useState({ x: 0, y: 0, scale: 1 });
   const [spaceDown, setSpaceDown] = useState(false);
+  const [addAt, setAddAt] = useState<{ x: number; y: number } | null>(null);
   const page = useDocStore((s) => s.page);
   const route = useDocStore((s) => s.route);
   const loading = useDocStore((s) => s.loading);
@@ -166,7 +168,20 @@ export function Canvas(): JSX.Element {
         }}
         onWheel={onWheel}
         onClick={(e) => {
-          if (e.target === e.target.getStage()) setSelection(null);
+          if (e.target === e.target.getStage()) {
+            setSelection(null);
+            if (tool === 'edit' && page) {
+              const stage = stageRef.current;
+              const ptr = stage?.getPointerPosition();
+              if (ptr) {
+                const sx = Math.round((ptr.x - view.x) / view.scale);
+                const sy = Math.round((ptr.y - view.y) / view.scale);
+                if (sx >= 0 && sx <= page.scan_size[0] && sy >= 0 && sy <= page.scan_size[1]) {
+                  setAddAt({ x: sx, y: sy });
+                }
+              }
+            }
+          }
         }}
         style={{ cursor: spaceDown ? 'grab' : 'default' }}
       >
@@ -211,6 +226,9 @@ export function Canvas(): JSX.Element {
         <div className="absolute inset-0 flex items-center justify-center text-phosphor">
           ladowanie...
         </div>
+      )}
+      {addAt && (
+        <AddGateDialog x={addAt.x} y={addAt.y} onClose={() => setAddAt(null)} />
       )}
     </div>
   );

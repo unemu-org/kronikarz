@@ -7,6 +7,8 @@ export type Tool = 'select' | 'edit';
 export type Selection =
   | { kind: 'gate'; idx: number }
   | { kind: 'net'; name: string }
+  | { kind: 'segment'; netName: string; segmentIdx: number }
+  | { kind: 'pin'; gateIdx: number; pinIdx: number } // armed for wire creation
   | null;
 
 export interface Route {

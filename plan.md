@@ -193,17 +193,14 @@ Artefakt: korekta YAML wygenerowanego przez AI bez wychodzenia z viewera.
 
 Cel: spec `Etap 5`. Rzeczywisty edytor schematów.
 
-- [ ] 9.1 Dodawanie bramki: klik w pustą przestrzeń (tryb E) → popup `ref/gate/ic`, "auto" znajduje pierwszą wolną literę gate'u dla danego `ref`
-- [ ] 9.2 Auto-update `package.yaml`: nowy `components[ref]` jeśli ref nie istnieje, nowy `gates[X]` jeśli ic znany
-- [ ] 9.3 Usuwanie bramki: czyści wpisy w `package.yaml` (`gates[X] = null`) + usuwa z `*.sch.yaml`
-- [ ] 9.4 Edycja ścieżek:
-  - klik segment → zaznacza → drag końcówki → modyfikuje współrzędne
-  - klik segment + `[Dodaj węzeł]` → dzieli na dwa segmenty z węzłem do przeciągania
-  - `[Usuń segment]`
-- [ ] 9.5 Tworzenie nowego segmentu: klik pin → klik inny pin → segment + (opcjonalnie) prosta routing
-- [ ] 9.6 Junction doty: klik w skrzyżowanie segmentów → dodaj; klik na istniejący → usuń
-- [ ] 9.7 Mergowanie/splitowanie netów: drag pin z netu A na pin netu B → konsolidacja (z confirm); rozłączenie pinu od netu
-- [ ] 9.8 Rename netu globalnie w stronie — propagacja do wszystkich `pins[].net`
+- [x] 9.1 `AddGateDialog` — klik puste miejsce w trybie E → popup `ref/gate/ic`, auto-letter dla istniejącego ref
+- [x] 9.2 Auto-update `package.yaml` przy dodaniu bramki (`editPackage`)
+- [x] 9.3 Usuwanie bramki: Delete w trybie E (już Etap 8)
+- [x] 9.4 Edycja ścieżek: klik segment → select; drag handles końcówek; `+ węzeł na środku`, `usuń segment`
+- [x] 9.5 Tworzenie segmentu: klik pin → klik pin → segment dodany do netu pierwszego pinu, drugi pin renamuje się i lądowanie w tym samym necie
+- [x] 9.6 Junction: klik na istniejący junction (w trybie E) usuwa; `+ junction (środek netu)` w panelu netu
+- [x] 9.7 Merge netów: pin→pin click łączy nety (renames target pin's net + moves entry)
+- [x] 9.8 Rename netu w panelu — propagacja po `pins[].net` i `power[].net`; merge gdy nowa nazwa już istnieje
 
 Artefakt: można narysować schemat od zera, nie tylko poprawiać AI.
 
