@@ -144,11 +144,12 @@ Artefakt: pełny widok strony — bramki + nety + symbole.
 
 Cel: nie tylko prostokąty IC.
 
-- [ ] 6.1 Rezystor (`shape: resistor` w `ic_map`): linia-prostokąt-linia, rotacja honoruje pionowy/poziomy
-- [ ] 6.2 Kondensator (`shape: capacitor`, `capacitor_polarized`): dwie równoległe kreski prostopadle do osi pinów; polarized: jedna zaokrąglona
-- [ ] 6.3 Bufor trójstanowy (`shape: triangle`): trójkąt w kierunku rotacji
-- [ ] 6.4 Flip-flop (74175/H06): prostokąt z polami `clk/d/q/nq/pre/clr` zamiast `in/out` — etykiety pinów wg `gate_pins` z `ic_map`
-- [ ] 6.5 Generyczny fallback: nieznany `shape` → prostokąt z numerami pinów
+- [x] 6.1 Rezystor — prostokąt + linie boczne, value pod spodem
+- [x] 6.2 Kondensator — dwie kreski prostopadłe; polarized = jedna zaokrąglona + "+" znak
+- [x] 6.3 Bufor trójstanowy — `Line` closed (trójkąt) wskazujący w stronę rotacji
+- [x] 6.4 Flip-flop — wykryty po pinach `clk/d/q/nq` w `gate_pins`, prostokąt zaokrąglony + "FF"
+- [x] 6.5 Fallback: nieznany shape → prostokąt z `ref`/`gate` (RectShape)
+- [x] 6.6 `shapes.ts` — `gateShape(gate, pkg, icMap)` rozpoznaje kształt z konfiguracji
 
 Artefakt: pełna paleta elementów spec.
 
