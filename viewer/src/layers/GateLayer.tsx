@@ -1,12 +1,12 @@
-import { Layer, Rect, Group, Text, Line, Circle } from 'react-konva';
-import type { Gate } from '@kronikarz/shared';
+import { Layer, Rect, Group, Text, Line } from 'react-konva';
+import type { Gate, Package, IcMap } from '@kronikarz/shared';
 import { useDocStore } from '../store.ts';
 import type { Selection } from '../store.ts';
 import { gateShape, type Shape } from './shapes.ts';
 
-const GATE_W = 60;
-const GATE_H_PER_PIN = 16;
-const MIN_H = 60;
+const GATE_W = 80;
+const GATE_H_PER_PIN = 22;
+const MIN_H = 90;
 
 function gateBox(g: Gate): { w: number; h: number } {
   const leftPins = g.pins.filter((p) => p.side === 'left').length;
@@ -37,6 +37,8 @@ export function GateLayer({ gates }: Props): JSX.Element {
     <Layer>
       {gates.map((g, i) => {
         const shape = gateShape(g, pkg, icMap);
+        const comp = pkg?.components[g.ref];
+        const icSuffix = comp && comp.ic ? comp.ic : undefined;
         const selected = selectedId === i;
         const color = selected ? '#2196F3' : g.verified ? '#4CAF50' : '#FFC107';
         const onSelect = () => setSelection({ kind: 'gate', idx: i });
@@ -99,7 +101,7 @@ export function GateLayer({ gates }: Props): JSX.Element {
               });
             }}
           >
-            <ShapeBody gate={g} shape={shape} color={color} />
+            <ShapeBody gate={g} shape={shape} color={color} icSuffix={icSuffix} />
           </Group>
         );
       })}
@@ -111,9 +113,27 @@ interface BodyProps {
   gate: Gate;
   shape: Shape;
   color: string;
+  icSuffix?: string | number;
 }
 
-function ShapeBody({ gate, shape, color }: BodyProps): JSX.Element {
+// Polish DTR symbols inside a gate box (per IEC 60617 used in the era):
+//   &   for AND / NAND (NAND has negation circle on output)
+//   ≥1  for OR / NOR
+//   =1  for XOR
+//   1   for inverter / buffer
+//   T   for D flip-flop
+function gateSymbol(icSuffix?: string | number): string | null {
+  if (icSuffix === undefined || icSuffix === null) return null;
+  const s = String(icSuffix).replace(/^(SN)?7?4?(LS|HC|HCT|ALS|AS|H|S|F)?/, '').toUpperCase();
+  if (['00', '08', '10', '20', '30', '40'].includes(s)) return '&';
+  if (['02', '27', '28', '32', '33'].includes(s)) return '≥1';
+  if (['86', '266'].includes(s)) return '=1';
+  if (['04', '05', '06', '07', '14', '16', '17'].includes(s)) return '1';
+  if (['74', '174', '175', '273', '374'].includes(s)) return 'T';
+  return null;
+}
+
+function ShapeBody({ gate, shape, color, icSuffix }: BodyProps): JSX.Element {
   const { w, h } = gateBox(gate);
   switch (shape) {
     case 'resistor':
@@ -123,16 +143,29 @@ function ShapeBody({ gate, shape, color }: BodyProps): JSX.Element {
     case 'capacitor_polarized':
       return <CapacitorShape color={color} polarized value={gate.value} />;
     case 'triangle':
-      return <TriangleShape gate={gate} color={color} w={w} h={h} />;
+      return <TriangleShape gate={gate} color={color} w={w} h={h} icSuffix={icSuffix} />;
     case 'flipflop':
       return <FlipFlopShape gate={gate} color={color} w={w + 20} h={h} />;
     case 'rect':
     default:
-      return <RectShape gate={gate} color={color} w={w} h={h} />;
+      return <RectShape gate={gate} color={color} w={w} h={h} icSuffix={icSuffix} />;
   }
 }
 
-function RectShape({ gate, color, w, h }: { gate: Gate; color: string; w: number; h: number }) {
+function RectShape({
+  gate,
+  color,
+  w,
+  h,
+  icSuffix,
+}: {
+  gate: Gate;
+  color: string;
+  w: number;
+  h: number;
+  icSuffix?: string | number;
+}) {
+  const symbol = gateSymbol(icSuffix);
   return (
     <>
       <Rect
@@ -144,54 +177,111 @@ function RectShape({ gate, color, w, h }: { gate: Gate; color: string; w: number
         strokeWidth={2}
         fill="rgba(13,17,23,0.7)"
       />
-      <Text
-        x={-w / 2}
-        y={-h / 2 - 14}
-        width={w}
-        align="center"
-        text={gate.ref}
-        fontSize={12}
-        fontFamily="IBM Plex Mono"
-        fill="#39ff14"
-      />
-      {gate.gate && (
+      {/* Top-left stack: gate function symbol over IC suffix */}
+      {symbol && (
         <Text
-          x={-w / 2}
-          y={-6}
-          width={w}
-          align="center"
-          text={gate.gate}
-          fontSize={14}
+          x={-w / 2 + 6}
+          y={-h / 2 + 4}
+          text={symbol}
+          fontSize={18}
+          fontFamily="IBM Plex Mono"
+          fill={color}
+          fontStyle="bold"
+        />
+      )}
+      {icSuffix && (
+        <Text
+          x={-w / 2 + 6}
+          y={-h / 2 + 26}
+          text={String(icSuffix)}
+          fontSize={18}
           fontFamily="IBM Plex Mono"
           fill={color}
         />
       )}
+      {/* Gate letter (A/B/C…) top-right */}
+      {gate.gate && (
+        <Text
+          x={w / 2 - 16}
+          y={-h / 2 + 4}
+          text={gate.gate}
+          fontSize={18}
+          fontFamily="IBM Plex Mono"
+          fill={color}
+        />
+      )}
+      {/* ref centered at bottom */}
+      <Text
+        x={-w / 2}
+        y={h / 2 - 22}
+        width={w}
+        align="center"
+        text={gate.ref}
+        fontSize={18}
+        fontFamily="IBM Plex Mono"
+        fill={color}
+        fontStyle="bold"
+      />
       {gate.label_left && (
-        <Text x={-w / 2 - 2} y={h / 2 + 2} text={gate.label_left} fontSize={10} fontFamily="IBM Plex Mono" fill="#8b949e" />
+        <Text
+          x={-w / 2 - 14}
+          y={-6}
+          text={gate.label_left}
+          fontSize={9}
+          fontFamily="IBM Plex Mono"
+          fill="#8b949e"
+        />
       )}
       {gate.label_right && (
-        <Text x={w / 2 - 12} y={h / 2 + 2} text={gate.label_right} fontSize={10} fontFamily="IBM Plex Mono" fill="#8b949e" />
+        <Text
+          x={w / 2 + 4}
+          y={-6}
+          text={gate.label_right}
+          fontSize={9}
+          fontFamily="IBM Plex Mono"
+          fill="#8b949e"
+        />
       )}
     </>
   );
 }
 
-function TriangleShape({ gate, color, w, h }: { gate: Gate; color: string; w: number; h: number }) {
-  // Triangle pointing right (rotation handled by Group)
+function TriangleShape({
+  gate,
+  color,
+  w,
+  h,
+  icSuffix,
+}: {
+  gate: Gate;
+  color: string;
+  w: number;
+  h: number;
+  icSuffix?: string | number;
+}) {
   const pts = [-w / 2, -h / 2, w / 2, 0, -w / 2, h / 2];
   return (
     <>
       <Line points={pts} closed stroke={color} strokeWidth={2} fill="rgba(13,17,23,0.7)" />
       <Text
-        x={-w / 2}
-        y={-h / 2 - 14}
-        width={w}
-        align="center"
+        x={-w / 2 + 4}
+        y={-6}
         text={gate.ref}
-        fontSize={11}
+        fontSize={10}
         fontFamily="IBM Plex Mono"
         fill="#39ff14"
+        fontStyle="bold"
       />
+      {icSuffix && (
+        <Text
+          x={-w / 2 + 4}
+          y={5}
+          text={String(icSuffix)}
+          fontSize={8}
+          fontFamily="IBM Plex Mono"
+          fill="#8b949e"
+        />
+      )}
     </>
   );
 }
@@ -215,7 +305,7 @@ function FlipFlopShape({ gate, color, w, h }: { gate: Gate; color: string; w: nu
         width={w}
         align="center"
         text={`${gate.ref}${gate.gate ? `.${gate.gate}` : ''}`}
-        fontSize={11}
+        fontSize={18}
         fontFamily="IBM Plex Mono"
         fill="#39ff14"
       />
@@ -266,7 +356,7 @@ function CapacitorShape({
       <Line points={[-15, 0, -3, 0]} stroke={color} strokeWidth={1.5} />
       <Line points={[3, 0, 15, 0]} stroke={color} strokeWidth={1.5} />
       {polarized && (
-        <Text x={-12} y={-18} text="+" fontSize={11} fontFamily="IBM Plex Mono" fill={color} />
+        <Text x={-12} y={-18} text="+" fontSize={18} fontFamily="IBM Plex Mono" fill={color} />
       )}
       {value && (
         <Text x={-20} y={12} text={value} fontSize={10} fontFamily="IBM Plex Mono" fill="#39ff14" />

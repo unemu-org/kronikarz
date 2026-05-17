@@ -118,21 +118,31 @@ export function Canvas(): JSX.Element {
 
   const onWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
-    const stage = stageRef.current;
-    if (!stage) return;
-    const pointer = stage.getPointerPosition();
-    if (!pointer) return;
-    const scaleBy = 1.1;
-    const oldScale = view.scale;
-    const dir = e.evt.deltaY > 0 ? 1 / scaleBy : scaleBy;
-    const newScale = Math.max(0.05, Math.min(20, oldScale * dir));
-    const mx = (pointer.x - view.x) / oldScale;
-    const my = (pointer.y - view.y) / oldScale;
-    setView({
-      x: pointer.x - mx * newScale,
-      y: pointer.y - my * newScale,
-      scale: newScale,
-    });
+    // Ctrl/meta+wheel OR Chrome pinch-zoom on touchpad → zoom toward pointer.
+    // Plain wheel / two-finger swipe → pan by delta.
+    if (e.evt.ctrlKey || e.evt.metaKey) {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return;
+      const oldScale = view.scale;
+      // deltaY magnitudes vary across browsers/devices; scale factor exp-like
+      const factor = Math.exp(-e.evt.deltaY * 0.01);
+      const newScale = Math.max(0.05, Math.min(20, oldScale * factor));
+      const mx = (pointer.x - view.x) / oldScale;
+      const my = (pointer.y - view.y) / oldScale;
+      setView({
+        x: pointer.x - mx * newScale,
+        y: pointer.y - my * newScale,
+        scale: newScale,
+      });
+    } else {
+      setView({
+        x: view.x - e.evt.deltaX,
+        y: view.y - e.evt.deltaY,
+        scale: view.scale,
+      });
+    }
   };
 
   const scanUrl =
@@ -149,7 +159,11 @@ export function Canvas(): JSX.Element {
         scaleX={view.scale}
         scaleY={view.scale}
         draggable={spaceDown}
-        onDragEnd={(e) => setView({ x: e.target.x(), y: e.target.y(), scale: view.scale })}
+        onDragEnd={(e) => {
+          if (e.target === e.target.getStage()) {
+            setView({ x: e.target.x(), y: e.target.y(), scale: view.scale });
+          }
+        }}
         onWheel={onWheel}
         onClick={(e) => {
           if (e.target === e.target.getStage()) setSelection(null);
