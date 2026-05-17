@@ -1,586 +1,984 @@
 kronikarz: "1"
 page: 2-58
 package: P-R3-2
-scan_size: [2340, 1654]
+scan_size:
+  - 2340
+  - 1654
 gates:
-- ref: M54
-  gate: A
-  x: 1750
-  y: 180
-  rotation: 0
-  pins:
-  - {num: 11, side: left, net: -BLR, px: 1700, py: 180}
-  - num: 10
-    side: right
-    net: +RPP
-    px: 1800
-    py: 180
-    cross: {page: '4,5', label: +RPP}
-  label_left: '11'
-  label_right: '10'
-  verified: false
-  note: null
-- ref: M64
-  gate: A
-  x: 1770
-  y: 320
-  rotation: 0
-  pins:
-  - {num: 1, side: left, net: NET_M60_11, px: 1720, py: 305}
-  - {num: 2, side: left, net: -BLR, px: 1720, py: 335}
-  - num: 3
-    side: right
-    net: +RPA
-    px: 1820
-    py: 320
-    cross: {page: '2,3', label: +RPA}
-  label_left: '1'
-  label_right: '3'
-  verified: false
-  note: null
-- ref: M64
-  gate: B
-  x: 1770
-  y: 400
-  rotation: 0
-  pins:
-  - {num: 12, side: left, net: NET_M60_11, px: 1720, py: 385}
-  - {num: 13, side: left, net: -BLR, px: 1720, py: 415}
-  - num: 11
-    side: right
-    net: +RPB
-    px: 1820
-    py: 400
-    cross: {page: '4,6', label: +RPB}
-  label_left: '12'
-  label_right: '11'
-  verified: false
-  note: null
-- ref: M60
-  gate: A
-  x: 1470
-  y: 320
-  rotation: 0
-  pins:
-  - {num: 13, side: left, net: NET_M65_LRO, px: 1420, py: 305}
-  - {num: 12, side: left, net: NET_M63_WRO, px: 1420, py: 335}
-  - {num: 11, side: right, net: NET_M60_11, px: 1520, py: 320}
-  label_left: '13'
-  label_right: '11'
-  verified: false
-  note: null
-- ref: M55
-  gate: A
-  x: 600
-  y: 525
-  rotation: 0
-  pins:
-  - {num: 9, side: left, net: -WA, px: 550, py: 525}
-  - {num: 8, side: right, net: +WA, px: 650, py: 525}
-  label_left: '9'
-  label_right: '8'
-  verified: false
-  note: null
-- ref: M65
-  gate: A
-  x: 1010
-  y: 475
-  rotation: 0
-  pins:
-  - {num: 3, side: left, net: +LDC, px: 960, py: 460}
-  - {num: 4, side: left, net: +WA, px: 960, py: 480}
-  - {num: 5, side: left, net: NET_M63_WRO, px: 960, py: 500}
-  - num: 6
-    side: right
-    net: +LRO
-    px: 1060
-    py: 475
-    cross: {page: '7', label: +LRO}
-  label_left: '3'
-  label_right: '6'
-  verified: false
-  note: null
-- ref: M60
-  gate: B
-  x: 1010
-  y: 590
-  rotation: 0
-  pins:
-  - {num: 5, side: left, net: +RPC, px: 960, py: 580}
-  - {num: 4, side: left, net: +WA, px: 960, py: 600}
-  - {num: 6, side: right, net: NET_M60B_6, px: 1060, py: 590}
-  label_left: '5'
-  label_right: '6'
-  verified: false
-  note: null
-- ref: M65
-  gate: B
-  x: 1230
-  y: 590
-  rotation: 0
-  pins:
-  - {num: 10, side: left, net: +LDC, px: 1180, py: 575}
-  - {num: 11, side: left, net: NET_M60B_6, px: 1180, py: 590}
-  - {num: 9, side: left, net: NET_M63_WRO, px: 1180, py: 605}
-  - num: 8
-    side: right
-    net: -CZYTRW
-    px: 1280
-    py: 590
-    cross: {page: '2,3,4,5', label: -CZYTRW}
-  label_left: '10'
-  label_right: '8'
-  verified: false
-  note: null
-- ref: M63
-  gate: A
-  x: 1010
-  y: 720
-  rotation: 0
-  pins:
-  - {num: 10, side: left, net: +RPC, px: 960, py: 705}
-  - {num: 9, side: left, net: -WIR, px: 960, py: 720}
-  - {num: 11, side: left, net: -RA, px: 960, py: 735}
-  - num: 8
-    side: right
-    net: +WRO
-    px: 1060
-    py: 720
-    cross: {page: '7', label: +WRO}
-  label_left: '10'
-  label_right: '8'
-  verified: false
-  note: null
-- ref: M40
-  gate: A
-  x: 1550
-  y: 800
-  rotation: 0
-  pins:
-  - {num: 3, side: left, net: -RA, px: 1500, py: 800}
-  - {num: 4, side: right, net: NET_M40A_4, px: 1600, py: 800}
-  label_left: '3'
-  label_right: '4'
-  verified: false
-  note: null
-- ref: M40
-  gate: B
-  x: 1550
-  y: 870
-  rotation: 0
-  pins:
-  - {num: 1, side: left, net: NET_M40A_4, px: 1500, py: 870}
-  - num: 2
-    side: right
-    net: +RA
-    px: 1600
-    py: 870
-    cross: {page: '2,3,4,5', label: +RA}
-  label_left: '1'
-  label_right: '2'
-  verified: false
-  note: null
-- ref: M28
-  gate: A
-  x: 1550
-  y: 970
-  rotation: 0
-  pins:
-  - {num: 3, side: left, net: -RB, px: 1500, py: 970}
-  - {num: 4, side: right, net: NET_M28A_4, px: 1600, py: 970}
-  label_left: '3'
-  label_right: '4'
-  verified: false
-  note: null
-- ref: M28
-  gate: B
-  x: 1550
-  y: 1040
-  rotation: 0
-  pins:
-  - {num: 1, side: left, net: NET_M28A_4, px: 1500, py: 1040}
-  - num: 2
-    side: right
-    net: +RB
-    px: 1600
-    py: 1040
-    cross: {page: '2,3,4,5', label: +RB}
-  label_left: '1'
-  label_right: '2'
-  verified: false
-  note: null
-- ref: M53
-  gate: A
-  x: 820
-  y: 1110
-  rotation: 0
-  pins:
-  - {num: 4, side: left, net: -RB, px: 770, py: 1095}
-  - {num: 3, side: left, net: -RA, px: 770, py: 1110}
-  - {num: 5, side: left, net: -RC, px: 770, py: 1125}
-  - {num: 6, side: right, net: NET_M53_6, px: 870, py: 1110}
-  label_left: '4'
-  label_right: '6'
-  verified: false
-  note: null
-- ref: M66
-  gate: A
-  x: 1010
-  y: 1100
-  rotation: 0
-  pins:
-  - {num: 10, side: left, net: NET_M53_6, px: 960, py: 1080}
-  - {num: 12, side: left, net: +STROBA, px: 960, py: 1095}
-  - {num: 13, side: left, net: +AS2, px: 960, py: 1110}
-  - {num: 9, side: left, net: +RPC, px: 960, py: 1125}
-  - num: 8
-    side: right
-    net: -CZYTRN
-    px: 1060
-    py: 1100
-    cross: {page: '2,3,4,5', label: -CZYTRN}
-  label_left: '10'
-  label_right: '8'
-  verified: false
-  note: null
-- ref: M63
-  gate: B
-  x: 1010
-  y: 1180
-  rotation: 0
-  pins:
-  - {num: 1, side: left, net: +AS2, px: 960, py: 1165}
-  - {num: 2, side: left, net: +STROBA, px: 960, py: 1195}
-  - {num: 12, side: right, net: NET_M63B_12, px: 1060, py: 1180}
-  label_left: '1'
-  label_right: '12'
-  verified: false
-  note: null
-- ref: M52
-  gate: A
-  x: 1700
-  y: 1100
-  rotation: 0
-  pins:
-  - {num: 1, side: left, net: +AS2, px: 1650, py: 1080}
-  - {num: 13, side: left, net: NET_M53_6, px: 1650, py: 1095}
-  - {num: 9, side: left, net: +WIR, px: 1650, py: 1110}
-  - {num: 10, side: left, net: NET_M63B_12, px: 1650, py: 1125}
-  - num: 8
-    side: right
-    net: -PISZ RN
-    px: 1750
-    py: 1100
-    cross: {page: '2,3,4,5', label: -PISZ RN}
-  label_left: '1'
-  label_right: '8'
-  verified: false
-  note: null
-- ref: M52
-  gate: B
-  x: 1700
-  y: 1200
-  rotation: 0
-  pins:
-  - {num: 4, side: left, net: +WIR, px: 1650, py: 1185}
-  - {num: 5, side: left, net: NET_M64B_6, px: 1650, py: 1200}
-  - {num: 3, side: left, net: +AS2, px: 1650, py: 1215}
-  - {num: 2, side: left, net: +STROBB, px: 1650, py: 1230}
-  - num: 6
-    side: right
-    net: -PISZ RW
-    px: 1750
-    py: 1200
-    cross: {page: '2,3,4,5', label: -PISZ RW}
-  label_left: '4'
-  label_right: '6'
-  verified: false
-  note: null
-- ref: M22
-  gate: A
-  x: 600
-  y: 1130
-  rotation: 0
-  pins:
-  - {num: 13, side: left, net: +AS2, px: 550, py: 1130}
-  - {num: 12, side: right, net: NET_M22_12, px: 650, py: 1130}
-  label_left: '13'
-  label_right: '12'
-  verified: false
-  note: null
-- ref: M54
-  gate: B
-  x: 820
-  y: 1230
-  rotation: 0
-  pins:
-  - {num: 9, side: left, net: -RC, px: 770, py: 1230}
-  - {num: 8, side: right, net: +RC, px: 870, py: 1230}
-  label_left: '9'
-  label_right: '8'
-  verified: false
-  note: null
-- ref: M55
-  gate: B
-  x: 820
-  y: 1330
-  rotation: 0
-  pins:
-  - {num: 13, side: left, net: -WIR, px: 770, py: 1330}
-  - num: 12
-    side: right
-    net: +WIR
-    px: 870
-    py: 1330
-    cross: {page: '7', label: +WIR}
-  label_left: '13'
-  label_right: '12'
-  verified: false
-  note: null
-- ref: M64
-  gate: C
-  x: 1010
-  y: 1330
-  rotation: 0
-  pins:
-  - {num: 4, side: left, net: +WIR, px: 960, py: 1320}
-  - {num: 5, side: left, net: +STROBB, px: 960, py: 1340}
-  - {num: 6, side: right, net: NET_M64B_6, px: 1060, py: 1330}
-  label_left: '4'
-  label_right: '6'
-  verified: false
-  note: null
-- ref: M7
-  gate: A
-  x: 600
-  y: 1430
-  rotation: 0
-  pins:
-  - {num: 6, side: left, net: NET_M22_12, px: 550, py: 1420}
-  - {num: 5, side: left, net: -STROB1, px: 550, py: 1440}
-  - num: 4
-    side: right
-    net: +STROBA
-    px: 650
-    py: 1430
-    cross: {page: '7', label: +STROBA}
-  label_left: '6'
-  label_right: '4'
-  verified: false
-  note: null
-- ref: M7
-  gate: B
-  x: 600
-  y: 1500
-  rotation: 0
-  pins:
-  - {num: 2, side: left, net: -STROB1, px: 550, py: 1490}
-  - {num: 3, side: left, net: -STROB2, px: 550, py: 1510}
-  - num: 1
-    side: right
-    net: +STROBB
-    px: 650
-    py: 1500
-    cross: {page: '7', label: +STROBB}
-  label_left: '2'
-  label_right: '1'
-  verified: false
-  note: null
-- ref: M2
-  gate: A
-  x: 600
-  y: 1580
-  rotation: 0
-  pins:
-  - {num: 13, side: left, net: -STROB1, px: 550, py: 1580}
-  - num: 12
-    side: right
-    net: +STROB1
-    px: 650
-    py: 1580
-    cross: {page: '7,8', label: +STROB1}
-  label_left: '13'
-  label_right: '12'
-  verified: false
-  note: null
+  - ref: M54
+    gate: A
+    x: 1197.7308701830068
+    "y": 160.43482965117448
+    rotation: 0
+    pins:
+      - num: 11
+        side: left
+        net: "-BLR"
+        px: 1147.7308701830068
+        py: 160.43482965117448
+      - num: 10
+        side: right
+        net: +RPP
+        px: 1247.7308701830068
+        py: 160.43482965117448
+        cross:
+          page: 4,5
+          label: +RPP
+    label_left: "11"
+    label_right: "10"
+    verified: false
+    note: null
+  - ref: M64
+    gate: A
+    x: 1198.067663582442
+    "y": 255.59926231131868
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: NET_M60_11
+        px: 1148.067663582442
+        py: 240.59926231131868
+      - num: 2
+        side: left
+        net: "-BLR"
+        px: 1148.067663582442
+        py: 270.59926231131874
+      - num: 3
+        side: right
+        net: +RPA
+        px: 1248.067663582442
+        py: 255.59926231131868
+        cross:
+          page: 2,3
+          label: +RPA
+    label_left: "1"
+    label_right: "3"
+    verified: false
+    note: null
+  - ref: M64
+    gate: B
+    x: 1199.452287853711
+    "y": 347.9617342728333
+    rotation: 0
+    pins:
+      - num: 12
+        side: left
+        net: NET_M60_11
+        px: 1149.452287853711
+        py: 332.9617342728333
+      - num: 13
+        side: left
+        net: "-BLR"
+        px: 1149.452287853711
+        py: 362.9617342728333
+      - num: 11
+        side: right
+        net: +RPB
+        px: 1249.452287853711
+        py: 347.9617342728333
+        cross:
+          page: 4,6
+          label: +RPB
+    label_left: "12"
+    label_right: "11"
+    verified: false
+    note: null
+  - ref: M60
+    gate: A
+    x: 963.9117517576233
+    "y": 283.43719952981354
+    rotation: 0
+    pins:
+      - num: 13
+        side: left
+        net: NET_M65_LRO
+        px: 913.9117517576233
+        py: 268.43719952981354
+      - num: 12
+        side: left
+        net: NET_M63_WRO
+        px: 913.9117517576233
+        py: 298.43719952981354
+      - num: 11
+        side: right
+        net: NET_M60_11
+        px: 1013.9117517576233
+        py: 283.43719952981354
+    label_left: "13"
+    label_right: "11"
+    verified: false
+    note: null
+  - ref: M55
+    gate: A
+    x: 430.8035294824278
+    "y": 443.9569389110261
+    rotation: 0
+    pins:
+      - num: 9
+        side: left
+        net: "-WA"
+        px: 380.8035294824278
+        py: 443.9569389110261
+      - num: 8
+        side: right
+        net: +WA
+        px: 480.8035294824278
+        py: 443.9569389110261
+    label_left: "9"
+    label_right: "8"
+    verified: false
+    note: null
+  - ref: M65
+    gate: A
+    x: 697.238773788278
+    "y": 399.56971182343585
+    rotation: 0
+    pins:
+      - num: 3
+        side: left
+        net: +LDC
+        px: 647.238773788278
+        py: 384.56971182343585
+      - num: 4
+        side: left
+        net: +WA
+        px: 647.238773788278
+        py: 404.56971182343585
+      - num: 5
+        side: left
+        net: NET_M63_WRO
+        px: 647.238773788278
+        py: 424.56971182343585
+      - num: 6
+        side: right
+        net: +LRO
+        px: 747.238773788278
+        py: 399.56971182343585
+        cross:
+          page: "7"
+          label: +LRO
+    label_left: "3"
+    label_right: "6"
+    verified: false
+    note: null
+  - ref: M60
+    gate: B
+    x: 698.4045957308639
+    "y": 493.6187676393886
+    rotation: 0
+    pins:
+      - num: 5
+        side: left
+        net: +RPC
+        px: 648.4045957308639
+        py: 483.6187676393886
+      - num: 4
+        side: left
+        net: +WA
+        px: 648.4045957308639
+        py: 503.6187676393886
+      - num: 6
+        side: right
+        net: NET_M60B_6
+        px: 748.4045957308639
+        py: 493.6187676393886
+    label_left: "5"
+    label_right: "6"
+    verified: false
+    note: null
+  - ref: M65
+    gate: B
+    x: 958.2683376520278
+    "y": 483.05661605953196
+    rotation: 0
+    pins:
+      - num: 10
+        side: left
+        net: +LDC
+        px: 908.2683376520278
+        py: 468.05661605953196
+      - num: 11
+        side: left
+        net: NET_M60B_6
+        px: 908.2683376520278
+        py: 483.05661605953196
+      - num: 9
+        side: left
+        net: NET_M63_WRO
+        px: 908.2683376520278
+        py: 498.05661605953196
+      - num: 8
+        side: right
+        net: "-CZYTRW"
+        px: 1008.2683376520278
+        py: 483.05661605953196
+        cross:
+          page: 2,3,4,5
+          label: "-CZYTRW"
+    label_left: "10"
+    label_right: "8"
+    verified: false
+    note: null
+  - ref: M63
+    gate: A
+    x: 695.1051855101115
+    "y": 589.5094489533739
+    rotation: 0
+    pins:
+      - num: 10
+        side: left
+        net: +RPC
+        px: 645.1051855101115
+        py: 574.5094489533739
+      - num: 9
+        side: left
+        net: "-WIR"
+        px: 645.1051855101115
+        py: 589.5094489533739
+      - num: 11
+        side: left
+        net: "-RA"
+        px: 645.1051855101115
+        py: 604.5094489533739
+      - num: 8
+        side: right
+        net: +WRO
+        px: 745.1051855101115
+        py: 589.5094489533739
+        cross:
+          page: "7"
+          label: +WRO
+    label_left: "10"
+    label_right: "8"
+    verified: false
+    note: null
+  - ref: M40
+    gate: A
+    x: 1550
+    "y": 800
+    rotation: 0
+    pins:
+      - num: 3
+        side: left
+        net: "-RA"
+        px: 1500
+        py: 800
+      - num: 4
+        side: right
+        net: NET_M40A_4
+        px: 1600
+        py: 800
+    label_left: "3"
+    label_right: "4"
+    verified: false
+    note: null
+  - ref: M40
+    gate: B
+    x: 1550
+    "y": 870
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: NET_M40A_4
+        px: 1500
+        py: 870
+      - num: 2
+        side: right
+        net: +RA
+        px: 1600
+        py: 870
+        cross:
+          page: 2,3,4,5
+          label: +RA
+    label_left: "1"
+    label_right: "2"
+    verified: false
+    note: null
+  - ref: M28
+    gate: A
+    x: 1550
+    "y": 970
+    rotation: 0
+    pins:
+      - num: 3
+        side: left
+        net: "-RB"
+        px: 1500
+        py: 970
+      - num: 4
+        side: right
+        net: NET_M28A_4
+        px: 1600
+        py: 970
+    label_left: "3"
+    label_right: "4"
+    verified: false
+    note: null
+  - ref: M28
+    gate: B
+    x: 1550
+    "y": 1040
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: NET_M28A_4
+        px: 1500
+        py: 1040
+      - num: 2
+        side: right
+        net: +RB
+        px: 1600
+        py: 1040
+        cross:
+          page: 2,3,4,5
+          label: +RB
+    label_left: "1"
+    label_right: "2"
+    verified: false
+    note: null
+  - ref: M53
+    gate: A
+    x: 820
+    "y": 1110
+    rotation: 0
+    pins:
+      - num: 4
+        side: left
+        net: "-RB"
+        px: 770
+        py: 1095
+      - num: 3
+        side: left
+        net: "-RA"
+        px: 770
+        py: 1110
+      - num: 5
+        side: left
+        net: "-RC"
+        px: 770
+        py: 1125
+      - num: 6
+        side: right
+        net: NET_M53_6
+        px: 870
+        py: 1110
+    label_left: "4"
+    label_right: "6"
+    verified: false
+    note: null
+  - ref: M66
+    gate: A
+    x: 1010
+    "y": 1100
+    rotation: 0
+    pins:
+      - num: 10
+        side: left
+        net: NET_M53_6
+        px: 960
+        py: 1080
+      - num: 12
+        side: left
+        net: +STROBA
+        px: 960
+        py: 1095
+      - num: 13
+        side: left
+        net: +AS2
+        px: 960
+        py: 1110
+      - num: 9
+        side: left
+        net: +RPC
+        px: 960
+        py: 1125
+      - num: 8
+        side: right
+        net: "-CZYTRN"
+        px: 1060
+        py: 1100
+        cross:
+          page: 2,3,4,5
+          label: "-CZYTRN"
+    label_left: "10"
+    label_right: "8"
+    verified: false
+    note: null
+  - ref: M63
+    gate: B
+    x: 1010
+    "y": 1180
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: +AS2
+        px: 960
+        py: 1165
+      - num: 2
+        side: left
+        net: +STROBA
+        px: 960
+        py: 1195
+      - num: 12
+        side: right
+        net: NET_M63B_12
+        px: 1060
+        py: 1180
+    label_left: "1"
+    label_right: "12"
+    verified: false
+    note: null
+  - ref: M52
+    gate: A
+    x: 1700
+    "y": 1100
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: +AS2
+        px: 1650
+        py: 1080
+      - num: 13
+        side: left
+        net: NET_M53_6
+        px: 1650
+        py: 1095
+      - num: 9
+        side: left
+        net: +WIR
+        px: 1650
+        py: 1110
+      - num: 10
+        side: left
+        net: NET_M63B_12
+        px: 1650
+        py: 1125
+      - num: 8
+        side: right
+        net: "-PISZ RN"
+        px: 1750
+        py: 1100
+        cross:
+          page: 2,3,4,5
+          label: "-PISZ RN"
+    label_left: "1"
+    label_right: "8"
+    verified: false
+    note: null
+  - ref: M52
+    gate: B
+    x: 1700
+    "y": 1200
+    rotation: 0
+    pins:
+      - num: 4
+        side: left
+        net: +WIR
+        px: 1650
+        py: 1185
+      - num: 5
+        side: left
+        net: NET_M64B_6
+        px: 1650
+        py: 1200
+      - num: 3
+        side: left
+        net: +AS2
+        px: 1650
+        py: 1215
+      - num: 2
+        side: left
+        net: +STROBB
+        px: 1650
+        py: 1230
+      - num: 6
+        side: right
+        net: "-PISZ RW"
+        px: 1750
+        py: 1200
+        cross:
+          page: 2,3,4,5
+          label: "-PISZ RW"
+    label_left: "4"
+    label_right: "6"
+    verified: false
+    note: null
+  - ref: M22
+    gate: A
+    x: 600
+    "y": 1130
+    rotation: 0
+    pins:
+      - num: 13
+        side: left
+        net: +AS2
+        px: 550
+        py: 1130
+      - num: 12
+        side: right
+        net: NET_M22_12
+        px: 650
+        py: 1130
+    label_left: "13"
+    label_right: "12"
+    verified: false
+    note: null
+  - ref: M54
+    gate: B
+    x: 820
+    "y": 1230
+    rotation: 0
+    pins:
+      - num: 9
+        side: left
+        net: "-RC"
+        px: 770
+        py: 1230
+      - num: 8
+        side: right
+        net: +RC
+        px: 870
+        py: 1230
+    label_left: "9"
+    label_right: "8"
+    verified: false
+    note: null
+  - ref: M55
+    gate: B
+    x: 820
+    "y": 1330
+    rotation: 0
+    pins:
+      - num: 13
+        side: left
+        net: "-WIR"
+        px: 770
+        py: 1330
+      - num: 12
+        side: right
+        net: +WIR
+        px: 870
+        py: 1330
+        cross:
+          page: "7"
+          label: +WIR
+    label_left: "13"
+    label_right: "12"
+    verified: false
+    note: null
+  - ref: M64
+    gate: C
+    x: 1010
+    "y": 1330
+    rotation: 0
+    pins:
+      - num: 4
+        side: left
+        net: +WIR
+        px: 960
+        py: 1320
+      - num: 5
+        side: left
+        net: +STROBB
+        px: 960
+        py: 1340
+      - num: 6
+        side: right
+        net: NET_M64B_6
+        px: 1060
+        py: 1330
+    label_left: "4"
+    label_right: "6"
+    verified: false
+    note: null
+  - ref: M7
+    gate: A
+    x: 600
+    "y": 1430
+    rotation: 0
+    pins:
+      - num: 6
+        side: left
+        net: NET_M22_12
+        px: 550
+        py: 1420
+      - num: 5
+        side: left
+        net: "-STROB1"
+        px: 550
+        py: 1440
+      - num: 4
+        side: right
+        net: +STROBA
+        px: 650
+        py: 1430
+        cross:
+          page: "7"
+          label: +STROBA
+    label_left: "6"
+    label_right: "4"
+    verified: false
+    note: null
+  - ref: M7
+    gate: B
+    x: 600
+    "y": 1500
+    rotation: 0
+    pins:
+      - num: 2
+        side: left
+        net: "-STROB1"
+        px: 550
+        py: 1490
+      - num: 3
+        side: left
+        net: "-STROB2"
+        px: 550
+        py: 1510
+      - num: 1
+        side: right
+        net: +STROBB
+        px: 650
+        py: 1500
+        cross:
+          page: "7"
+          label: +STROBB
+    label_left: "2"
+    label_right: "1"
+    verified: false
+    note: null
+  - ref: M2
+    gate: A
+    x: 600
+    "y": 1580
+    rotation: 0
+    pins:
+      - num: 13
+        side: left
+        net: "-STROB1"
+        px: 550
+        py: 1580
+      - num: 12
+        side: right
+        net: +STROB1
+        px: 650
+        py: 1580
+        cross:
+          page: 7,8
+          label: +STROB1
+    label_left: "13"
+    label_right: "12"
+    verified: false
+    note: null
 power: []
 nets:
-  -BLR:
-    pins: [M54.A.11, M64.A.2, M64.B.13]
+  "-BLR":
+    pins:
+      - M54.A.11
+      - M64.A.2
+      - M64.B.13
     segments: null
     junctions: null
-    cross: {page: A50, label: -BLR}
+    cross:
+      page: A50
+      label: "-BLR"
   +LDC:
-    pins: [M65.A.3, M65.B.10]
+    pins:
+      - M65.A.3
+      - M65.B.10
     segments: null
     junctions: null
-    cross: {page: A94, label: +LDC}
-  -WA:
-    pins: [M55.A.9]
+    cross:
+      page: A94
+      label: +LDC
+  "-WA":
+    pins:
+      - M55.A.9
     segments: null
     junctions: null
-    cross: {page: B94, label: -WA}
+    cross:
+      page: B94
+      label: "-WA"
   +WA:
-    pins: [M55.A.8, M65.A.4, M60.B.4]
+    pins:
+      - M55.A.8
+      - M65.A.4
+      - M60.B.4
     segments: null
     junctions: null
   +RPC:
-    pins: [M60.B.5, M63.A.10, M66.A.9]
+    pins:
+      - M60.B.5
+      - M63.A.10
+      - M66.A.9
     segments: null
     junctions: null
-    cross: {page: B03, label: +RPC}
-  -RA:
-    pins: [M63.A.11, M40.A.3, M53.A.3]
+    cross:
+      page: B03
+      label: +RPC
+  "-RA":
+    pins:
+      - M63.A.11
+      - M40.A.3
+      - M53.A.3
     segments: null
     junctions: null
-    cross: {page: B48, label: -RA}
-  -RB:
-    pins: [M28.A.3, M53.A.4]
+    cross:
+      page: B48
+      label: "-RA"
+  "-RB":
+    pins:
+      - M28.A.3
+      - M53.A.4
     segments: null
     junctions: null
-    cross: {page: B49, label: -RB}
+    cross:
+      page: B49
+      label: "-RB"
   +AS2:
-    pins: [M22.A.13, M66.A.13, M63.B.1, M52.A.1, M52.B.3]
+    pins:
+      - M22.A.13
+      - M66.A.13
+      - M63.B.1
+      - M52.A.1
+      - M52.B.3
     segments: null
     junctions: null
-    cross: {page: B43, label: +AS2}
-  -RC:
-    pins: [M53.A.5, M54.B.9]
+    cross:
+      page: B43
+      label: +AS2
+  "-RC":
+    pins:
+      - M53.A.5
+      - M54.B.9
     segments: null
     junctions: null
-    cross: {page: A49, label: -RC}
+    cross:
+      page: A49
+      label: "-RC"
   +RC:
-    pins: [M54.B.8]
+    pins:
+      - M54.B.8
     segments: null
     junctions: null
-  -WIR:
-    pins: [M55.B.13, M63.A.9]
+  "-WIR":
+    pins:
+      - M55.B.13
+      - M63.A.9
     segments: null
     junctions: null
-    cross: {page: B47, label: -WIR}
+    cross:
+      page: B47
+      label: "-WIR"
   +WIR:
-    pins: [M55.B.12, M52.B.4, M64.C.4]
+    pins:
+      - M55.B.12
+      - M52.B.4
+      - M64.C.4
     segments: null
     junctions: null
-    cross: {page: '7', label: +WIR}
-  -STROB1:
-    pins: [M7.A.5, M7.B.2, M2.A.13]
+    cross:
+      page: "7"
+      label: +WIR
+  "-STROB1":
+    pins:
+      - M7.A.5
+      - M7.B.2
+      - M2.A.13
     segments: null
     junctions: null
-    cross: {page: B32, label: -STROB1}
-  -STROB2:
-    pins: [M7.B.3]
+    cross:
+      page: B32
+      label: "-STROB1"
+  "-STROB2":
+    pins:
+      - M7.B.3
     segments: null
     junctions: null
-    cross: {page: B42, label: -STROB2}
+    cross:
+      page: B42
+      label: "-STROB2"
   +STROBA:
-    pins: [M7.A.4, M66.A.12, M63.B.2]
+    pins:
+      - M7.A.4
+      - M66.A.12
+      - M63.B.2
     segments: null
     junctions: null
-    cross: {page: '7', label: +STROBA}
+    cross:
+      page: "7"
+      label: +STROBA
   +STROBB:
-    pins: [M7.B.1, M64.C.5, M52.B.2]
+    pins:
+      - M7.B.1
+      - M64.C.5
+      - M52.B.2
     segments: null
     junctions: null
-    cross: {page: '7', label: +STROBB}
+    cross:
+      page: "7"
+      label: +STROBB
   +STROB1:
-    pins: [M2.A.12]
+    pins:
+      - M2.A.12
     segments: null
     junctions: null
-    cross: {page: '7,8', label: +STROB1}
+    cross:
+      page: 7,8
+      label: +STROB1
   +RPP:
-    pins: [M54.A.10]
+    pins:
+      - M54.A.10
     segments: null
     junctions: null
-    cross: {page: '4,5', label: +RPP}
+    cross:
+      page: 4,5
+      label: +RPP
   +RPA:
-    pins: [M64.A.3]
+    pins:
+      - M64.A.3
     segments: null
     junctions: null
-    cross: {page: '2,3', label: +RPA}
+    cross:
+      page: 2,3
+      label: +RPA
   +RPB:
-    pins: [M64.B.11]
+    pins:
+      - M64.B.11
     segments: null
     junctions: null
-    cross: {page: '4,6', label: +RPB}
+    cross:
+      page: 4,6
+      label: +RPB
   +LRO:
-    pins: [M65.A.6]
+    pins:
+      - M65.A.6
     segments: null
     junctions: null
-    cross: {page: '7', label: +LRO}
-  -CZYTRW:
-    pins: [M65.B.8]
+    cross:
+      page: "7"
+      label: +LRO
+  "-CZYTRW":
+    pins:
+      - M65.B.8
     segments: null
     junctions: null
-    cross: {page: '2,3,4,5', label: -CZYTRW}
+    cross:
+      page: 2,3,4,5
+      label: "-CZYTRW"
   +WRO:
-    pins: [M63.A.8]
+    pins:
+      - M63.A.8
     segments: null
     junctions: null
-    cross: {page: '7', label: +WRO}
+    cross:
+      page: "7"
+      label: +WRO
   +RA:
-    pins: [M40.B.2]
+    pins:
+      - M40.B.2
     segments: null
     junctions: null
-    cross: {page: '2,3,4,5', label: +RA}
+    cross:
+      page: 2,3,4,5
+      label: +RA
   +RB:
-    pins: [M28.B.2]
+    pins:
+      - M28.B.2
     segments: null
     junctions: null
-    cross: {page: '2,3,4,5', label: +RB}
-  -CZYTRN:
-    pins: [M66.A.8]
+    cross:
+      page: 2,3,4,5
+      label: +RB
+  "-CZYTRN":
+    pins:
+      - M66.A.8
     segments: null
     junctions: null
-    cross: {page: '2,3,4,5', label: -CZYTRN}
-  -PISZ RN:
-    pins: [M52.A.8]
+    cross:
+      page: 2,3,4,5
+      label: "-CZYTRN"
+  "-PISZ RN":
+    pins:
+      - M52.A.8
     segments: null
     junctions: null
-    cross: {page: '2,3,4,5', label: -PISZ RN}
-  -PISZ RW:
-    pins: [M52.B.6]
+    cross:
+      page: 2,3,4,5
+      label: "-PISZ RN"
+  "-PISZ RW":
+    pins:
+      - M52.B.6
     segments: null
     junctions: null
-    cross: {page: '2,3,4,5', label: -PISZ RW}
+    cross:
+      page: 2,3,4,5
+      label: "-PISZ RW"
   NET_M60_11:
-    pins: [M60.A.11, M64.A.1, M64.B.12]
+    pins:
+      - M60.A.11
+      - M64.A.1
+      - M64.B.12
     segments: null
     junctions: null
   NET_M63_WRO:
-    pins: [M65.A.5, M65.B.9, M60.A.12]
+    pins:
+      - M65.A.5
+      - M65.B.9
+      - M60.A.12
     segments: null
     junctions: null
   NET_M65_LRO:
-    pins: [M60.A.13]
+    pins:
+      - M60.A.13
     segments: null
     junctions: null
   NET_M60B_6:
-    pins: [M60.B.6, M65.B.11]
+    pins:
+      - M60.B.6
+      - M65.B.11
     segments: null
     junctions: null
   NET_M40A_4:
-    pins: [M40.A.4, M40.B.1]
+    pins:
+      - M40.A.4
+      - M40.B.1
     segments: null
     junctions: null
   NET_M28A_4:
-    pins: [M28.A.4, M28.B.1]
+    pins:
+      - M28.A.4
+      - M28.B.1
     segments: null
     junctions: null
   NET_M53_6:
-    pins: [M53.A.6, M66.A.10, M52.A.13]
+    pins:
+      - M53.A.6
+      - M66.A.10
+      - M52.A.13
     segments: null
     junctions: null
   NET_M63B_12:
-    pins: [M63.B.12, M52.A.10]
+    pins:
+      - M63.B.12
+      - M52.A.10
     segments: null
     junctions: null
   NET_M64B_6:
-    pins: [M64.C.6, M52.B.5]
+    pins:
+      - M64.C.6
+      - M52.B.5
     segments: null
     junctions: null
   NET_M22_12:
-    pins: [M22.A.12, M7.A.6]
+    pins:
+      - M22.A.12
+      - M7.A.6
     segments: null
     junctions: null
 annotations: []
