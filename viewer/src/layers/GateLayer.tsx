@@ -28,7 +28,10 @@ export function GateLayer({ gates }: Props): JSX.Element {
   const setSelection = useDocStore((s) => s.setSelection);
   const pkg = useDocStore((s) => s.pkg);
   const icMap = useDocStore((s) => s.icMap);
+  const tool = useDocStore((s) => s.tool);
+  const editPage = useDocStore((s) => s.editPage);
   const selectedId = selectedGate(selection);
+  const editing = tool === 'edit';
 
   return (
     <Layer>
@@ -43,11 +46,58 @@ export function GateLayer({ gates }: Props): JSX.Element {
             x={g.x}
             y={g.y}
             rotation={g.rotation}
+            draggable={editing}
             onClick={(e) => {
               e.cancelBubble = true;
               onSelect();
             }}
             onTap={onSelect}
+            onDragStart={() => onSelect()}
+            onDragEnd={(e) => {
+              const nx = e.target.x();
+              const ny = e.target.y();
+              const dx = nx - g.x;
+              const dy = ny - g.y;
+              if (dx === 0 && dy === 0) return;
+              editPage((page) => {
+                const target = page.gates[i];
+                if (!target) return;
+                const oldPositions = target.pins.map((p) => ({ px: p.px, py: p.py }));
+                target.x = nx;
+                target.y = ny;
+                target.pins.forEach((p, pi) => {
+                  p.px += dx;
+                  p.py += dy;
+                });
+                // Translate net segment endpoints that exactly matched old pin positions
+                for (const net of Object.values(page.nets)) {
+                  if (!net.segments) continue;
+                  for (let si = 0; si < net.segments.length; si++) {
+                    const seg = net.segments[si]!;
+                    for (let endi = 0; endi < 2; endi++) {
+                      const ex = seg[endi * 2]!;
+                      const ey = seg[endi * 2 + 1]!;
+                      for (const old of oldPositions) {
+                        if (ex === old.px && ey === old.py) {
+                          seg[endi * 2] = ex + dx;
+                          seg[endi * 2 + 1] = ey + dy;
+                        }
+                      }
+                    }
+                  }
+                  if (net.junctions) {
+                    for (const j of net.junctions) {
+                      for (const old of oldPositions) {
+                        if (j[0] === old.px && j[1] === old.py) {
+                          j[0] += dx;
+                          j[1] += dy;
+                        }
+                      }
+                    }
+                  }
+                }
+              });
+            }}
           >
             <ShapeBody gate={g} shape={shape} color={color} />
           </Group>

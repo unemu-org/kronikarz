@@ -175,15 +175,15 @@ Artefakt: praca na całym pakiecie, nie tylko jednej stronie.
 
 Cel: spec `Etap 3`. Przełącznik V/E, drag, edycja właściwości, persist przez PUT.
 
-- [ ] 8.1 Toolbar: przełącznik `V Zaznacz` / `E Edytuj`, klawisze `V`/`E`
-- [ ] 8.2 Drag bramki w trybie E → aktualizuje `gate.x, gate.y`; piny przesuwają się o ten sam offset; segmenty podłączone do tych pinów również (końcówka segmentu = pozycja pinu)
-- [ ] 8.3 Debounced PUT (500ms) — `writePage` przez `/files/...`; wskaźnik "Zapisano" / "Zapisywanie..." w toolbarze
-- [ ] 8.4 Edycja pól w `SelectionPanel` w trybie E: `ref`, `gate`, `ic`, `rotation` (dropdown), nazwy netów, `cross.page`/`cross.label`
-- [ ] 8.5 Zmiana `ic` → re-resolve z `ic_map` (nowe pin layout, `gate_pins`) + walidacja czy bramka ma jeszcze sens
-- [ ] 8.6 Klawisz `K` → toggle `verified` zaznaczonej bramki + PUT
-- [ ] 8.7 Undo/redo (Ctrl+Z/Y), historia 50 kroków, zustand-middleware `temporal` lub własna implementacja diff-based
-- [ ] 8.8 Escape → odznacz / anuluj operację
-- [ ] 8.9 Delete → usuń zaznaczony element (z confirm gdy bramka z mapowanymi netami)
+- [x] 8.1 V/E w Toolbar i klawisze (Toolbar.tsx, Canvas keyboard handler)
+- [x] 8.2 Drag bramki: aktualizuje x,y; piny się przesuwają; segmenty/junctions matching old pin pos też się translatują
+- [x] 8.3 Debounced PUT 500ms — `schedulePut` per-path; SaveBadge w SelectionPanel (pending/saving/error)
+- [x] 8.4 Edycja w SelectionPanel: ref, gate, rotation (select), net per pin, note
+- [ ] 8.5 Zmiana `ic` → re-resolve pinów z `ic_map` (deferred — wymaga osobnego UI dla mapowania pinów)
+- [x] 8.6 K → toggle `verified` zaznaczonej bramki
+- [x] 8.7 Undo/redo Ctrl+Z/Y, historia 50 kroków (zustand past/future arrays, push przy każdym `editPage`)
+- [x] 8.8 Escape → odznacz
+- [x] 8.9 Delete/Backspace → usuwa zaznaczoną bramkę (tryb edit only)
 
 Artefakt: korekta YAML wygenerowanego przez AI bez wychodzenia z viewera.
 

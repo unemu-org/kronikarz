@@ -22,6 +22,12 @@ export function Canvas(): JSX.Element {
   const setSelection = useDocStore((s) => s.setSelection);
   const setZoom = useDocStore((s) => s.setZoom);
   const setOpacity = useDocStore((s) => s.setScanOpacity);
+  const setTool = useDocStore((s) => s.setTool);
+  const editPage = useDocStore((s) => s.editPage);
+  const undo = useDocStore((s) => s.undo);
+  const redo = useDocStore((s) => s.redo);
+  const selection = useDocStore((s) => s.selection);
+  const tool = useDocStore((s) => s.tool);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -64,6 +70,34 @@ export function Canvas(): JSX.Element {
       if (e.key === ']') setOpacity(Math.min(1, opacity + 0.1));
       if (e.key === '\\') setOpacity(opacity > 0 ? 0 : 0.7);
       if (e.key === 'Escape') setSelection(null);
+      if (e.key === 'v' || e.key === 'V') setTool('select');
+      if (e.key === 'e' || e.key === 'E') setTool('edit');
+      if (e.key === 'k' || e.key === 'K') {
+        if (selection?.kind === 'gate') {
+          const idx = selection.idx;
+          editPage((p) => {
+            const g = p.gates[idx];
+            if (g) g.verified = !g.verified;
+          });
+        }
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (tool === 'edit' && selection?.kind === 'gate') {
+          const idx = selection.idx;
+          editPage((p) => {
+            p.gates.splice(idx, 1);
+          });
+          setSelection(null);
+        }
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) {
+        e.preventDefault();
+        redo();
+      }
     };
     const up = (e: KeyboardEvent) => {
       if (e.code === 'Space') setSpaceDown(false);
@@ -75,7 +109,7 @@ export function Canvas(): JSX.Element {
       window.removeEventListener('keyup', up);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, size.w, size.h, opacity]);
+  }, [page, size.w, size.h, opacity, selection, tool]);
 
   useEffect(() => {
     if (page) fitToScreen();
