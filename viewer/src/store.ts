@@ -3,6 +3,10 @@ import type { Project, Package, Page, IcMap, Issue } from '@kronikarz/shared';
 
 export type Mode = 'module' | 'package' | 'page' | 'empty';
 export type Tool = 'select' | 'edit';
+export type Selection =
+  | { kind: 'gate'; idx: number }
+  | { kind: 'net'; name: string }
+  | null;
 
 export interface Route {
   mode: Mode;
@@ -20,7 +24,7 @@ export interface DocState {
   tool: Tool;
   loadError: string | null;
   loading: boolean;
-  selectedGateIdx: number | null;
+  selection: Selection;
   scanOpacity: number;
   zoom: number;
 
@@ -33,7 +37,7 @@ export interface DocState {
   setTool: (t: Tool) => void;
   setLoadError: (e: string | null) => void;
   setLoading: (b: boolean) => void;
-  setSelectedGateIdx: (i: number | null) => void;
+  setSelection: (s: Selection) => void;
   setScanOpacity: (n: number) => void;
   setZoom: (n: number) => void;
 }
@@ -48,7 +52,7 @@ export const useDocStore = create<DocState>((set) => ({
   tool: 'select',
   loadError: null,
   loading: false,
-  selectedGateIdx: null,
+  selection: null,
   scanOpacity: 0.7,
   zoom: 1,
 
@@ -61,7 +65,7 @@ export const useDocStore = create<DocState>((set) => ({
   setTool: (tool) => set({ tool }),
   setLoadError: (loadError) => set({ loadError }),
   setLoading: (loading) => set({ loading }),
-  setSelectedGateIdx: (selectedGateIdx) => set({ selectedGateIdx }),
+  setSelection: (selection) => set({ selection }),
   setScanOpacity: (scanOpacity) => set({ scanOpacity }),
   setZoom: (zoom) => set({ zoom }),
 }));

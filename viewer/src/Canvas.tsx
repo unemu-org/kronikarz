@@ -5,6 +5,9 @@ import { useDocStore } from './store.ts';
 import { ImageLayer } from './layers/ImageLayer.tsx';
 import { GateLayer } from './layers/GateLayer.tsx';
 import { PinLayer } from './layers/PinLayer.tsx';
+import { NetLayer } from './layers/NetLayer.tsx';
+import { PowerLayer } from './layers/PowerLayer.tsx';
+import { CrossPageLayer } from './layers/CrossPageLayer.tsx';
 
 export function Canvas(): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -16,7 +19,7 @@ export function Canvas(): JSX.Element {
   const route = useDocStore((s) => s.route);
   const loading = useDocStore((s) => s.loading);
   const opacity = useDocStore((s) => s.scanOpacity);
-  const setSelected = useDocStore((s) => s.setSelectedGateIdx);
+  const setSelection = useDocStore((s) => s.setSelection);
   const setZoom = useDocStore((s) => s.setZoom);
   const setOpacity = useDocStore((s) => s.setScanOpacity);
 
@@ -60,7 +63,7 @@ export function Canvas(): JSX.Element {
       if (e.key === '[') setOpacity(Math.max(0, opacity - 0.1));
       if (e.key === ']') setOpacity(Math.min(1, opacity + 0.1));
       if (e.key === '\\') setOpacity(opacity > 0 ? 0 : 0.7);
-      if (e.key === 'Escape') setSelected(null);
+      if (e.key === 'Escape') setSelection(null);
     };
     const up = (e: KeyboardEvent) => {
       if (e.code === 'Space') setSpaceDown(false);
@@ -115,7 +118,7 @@ export function Canvas(): JSX.Element {
         onDragEnd={(e) => setView({ x: e.target.x(), y: e.target.y(), scale: view.scale })}
         onWheel={onWheel}
         onClick={(e) => {
-          if (e.target === e.target.getStage()) setSelected(null);
+          if (e.target === e.target.getStage()) setSelection(null);
         }}
         style={{ cursor: spaceDown ? 'grab' : 'default' }}
       >
@@ -129,8 +132,11 @@ export function Canvas(): JSX.Element {
         )}
         {page && (
           <>
+            <NetLayer page={page} zoom={view.scale} />
             <GateLayer gates={page.gates} />
             <PinLayer gates={page.gates} />
+            <PowerLayer power={page.power} zoom={view.scale} />
+            <CrossPageLayer page={page} zoom={view.scale} />
             <Layer listening={false}>
               <Rect
                 x={0}

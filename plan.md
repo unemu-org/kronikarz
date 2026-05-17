@@ -126,14 +126,15 @@ Artefakt: można otworzyć stronę i zobaczyć czy AI dobrze rozmieściła bramk
 
 Cel: druga warstwa wizualna — połączenia.
 
-- [ ] 5.1 `NetLayer` — rysuje `nets[*].segments` jako linie `#666666`
-- [ ] 5.2 Przerywane linie (dash) gdy `segments: null` — łączy piny netu po prostej (placeholder)
-- [ ] 5.3 Junction doty: wypełnione kółka w `nets[*].junctions`
-- [ ] 5.4 Klik na segment → zaznacza net → podświetla wszystkie piny i segmenty (`#FF9800`)
-- [ ] 5.5 Klik na bramkę → podświetla wszystkie nety jej pinów (ten sam kolor)
-- [ ] 5.6 `SelectionPanel` w trybie "net": lista pinów, liczba segmentów/junctions, cross-page
-- [ ] 5.7 Cross-page strzałki `< A23 >` — render jako trójkątne końcówki przy pinach z `cross:` (nieaktywne klikalnie na tym etapie)
-- [ ] 5.8 Symbole zasilania — `VCC` (strzałka w górę), `GND` (trzy kreski malejące)
+- [x] 5.1 `NetLayer` — `nets[*].segments` jako linie `#666666` (skala stroke do zoom)
+- [x] 5.2 Dashed placeholders gdy `segments: null` — łączy piny po prostej (resolver `parsePinId` → pozycja)
+- [x] 5.3 Junction doty z `nets[*].junctions`
+- [x] 5.4 Klik segment → `setSelection({kind:'net'})` → highlight `#FF9800` + grubsza linia
+- [x] 5.5 Klik bramka → `highlightedNets()` zwraca wszystkie nety pinów bramki
+- [x] 5.6 `SelectionPanel` tryb net: nazwa, lista pinów, count segmentów/junctions, cross-page
+- [x] 5.7 `CrossPageLayer` — trójkątna strzałka + label `<A23>` przy pinach z `cross:`
+- [x] 5.8 `PowerLayer` — VCC (strzałka↑) / GND (3 malejące kreski) z `power[]`
+- [x] 5.9 Refactor: `selection: {kind:'gate'|'net', ...} | null` zamiast `selectedGateIdx`
 
 Artefakt: pełny widok strony — bramki + nety + symbole.
 

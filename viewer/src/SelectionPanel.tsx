@@ -4,17 +4,44 @@ export function SelectionPanel(): JSX.Element | null {
   const page = useDocStore((s) => s.page);
   const icMap = useDocStore((s) => s.icMap);
   const pkg = useDocStore((s) => s.pkg);
-  const idx = useDocStore((s) => s.selectedGateIdx);
+  const selection = useDocStore((s) => s.selection);
   const issues = useDocStore((s) => s.issues);
 
   if (!page) return null;
-  const gate = idx !== null ? page.gates[idx] : null;
+  const gate =
+    selection?.kind === 'gate' && selection.idx >= 0 && selection.idx < page.gates.length
+      ? page.gates[selection.idx]!
+      : null;
+  const net = selection?.kind === 'net' ? page.nets[selection.name] : null;
+  const netName = selection?.kind === 'net' ? selection.name : null;
   const comp = gate && pkg ? pkg.components[gate.ref] : null;
   const icDef = comp && comp.ic && icMap ? icMap[comp.ic] : null;
 
   return (
     <aside className="w-72 shrink-0 overflow-y-auto border-l border-bg-accent bg-bg-panel p-2 text-xs">
-      {!gate && <div className="text-text-dim">brak zaznaczenia</div>}
+      {!gate && !net && <div className="text-text-dim">brak zaznaczenia</div>}
+      {net && netName && (
+        <div className="space-y-2">
+          <h2 className="font-bold text-net-active">{netName}</h2>
+          <hr className="border-bg-accent" />
+          <div>
+            <h3 className="text-text-dim">PINY ({net.pins.length})</h3>
+            <ul>
+              {net.pins.map((p) => (
+                <li key={p} className="text-phosphor">
+                  {p}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="text-text-dim">
+            segmenty: {net.segments?.length ?? 'null'} · junctions: {net.junctions?.length ?? 'null'}
+          </div>
+          {net.cross && (
+            <div className="text-warning">cross → {net.cross.page} ({net.cross.label})</div>
+          )}
+        </div>
+      )}
       {gate && (
         <div className="space-y-2">
           <h2 className="font-bold text-phosphor">

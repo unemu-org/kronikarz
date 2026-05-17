@@ -1,6 +1,7 @@
 import { Layer, Rect, Group, Text } from 'react-konva';
 import type { Gate } from '@kronikarz/shared';
 import { useDocStore } from '../store.ts';
+import type { Selection } from '../store.ts';
 
 const GATE_W = 60;
 const GATE_H_PER_PIN = 16;
@@ -17,9 +18,14 @@ interface Props {
   gates: Gate[];
 }
 
+function selectedGate(sel: Selection): number | null {
+  return sel?.kind === 'gate' ? sel.idx : null;
+}
+
 export function GateLayer({ gates }: Props): JSX.Element {
-  const selectedId = useDocStore((s) => s.selectedGateIdx);
-  const setSelected = useDocStore((s) => s.setSelectedGateIdx);
+  const selection = useDocStore((s) => s.selection);
+  const setSelection = useDocStore((s) => s.setSelection);
+  const selectedId = selectedGate(selection);
   return (
     <Layer>
       {gates.map((g, i) => {
@@ -38,9 +44,9 @@ export function GateLayer({ gates }: Props): JSX.Element {
             rotation={g.rotation}
             onClick={(e) => {
               e.cancelBubble = true;
-              setSelected(i);
+              setSelection({ kind: 'gate', idx: i });
             }}
-            onTap={() => setSelected(i)}
+            onTap={() => setSelection({ kind: 'gate', idx: i })}
           >
             <Rect
               x={-w / 2}
