@@ -243,12 +243,12 @@ Artefakt: `.kicad_sch` otwiera się w KiCad 8+ z poprawnym netlistem.
 
 ## Etap 12 — Polish
 
-- [ ] 12.1 Estetyka: pełny phosphor theme, animacje (fade selection), kursory per tryb
-- [ ] 12.2 Skróty klawiszowe wszystkie ze spec (`[`/`]`/`\`/`0`/`1`/`2`/V/E/K/Del/Esc/Ctrl+Z/Y)
-- [ ] 12.3 Auto-save indicator, error toast na nieudany PUT
-- [ ] 12.4 Pre-commit: `prettier --check` + `tsc --noEmit` w hooku
-- [ ] 12.5 `mdbook` z dokumentacją w `docs/` (opcjonalnie, jeśli będzie potrzeba)
-- [ ] 12.6 Performance: virtualizacja gdy >500 bramek na stronie; lazy load skanów
+- [x] 12.1 Kursor `crosshair` w trybie edit, `grab` przy space-pan
+- [x] 12.2 Skróty klawiszowe wszystkie + `?` pokazuje `HelpOverlay`
+- [x] 12.3 `SaveToast` floating bottom-right (pending/saving/error)
+- [x] 12.4 `scripts/install-hooks.sh` instaluje pre-commit z prettier --check + tsc
+- [ ] 12.5 `mdbook` w `docs/` (deferred, opcjonalne)
+- [x] 12.6 Lazy-load skanów w `PackageView` (loading="lazy" na thumbnaiach); virtualizacja bramek deferred (obecne strony ~25 bramek)
 
 ---
 

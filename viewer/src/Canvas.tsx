@@ -183,7 +183,7 @@ export function Canvas(): JSX.Element {
             }
           }
         }}
-        style={{ cursor: spaceDown ? 'grab' : 'default' }}
+        style={{ cursor: spaceDown ? 'grab' : tool === 'edit' ? 'crosshair' : 'default' }}
       >
         {scanUrl && page && (
           <ImageLayer

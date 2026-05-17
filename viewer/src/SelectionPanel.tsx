@@ -12,7 +12,6 @@ export function SelectionPanel(): JSX.Element | null {
   const selection = useDocStore((s) => s.selection);
   const tool = useDocStore((s) => s.tool);
   const editPage = useDocStore((s) => s.editPage);
-  const saveStatus = useDocStore((s) => s.saveStatus);
   const editing = tool === 'edit';
 
   if (!page) return null;
@@ -36,7 +35,6 @@ export function SelectionPanel(): JSX.Element | null {
 
   return (
     <aside className="w-72 shrink-0 overflow-y-auto border-l border-bg-accent bg-bg-panel p-2 text-xs">
-      <SaveBadge status={saveStatus} />
       {!gate && !net && <div className="text-text-dim">brak zaznaczenia</div>}
 
       {net && netName && (
@@ -346,13 +344,3 @@ function SegmentPanel({ netName, segmentIdx }: { netName: string; segmentIdx: nu
   );
 }
 
-function SaveBadge({ status }: { status: 'idle' | 'pending' | 'saving' | 'error' }): JSX.Element {
-  if (status === 'idle') return <></>;
-  const colors = {
-    pending: 'text-text-dim',
-    saving: 'text-warning',
-    error: 'text-error',
-  } as const;
-  const label = { pending: 'zmiana...', saving: 'zapisuje', error: 'blad zapisu' }[status];
-  return <div className={`mb-2 text-[10px] ${colors[status]}`}>{label}</div>;
-}

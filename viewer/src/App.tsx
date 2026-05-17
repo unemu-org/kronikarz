@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useHashRouter } from './router.ts';
 import { useLoader } from './loader.ts';
 import { Canvas } from './Canvas.tsx';
@@ -7,11 +8,23 @@ import { SelectionPanel } from './SelectionPanel.tsx';
 import { PackageView } from './PackageView.tsx';
 import { ModuleView } from './ModuleView.tsx';
 import { ValidationPanel } from './ValidationPanel.tsx';
+import { SaveToast } from './SaveToast.tsx';
+import { HelpOverlay } from './HelpOverlay.tsx';
 import { useDocStore } from './store.ts';
 
 export function App(): JSX.Element {
   useHashRouter();
   useLoader();
+  const [help, setHelp] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+      if (e.key === '?') setHelp((h) => !h);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const route = useDocStore((s) => s.route);
   const pkg = useDocStore((s) => s.pkg);
   const page = useDocStore((s) => s.page);
@@ -59,10 +72,19 @@ export function App(): JSX.Element {
         <span>
           zoom: {Math.round(zoom * 100)}% | opacity: {Math.round(opacity * 100)}%
         </span>
-        <span className="ml-auto">
+        <span className="ml-auto flex items-center gap-3">
+          <button
+            className="text-text-dim hover:text-phosphor"
+            onClick={() => setHelp(true)}
+            title="? — skróty"
+          >
+            ?
+          </button>
           {route.mode} | issues: {issues.length}
         </span>
       </footer>
+      <SaveToast />
+      {help && <HelpOverlay onClose={() => setHelp(false)} />}
     </div>
   );
 }
