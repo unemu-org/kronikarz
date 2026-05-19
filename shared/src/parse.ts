@@ -74,3 +74,25 @@ export function parsePinId(id: string): { ref: string; gate: string | null; num:
   }
   throw new Error(`bad pin id: ${id}`);
 }
+
+// --- IC suffix normalization ---
+//
+// Polish ICs use various prefixes: MH7411 / UCY7411 / MCY74175 → 11 / 175.
+// AI may leave the prefix; this resolves to the canonical key in ic_map.
+export function resolveIcKey(ic: string | number, icMap: IcMap): string | null {
+  const raw = String(ic).trim();
+  if (raw in icMap) return raw;
+  let s = raw.toUpperCase();
+  // Strip family prefixes (longest-first)
+  s = s.replace(/^(SN|UCY|MCY|MH|CDB|HCF)/, '');
+  // Strip 74xx family designator (with optional speed grade)
+  s = s.replace(/^74(LS|HCT|HC|ALS|AS|H|S|F)?/, '');
+  // Strip trailing package letter (N=DIP, D=SOIC, etc.)
+  s = s.replace(/[ND]$/, '');
+  if (s in icMap) return s;
+  // Try padding single digit
+  if (s.length === 1 && ('0' + s) in icMap) return '0' + s;
+  // Try the raw H-prefix case: "H11" → "11"
+  if (raw.toUpperCase().startsWith('H') && raw.slice(1) in icMap) return raw.slice(1);
+  return null;
+}

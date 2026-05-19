@@ -6,9 +6,10 @@ import {
   parseIcMap,
   validatePage,
   validatePackage,
+  validatePackagePages,
   validateProject,
 } from '@kronikarz/shared';
-import type { Issue } from '@kronikarz/shared';
+import type { Issue, Page } from '@kronikarz/shared';
 import { useDocStore } from './store.ts';
 
 async function fetchText(path: string): Promise<string> {
@@ -33,6 +34,25 @@ export function useLoader(): void {
   const setIssues = useDocStore((s) => s.setIssues);
   const setLoadError = useDocStore((s) => s.setLoadError);
   const setLoading = useDocStore((s) => s.setLoading);
+  // Re-run validation whenever page/pkg/icMap/project changes so issues stay fresh.
+  const page = useDocStore((s) => s.page);
+  const pkg = useDocStore((s) => s.pkg);
+  const icMap = useDocStore((s) => s.icMap);
+  const project = useDocStore((s) => s.project);
+  const allPages = useDocStore((s) => s.allPages);
+  useEffect(() => {
+    const issues: Issue[] = [];
+    if (pkg) issues.push(...validatePackage(pkg, icMap ?? undefined));
+    if (page && pkg) issues.push(...validatePage(page, pkg, icMap ?? undefined, project ?? undefined));
+    if (project) issues.push(...validateProject(project));
+    if (pkg && allPages.size > 0) {
+      // Live override: aktualna strona z `page` (po edycji) zamiast wersji z cache
+      const merged = new Map(allPages);
+      if (page) merged.set(page.page, page);
+      issues.push(...validatePackagePages(pkg, merged));
+    }
+    setIssues(issues);
+  }, [page, pkg, icMap, project, allPages, setIssues]);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,6 +63,7 @@ export function useLoader(): void {
         setProject(null);
         setPackage(null);
         setPage(null);
+        useDocStore.getState().setAllPages(new Map());
         setIssues([]);
         return;
       }
@@ -77,7 +98,21 @@ export function useLoader(): void {
           const pagePath = `MJC-400/${route.pkg}/pages/${route.page}.sch.yaml`;
           const pageText = await fetchTextOptional(pagePath);
           page = pageText ? parsePage(pageText, pagePath) : null;
-          if (page && pkg) issues.push(...validatePage(page, pkg, icMap ?? undefined));
+          if (page && pkg) issues.push(...validatePage(page, pkg, icMap ?? undefined, project ?? undefined));
+        }
+
+        // Cross-page validacja: zaladuj wszystkie strony pakietu i zapisz w store
+        // (re-validation effect uzyje allPages do validatePackagePages).
+        if (pkg && route.pkg) {
+          const pagesMap = new Map<string, Page>();
+          for (const ref of pkg.package.pages) {
+            try {
+              const pt = await fetchTextOptional(`MJC-400/${route.pkg}/pages/${ref.id}.sch.yaml`);
+              if (pt) pagesMap.set(ref.id, parsePage(pt, `MJC-400/${route.pkg}/pages/${ref.id}.sch.yaml`));
+            } catch { /* ignore parse fails per page */ }
+          }
+          if (cancelled) return;
+          useDocStore.getState().setAllPages(pagesMap);
         }
         if (cancelled) return;
         setPage(page);

@@ -4,62 +4,99 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Projekt
 
-Kronikarz — narzędzie do digitalizacji schematów elektronicznych ze skanów dokumentacji. Workflow: AI generuje YAML ze skanu → człowiek weryfikuje/koryguje w viewerze → eksporter generuje KiCad.
+Kronikarz — narzędzie do digitalizacji schematów elektronicznych MERA-400 (Polska, lata 70.). Workflow: Vision-AI + człowiek wykrywają komponenty na skanie → człowiek rysuje ścieżki w viewerze → eksporter generuje KiCad.
 
-Repo zawiera obecnie tylko specyfikacje (`specyfikacje-kronikarza/`) i konfigurację środowiska Nix. Kod źródłowy trzech komponentów (`viewer/src`, `server/index.js`, `export/index.js`) nie istnieje jeszcze — implementacja w toku.
+Spec docs: `specyfikacje-kronikarza/` (`format-spec.md`, `vision-prompt.md`, `cross-refs-ulepszenia.md`).
 
 ## Środowisko
 
-Nix flake + direnv. Wejście do katalogu aktywuje devShell (Node.js 22, prettier, eslint, yq-go, just, watchexec, git-lfs).
+Nix flake + direnv. DevShell ma Node.js 22, python3, uv, prettier, eslint, yq-go, just, watchexec, git-lfs.
 
 ```bash
-direnv allow                 # pierwszy raz / po zmianie flake.nix lub .envrc
-just install                 # npm install we wszystkich workspace
-cp .env.example .env         # ustaw KRONIKARZ_DATA, KRONIKARZ_PORT
+direnv allow                 # pierwszy raz / po zmianie flake.nix
+just install                 # npm install (workspaces)
+cp .env.example .env         # KRONIKARZ_DATA, KRONIKARZ_PORT, ANTHROPIC_API_KEY
 ```
+
+Python scripts: `uv run scripts/<name>.py`. Server resolwuje `uv` z PATH lub `nix develop --command uv` jako fallback.
 
 ## Komendy
 
 ```bash
 just dev                     # viewer (Vite :5173) + server (:8080) równolegle
-just viewer                  # tylko viewer
-just server                  # tylko server (watchexec restart)
-just build                   # tsc + vite build viewer
-just typecheck               # tsc --noEmit w viewer + export
-just lint                    # eslint + prettier --check
-just fmt                     # prettier --write
-just validate PKG=...        # yq sprawdza YAML pakietu i wszystkich stron
-just export PKG=...          # node export/index.js → dist/kicad/
-just clean                   # usuwa dist/ i node_modules
+just viewer | just server    # pojedynczy proces
+just build / just typecheck / just lint / just fmt
+just validate PKG=...        # yq sprawdza YAML pakietu i stron
+just export PKG=...          # node export/index.js → dist/kicad/   (nie zaimplementowane)
 ```
 
-Pojedynczy workspace: `npm run <script> -w viewer|server|export`.
+Per workspace: `npm run <script> -w viewer|server|export|shared`.
 
 ## Architektura
 
-Monorepo npm workspaces z trzema komponentami:
+Monorepo npm workspaces, 4 paczki + skrypty Python:
 
-- **viewer** — React + TypeScript + Konva.js (canvas), Zustand (stan), Tailwind, js-yaml. SPA serwowane przez Vite. Trzy tryby: **modułu** (`project.yaml`, backplane), **pakietu** (`package.yaml`, lista stron + IC), **strony** (`*.sch.yaml`, skan + nakładka, główny widok roboczy). Edycja zapisuje przez `fetch PUT` z debounce 500ms.
-- **server** — Express, GET/PUT `/files/*` serwuje i zapisuje pliki z `KRONIKARZ_DATA`. Bez bazy danych — tylko fs.
-- **export** — Node CLI (commander), czyta `package.yaml` + `*.sch.yaml`, generuje pliki KiCad.
+- **shared** (`@kronikarz/shared`) — typy YAML (`types.ts`), parser i `resolveIcKey` normalizujący 74xx prefiksy (SN/UCY/MCY/MH/CDB/HCF, polski H, sufiks N/D), walidator (`validate.ts`). `io.ts` Node-only — nie importować z viewera.
+- **viewer** — React 18 + Vite + Konva (canvas) + Zustand (`store.ts`) + js-yaml + Tailwind. Routing przez hash w `router.ts`. Trzy widoki: **moduł** (`project.yaml`, backplane), **pakiet** (`package.yaml`), **strona** (`*.sch.yaml`, główny widok roboczy). Auto-save: PUT z debounce 500ms. Vite proxy do `:8080` dla `/files /list /health /ai-detect /yolo-* /vision-page /vision-page-zones /make-bak /restore-bak`.
+- **server** — Express, fs-based. GET/PUT/DELETE `/files/*` w `KRONIKARZ_DATA`. POST endpoints odpalają Python scripts przez uv. Body globalnie `express.raw` → JSON ręcznie przez `parseJsonBody`. Każde POST modyfikujące yaml robi backup `.bak` + timestamped `.bak`. Bez bazy.
+- **export** — Node CLI (commander). **Niezaimplementowane** — tylko `package.json` + stub.
 
-## Format danych (zob. `specyfikacje-kronikarza/format-spec.md`)
+### Warstwy viewera (`viewer/src/layers/`)
 
-Cztery typy YAML:
+- `ImageLayer` — skan
+- `GateLayer` — bramki + 8-handle resize (gdy `shape === 'rect'`) + multi-select drag
+- `PinLayer` — drag z `snapPinToEdge`, etykietki nad pinami, orphan pins na czerwono
+- `NetLayer` — segmenty + auto-junctions + `pushOutOfGates` + port-stub dla orphanów + czerwone złe nety. Alt+klik na segment w edit = split przy kursorze + dot
+- `PortLayer` — chevron + kuleczka na open-end (rotowana per side), label/pid renderowane OSOBNYM Group (zawsze poziomo)
+- `CrossRefLayer` — label NAD wirem + lista sheets (per-sheet kolor: zielony=ok, czerwony=brak return). Klik na sheet = nawigacja (faulty: + auto-add cross_ref na docelowej)
+- `AnnotationLayer` — tekst z rotacją (0/90/180/270), drag w edit
+- `DecorationLayer` — `line` (ortho domyślnie, Shift = freeform) / `rect` / `ellipse`
+- `PowerLayer`, `CrossPageLayer`
 
-- `project.yaml` — manifest modułu, lista pakietów, połączenia backplane (signal, package, connector_pin)
-- `package.yaml` — manifest pakietu, rejestr IC (sufiks → wystąpienia), lista stron
-- `*.sch.yaml` — pojedyncza strona schematu: bramki, nety, pozycje w **pikselach skanu** (nie siatka abstrakcyjna)
-- `ic_map.yaml` — globalna tablica sufiks → symbol KiCad
+Narzędzia: V (select + rubber-band), E (edit), R (ROI/AI detect), W (wire — orto domyślnie, Shift = freeform, auto-L corner unika landing na istniejących segmentach), Z (zones dla Vision-AI per-strefa). Multi-select: shift+klik lub rubber-band drag w V. Drag jednego elementu z multi przenosi cały zestaw. Toolbar buttony: `+ bramka/xref/port/tekst/linia/rect/koło`, align/distribute/stack-column dla multi-gate.
 
-Zasady formatu:
-- **Jednostką jest bramka, nie IC** — jeden fizyczny układ może mieć bramki na wielu stronach/pakietach
-- **Pakiet samodzielny** — można pracować bez ładowania całego projektu
-- **`null` jako placeholder** dla pól niezmapowanych
-- Status: `raw | wip | done | verified`
+### Skrypty (`scripts/`)
 
-Layout katalogów danych: `<PROJECT>/<PACKAGE>/{scans/,pages/,package.yaml}` + `<PROJECT>/{project.yaml,ic_map.yaml}`.
+Cache: `data/.vision-cache/`, `data/.cv-cache/...`. Wszystkie odpalane przez `uv run`.
+
+- `vision-page.py` — Vision na cały skan, vision-prompt.md jako system → `*.sch.yaml`
+- `vision-zones.py` — Vision per-strefa (zones tool w viewerze), role-specific prompty (gates/ports_left/ports_right/cross_refs_left/cross_refs_right), crop+API per zone, scale-back koordów do oryginału
+- `vision-digitize.py` / `-v2.py` — legacy/eksperymentalne wersje
+- `vision-classify.py`, `ai-detect-roi.py` — pomocnicze
+- `detect-rects.py` / `-sam.py` — CV/SAM bramki
+- `export-yolo-from-yamls.py` — eksport YOLO datasetu
+- `migrate-*.py` — migracje schematu (port-split, sheet-numbers, fix-pr3-2-*)
+- `gen-stubs.py`, `sync-packages.py`, `build-ic-map.py`, `install-hooks.sh`
+
+## Format danych (`specyfikacje-kronikarza/format-spec.md` v1.1)
+
+Cztery typy YAML (`kronikarz: "1"`):
+
+- `project.yaml` — manifest modułu, pakiety, `backplane` (multi-drop signals: `endpoints: [{package, connector, pin}, ...]`)
+- `package.yaml` — manifest pakietu, rejestr IC (sufiks → wystąpienia), lista stron z `sheet: N` (1..N per pakiet — pokrywa się z numerem arkusza w dokumentacji)
+- `*.sch.yaml` — strona: `gates`, `ports`, `cross_refs`, `power`, `nets`, `annotations` (z `rotation/fontSize`), `decorations` (line/rect/ellipse) — **pozycje w pikselach skanu**
+- `ic_map.yaml` — sufiks → KiCad symbol + `gate_pins` per litera (in/out/clk/d/q/nq/pre/clr/j/k/wa/we/ra/re); `shape: triangle|resistor|capacitor|capacitor_polarized` opcjonalnie
+
+Cross-package: `port.connector` (litera) + `port.pin` (int) dopasowywane do `project.backplane[].endpoints`. Cross-page: `cross_ref.pages: [string]` to numery arkuszy (sheet) w pakiecie — validator mapuje przez `package.pages[].sheet`.
+
+**Source-of-truth for connectivity**: `pin.net` / `port.net` / `cr.net`. Pole `net.pins[]` jest legacy/info-only.
+
+## Walidator (`shared/src/validate.ts`)
+
+Kluczowe kody:
+- `NET_DISCONNECTED` / `NET_ORPHAN_ENDPOINT` (err) — geometria nie pokrywa się z deklaracją netu
+- `NET_FLOATING` (err) — sieć z 1 endpointem
+- `ENDPOINT_NET_MISMATCH` (err) — pin/port leży na segmencie netu X ale ma `endpoint.net = Y`. Mid-line match wymaga junction-dot żeby uznać (krzyżujące się druty bez dota = osobne nety)
+- `CROSS_REF_NO_RETURN` (err) — cross_ref do strony X bez powrotnego cross_refa
+- `PORT_NOT_ON_BACKPLANE` (warn) — port nie dopasowany do żadnego backplane endpointu
+- `GATE_LETTER_NOT_IN_COMPONENT` / `GATE_LETTER_WRONG_PAGE` / `PIN_NOT_IN_IC_MAP` (err)
+
+`validatePackagePages(pkg, pagesMap)` ładuje wszystkie strony pakietu i sprawdza cross-page consistency. Wywoływane w loader.ts; `allPages` Map cache'owana w store, live override aktualnej strony.
+
+## Backups
+
+`/make-bak`, `/restore-bak`. Każdy `/vision-page*` i autosave robi rolling `.bak` + timestamped `<page>.sch.yaml.<ISO>.bak`. Pliki `*.bak` w `.gitignore`.
 
 ## Git LFS
 
-`.gitattributes` traktuje `*.jpg,jpeg,png,pdf` przez LFS (skany schematów i zdjęcia PCB). Przed pierwszym commitem skanów: `git lfs install`.
+`*.jpg,jpeg,png,pdf` przez LFS (skany + zdjęcia PCB). Pierwszy raz: `git lfs install`.

@@ -1,43 +1,117 @@
+import { useRef } from 'react';
 import { Layer, Line, Circle } from 'react-konva';
 import type Konva from 'konva';
-import type { Page } from '@kronikarz/shared';
-import { parsePinId } from '@kronikarz/shared';
+import type { Page, Gate, Port } from '@kronikarz/shared';
 import { useDocStore } from '../store.ts';
+import { gateBox } from './box.ts';
 
-const COLOR_NET = '#666666';
+// Push a point out of any gate body it lands on. Operates in scan coords.
+function pushOutOfGates(x: number, y: number, gates: Gate[], margin = 10): { x: number; y: number } {
+  let nx = x;
+  let ny = y;
+  for (let iter = 0; iter < 3; iter++) {
+    let moved = false;
+    for (const g of gates) {
+      const { w, h } = gateBox(g);
+      // Transform point into gate local frame (handles rotation)
+      const rad = (g.rotation * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const dx = nx - g.x;
+      const dy = ny - g.y;
+      const lx = dx * cos + dy * sin;
+      const ly = -dx * sin + dy * cos;
+      const halfW = w / 2 + margin;
+      const halfH = h / 2 + margin;
+      if (lx > -halfW && lx < halfW && ly > -halfH && ly < halfH) {
+        // Inside (with margin). Push along axis of smallest exit distance.
+        const dL = lx + halfW;
+        const dR = halfW - lx;
+        const dT = ly + halfH;
+        const dB = halfH - ly;
+        const m = Math.min(dL, dR, dT, dB);
+        let nlx = lx;
+        let nly = ly;
+        if (m === dL) nlx = -halfW;
+        else if (m === dR) nlx = halfW;
+        else if (m === dT) nly = -halfH;
+        else nly = halfH;
+        // Rotate back
+        nx = g.x + nlx * cos - nly * sin;
+        ny = g.y + nlx * sin + nly * cos;
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  return { x: Math.round(nx), y: Math.round(ny) };
+}
+
+// Where the wire attaches to a port (opposite end from the chevron tip).
+// Mirrors geometry in PortLayer.
+function portOpenEnd(p: Port): { x: number; y: number } {
+  const labelWidth = Math.max(60, `${p.connector}${p.pin}`.length * 16 + 12);
+  const bw = labelWidth + 16;
+  const rot =
+    p.side === 'left' ? 0 :
+    p.side === 'right' ? 180 :
+    p.side === 'top' ? 90 :
+    270;
+  const rad = (rot * Math.PI) / 180;
+  return { x: p.x + bw * Math.cos(rad), y: p.y + bw * Math.sin(rad) };
+}
+
+const COLOR_NET = '#39ff14';
 const COLOR_ACTIVE = '#FF9800';
-const COLOR_DASH = '#39ff1455';
+const COLOR_DASH = '#39ff14cc';
 
 interface Props {
   page: Page;
   zoom: number;
 }
 
-function highlightedNets(page: Page, selection: ReturnType<typeof useDocStore.getState>['selection']): Set<string> {
-  if (!selection) return new Set();
-  if (selection.kind === 'net') return new Set([selection.name]);
-  if (selection.kind === 'segment') return new Set([selection.netName]);
-  if (selection.kind === 'gate') {
-    const gate = page.gates[selection.idx];
-    if (!gate) return new Set();
-    return new Set(gate.pins.map((p) => p.net));
-  }
-  return new Set();
+function highlightedNets(_page: Page, selection: ReturnType<typeof useDocStore.getState>['selection']): Set<string> {
+  const out = new Set<string>();
+  const add = (n: string | null | undefined): void => {
+    if (n && n.trim()) out.add(n);
+  };
+  if (!selection) return out;
+  if (selection.kind === 'net') add(selection.name);
+  else if (selection.kind === 'segment') add(selection.netName);
+  // gate selection no longer expands to all its nets — click a net to see fanout
+  return out;
 }
 
-function pinPos(page: Page, pinIdStr: string): { x: number; y: number } | null {
-  try {
-    const { ref, gate, num } = parsePinId(pinIdStr);
-    for (const g of page.gates) {
-      if (g.ref !== ref) continue;
-      if (gate !== null && g.gate !== gate) continue;
-      const pin = g.pins.find((p) => p.num === num);
-      if (pin) return { x: pin.px, y: pin.py };
+function dispatchSegmentClick(
+  e: Konva.KonvaEventObject<MouseEvent>,
+  netName: string,
+  seg?: [number, number, number, number],
+): void {
+  const stage = e.target.getStage();
+  if (!stage) return;
+  const ptr = stage.getPointerPosition();
+  if (!ptr) return;
+  const sx = stage.x();
+  const sy = stage.y();
+  const sc = stage.scaleX();
+  let x = Math.round((ptr.x - sx) / sc);
+  let y = Math.round((ptr.y - sy) / sc);
+  if (seg) {
+    // Projekcja kliku na linie segmentu — kolejne kliki w to samo miejsce
+    // dadza dokladnie te same koordy => 3+ endpointy w jednym punkcie => junction
+    const dx = seg[2] - seg[0];
+    const dy = seg[3] - seg[1];
+    const len2 = dx * dx + dy * dy;
+    if (len2 > 0) {
+      let t = ((x - seg[0]) * dx + (y - seg[1]) * dy) / len2;
+      t = Math.max(0, Math.min(1, t));
+      x = Math.round(seg[0] + t * dx);
+      y = Math.round(seg[1] + t * dy);
     }
-  } catch {
-    /* ignore */
   }
-  return null;
+  window.dispatchEvent(new CustomEvent('kronikarz:wire-endpoint-click', {
+    detail: { x, y, netName, autoNet: netName },
+  }));
 }
 
 export function NetLayer({ page, zoom }: Props): JSX.Element {
@@ -46,47 +120,162 @@ export function NetLayer({ page, zoom }: Props): JSX.Element {
   const tool = useDocStore((s) => s.tool);
   const editPage = useDocStore((s) => s.editPage);
   const active = highlightedNets(page, selection);
-  const w = 1.5 / zoom;
-  const wActive = 3 / zoom;
+  const w = 2.2 / zoom;
+  const wActive = 4 / zoom;
   const editing = tool === 'edit';
+  const issues = useDocStore((s) => s.issues);
+  const badNets = new Set<string>();
+  for (const it of issues) {
+    if (it.level === 'err' && (
+      it.code === 'NET_DISCONNECTED' ||
+      it.code === 'NET_ORPHAN_ENDPOINT' ||
+      it.code === 'NET_FLOATING' ||
+      it.code === 'ENDPOINT_NET_MISMATCH'
+    )) {
+      if (it.ref) badNets.add(it.ref);
+    }
+  }
 
-  const onSegmentDrag = (
+  // Trzymamy oryginalne koordy startu draga – wszystkie inne endpointy/junctions
+  // tego netu majace TE SAME koordy beda przesuniete razem (zeby junction sie nie rozsypal).
+  const dragOrigRef = useRef<{ x: number; y: number } | null>(null);
+
+  const onSegmentDragStart = (
     netName: string,
     segmentIdx: number,
     endIdx: 0 | 1,
+  ) => {
+    const seg = page.nets[netName]?.segments?.[segmentIdx];
+    if (!seg) return;
+    dragOrigRef.current = { x: seg[endIdx * 2]!, y: seg[endIdx * 2 + 1]! };
+  };
+
+  const onSegmentDrag = (
+    netName: string,
+    _segmentIdx: number,
+    _endIdx: 0 | 1,
     e: Konva.KonvaEventObject<DragEvent>,
   ) => {
-    const nx = e.target.x();
-    const ny = e.target.y();
+    const orig = dragOrigRef.current;
+    if (!orig) return;
+    const nx = Math.round(e.target.x());
+    const ny = Math.round(e.target.y());
     editPage((p) => {
-      const seg = p.nets[netName]?.segments?.[segmentIdx];
-      if (!seg) return;
-      seg[endIdx * 2] = Math.round(nx);
-      seg[endIdx * 2 + 1] = Math.round(ny);
+      const net = p.nets[netName];
+      if (!net) return;
+      if (net.segments) {
+        for (const s of net.segments) {
+          if (s[0] === orig.x && s[1] === orig.y) { s[0] = nx; s[1] = ny; }
+          if (s[2] === orig.x && s[3] === orig.y) { s[2] = nx; s[3] = ny; }
+        }
+      }
+      if (net.junctions) {
+        for (const j of net.junctions) {
+          if (j[0] === orig.x && j[1] === orig.y) { j[0] = nx; j[1] = ny; }
+        }
+      }
     });
+    dragOrigRef.current = { x: nx, y: ny };
   };
+
+  // Build full net set: declared in page.nets + any net referenced by pins/ports/refs.
+  // Skip empty/whitespace names — those represent un-routed pins, not a real net.
+  const allNetNames = new Set<string>(Object.keys(page.nets).filter((n) => n.trim()));
+  for (const g of page.gates) for (const p of g.pins) if (p.net && p.net.trim()) allNetNames.add(p.net);
+  for (const port of page.ports ?? []) if (port.net && port.net.trim()) allNetNames.add(port.net);
+  for (const cr of page.cross_refs ?? []) if (cr.net && cr.net.trim()) allNetNames.add(cr.net);
 
   return (
     <Layer>
-      {Object.entries(page.nets).map(([name, net]) => {
+      {Array.from(allNetNames).map((name) => {
+        const net = page.nets[name] ?? { pins: [], segments: null, junctions: null };
         const isActive = active.has(name);
-        const color = isActive ? COLOR_ACTIVE : COLOR_NET;
+        const isBad = badNets.has(name);
+        const color = isBad ? '#ff3838' : isActive ? COLOR_ACTIVE : COLOR_NET;
         const selectedSegment =
           selection?.kind === 'segment' && selection.netName === name ? selection.segmentIdx : -1;
 
         const segments = net.segments ?? [];
         const dashed = net.segments === null;
 
-        // Dashed placeholders connecting pins pairwise
+        // Dashed placeholders connecting all endpoints touching this net.
+        // We scan every gate pin's `.net` field directly (source of truth)
+        // rather than relying on `net.pins[]` which may be out of sync.
         const placeholders: Array<[number, number, number, number]> = [];
-        if (dashed && net.pins.length >= 2) {
-          const positions = net.pins
-            .map((p) => pinPos(page, p))
-            .filter((p): p is { x: number; y: number } => !!p);
-          for (let i = 0; i + 1 < positions.length; i++) {
-            const a = positions[i]!;
-            const b = positions[i + 1]!;
+        if (dashed) {
+          const endpoints: Array<{ x: number; y: number }> = [];
+          const seen = new Set<string>();
+          const addPt = (x: number, y: number): void => {
+            const key = `${x},${y}`;
+            if (seen.has(key)) return;
+            seen.add(key);
+            endpoints.push({ x, y });
+          };
+          for (const g of page.gates) {
+            for (const p of g.pins) {
+              if (p.net === name) addPt(p.px, p.py);
+            }
+          }
+          for (const port of page.ports ?? []) {
+            if (port.net === name) {
+              const oe = portOpenEnd(port);
+              addPt(oe.x, oe.y);
+            }
+          }
+          for (const cr of page.cross_refs ?? []) {
+            if (cr.net === name) addPt(cr.x, cr.y);
+          }
+          // Orphan ports / cross_refs: net only touches an edge endpoint, no
+          // gate pin consumes it on this page. Render a short stub pointing
+          // into the page interior so the user sees a dangling net.
+          if (endpoints.length < 2) {
+            const STUB = 40;
+            for (const port of page.ports ?? []) {
+              if (port.net !== name) continue;
+              const oe = portOpenEnd(port);
+              // stub points INTO the page from the open end (= away from chevron tip)
+              const dx = port.side === 'left' ? STUB : port.side === 'right' ? -STUB : 0;
+              const dy = port.side === 'top' ? STUB : port.side === 'bottom' ? -STUB : 0;
+              placeholders.push([oe.x, oe.y, oe.x + dx, oe.y + dy]);
+            }
+            for (const cr of page.cross_refs ?? []) {
+              if (cr.net !== name) continue;
+              const dx = cr.side === 'left' ? STUB : cr.side === 'right' ? -STUB : 0;
+              const dy = cr.side === 'top' ? STUB : cr.side === 'bottom' ? -STUB : 0;
+              placeholders.push([cr.x, cr.y, cr.x + dx, cr.y + dy]);
+            }
+          }
+          // Connect to a centroid for a clean star topology when 3+ endpoints
+          if (endpoints.length === 2) {
+            const a = endpoints[0]!;
+            const b = endpoints[1]!;
             placeholders.push([a.x, a.y, b.x, b.y]);
+          } else if (endpoints.length >= 3) {
+            const cx0 = endpoints.reduce((s, p) => s + p.x, 0) / endpoints.length;
+            const cy0 = endpoints.reduce((s, p) => s + p.y, 0) / endpoints.length;
+            const c = pushOutOfGates(cx0, cy0, page.gates);
+            for (const p of endpoints) {
+              placeholders.push([p.x, p.y, c.x, c.y]);
+            }
+          }
+        }
+
+        // Auto-junctions: any point where 3+ segment endpoints (real OR
+        // placeholder) of THIS net meet → render a filled dot so the user
+        // can tell a connection from a mere crossing.
+        const autoJunctions: Array<[number, number]> = [];
+        {
+          const count = new Map<string, { x: number; y: number; n: number }>();
+          const bump = (x: number, y: number): void => {
+            const k = `${x},${y}`;
+            const e = count.get(k);
+            if (e) e.n += 1;
+            else count.set(k, { x, y, n: 1 });
+          };
+          for (const s of segments) { bump(s[0], s[1]); bump(s[2], s[3]); }
+          for (const s of placeholders) { bump(s[0], s[1]); bump(s[2], s[3]); }
+          for (const e of count.values()) {
+            if (e.n >= 3) autoJunctions.push([e.x, e.y]);
           }
         }
 
@@ -94,15 +283,59 @@ export function NetLayer({ page, zoom }: Props): JSX.Element {
           <>
             {segments.map((s, si) => {
               const selected = selectedSegment === si;
+              // W trybie view: nawet zaznaczony segment renderujemy jak caly net
+              // (zeby widziec spojnosc geometrii). Niebieski tylko w edit.
+              const showAsSelected = selected && editing;
+              const segActive = selected || isActive;
               return (
                 <Line
                   key={`${name}-s-${si}`}
                   points={[s[0], s[1], s[2], s[3]]}
-                  stroke={selected ? '#2196F3' : color}
-                  strokeWidth={selected ? wActive : isActive ? wActive : w}
+                  stroke={showAsSelected ? '#2196F3' : (segActive ? COLOR_ACTIVE : color)}
+                  strokeWidth={segActive ? wActive : w}
                   hitStrokeWidth={Math.max(8, w * 4)}
                   onClick={(e) => {
                     e.cancelBubble = true;
+                    if (tool === 'wire') {
+                      dispatchSegmentClick(e, name, s);
+                      return;
+                    }
+                    // Alt+klik w trybie edit = split segmentu w miejscu kliku (projekcja na linie)
+                    if (editing && e.evt.altKey) {
+                      const stage = e.target.getStage();
+                      if (!stage) return;
+                      const ptr = stage.getPointerPosition();
+                      if (!ptr) return;
+                      const sx = stage.x();
+                      const sy = stage.y();
+                      const sc = stage.scaleX();
+                      let px = Math.round((ptr.x - sx) / sc);
+                      let py = Math.round((ptr.y - sy) / sc);
+                      // Projekcja na segment
+                      const ddx = s[2] - s[0];
+                      const ddy = s[3] - s[1];
+                      const len2 = ddx * ddx + ddy * ddy;
+                      if (len2 > 0) {
+                        let t = ((px - s[0]) * ddx + (py - s[1]) * ddy) / len2;
+                        t = Math.max(0, Math.min(1, t));
+                        px = Math.round(s[0] + t * ddx);
+                        py = Math.round(s[1] + t * ddy);
+                      }
+                      editPage((p) => {
+                        const segs = p.nets[name]?.segments;
+                        if (!segs) return;
+                        const cur = segs[si];
+                        if (!cur) return;
+                        segs.splice(si, 1, [cur[0], cur[1], px, py], [px, py, cur[2], cur[3]]);
+                        // Dodaj kropke junction (manual)
+                        const net = p.nets[name];
+                        if (net) {
+                          net.junctions ??= [];
+                          if (!net.junctions.some((j) => j[0] === px && j[1] === py)) net.junctions.push([px, py]);
+                        }
+                      });
+                      return;
+                    }
                     setSelection({ kind: 'segment', netName: name, segmentIdx: si });
                   }}
                 />
@@ -112,60 +345,169 @@ export function NetLayer({ page, zoom }: Props): JSX.Element {
               <Line
                 key={`${name}-p-${i}`}
                 points={[s[0], s[1], s[2], s[3]]}
-                stroke={dashed ? COLOR_DASH : color}
-                strokeWidth={w}
+                stroke={isActive ? color : COLOR_DASH}
+                strokeWidth={isActive ? wActive : w}
                 dash={[6, 4]}
                 hitStrokeWidth={Math.max(8, w * 4)}
                 onClick={(e) => {
                   e.cancelBubble = true;
+                  if (tool === 'wire') {
+                    dispatchSegmentClick(e, name, s);
+                    return;
+                  }
                   setSelection({ kind: 'net', name });
                 }}
               />
             ))}
-            {(net.junctions ?? []).map((j, ji) => (
-              <Circle
-                key={`${name}-j-${ji}`}
-                x={j[0]}
-                y={j[1]}
-                radius={4}
-                fill={color}
-                onClick={(e) => {
-                  if (editing) {
+            {(() => {
+              // Dedup: jezeli ten sam punkt jest tez w net.junctions, pomin auto.
+              const manualSet = new Set((net.junctions ?? []).map((j) => `${j[0]},${j[1]}`));
+              return autoJunctions
+                .filter((j) => !manualSet.has(`${j[0]},${j[1]}`))
+                .map((j, ji) => (
+                  <Circle
+                    key={`${name}-aj-${ji}`}
+                    x={j[0]}
+                    y={j[1]}
+                    radius={Math.max(4, 5 / zoom)}
+                    fill={color}
+                    draggable={editing}
+                    onDragStart={() => { dragOrigRef.current = { x: j[0], y: j[1] }; }}
+                    onDragMove={(e) => {
+                      const orig = dragOrigRef.current;
+                      if (!orig) return;
+                      const nx = Math.round(e.target.x());
+                      const ny = Math.round(e.target.y());
+                      editPage((p) => {
+                        const nt = p.nets[name];
+                        if (!nt) return;
+                        if (nt.segments) {
+                          for (const s of nt.segments) {
+                            if (s[0] === orig.x && s[1] === orig.y) { s[0] = nx; s[1] = ny; }
+                            if (s[2] === orig.x && s[3] === orig.y) { s[2] = nx; s[3] = ny; }
+                          }
+                        }
+                        if (nt.junctions) {
+                          for (const jj of nt.junctions) {
+                            if (jj[0] === orig.x && jj[1] === orig.y) { jj[0] = nx; jj[1] = ny; }
+                          }
+                        }
+                      });
+                      dragOrigRef.current = { x: nx, y: ny };
+                    }}
+                    onClick={(e) => {
+                      e.cancelBubble = true;
+                      if (tool === 'wire') {
+                        window.dispatchEvent(new CustomEvent('kronikarz:wire-endpoint-click', {
+                          detail: { x: j[0], y: j[1], netName: name, autoNet: name },
+                        }));
+                        return;
+                      }
+                      setSelection({ kind: 'net', name });
+                    }}
+                  />
+                ));
+            })()}
+            {(net.junctions ?? []).map((j, ji) => {
+              // Znajdź segment na ktorym lezy junction (najblizszy).
+              // Przy drag ograniczamy ruch do tego segmentu (projekcja na linie).
+              let nearestSeg = -1;
+              let nearestD = Infinity;
+              for (let i = 0; i < segments.length; i++) {
+                const s = segments[i]!;
+                const dx = s[2] - s[0];
+                const dy = s[3] - s[1];
+                const len2 = dx * dx + dy * dy;
+                if (len2 === 0) continue;
+                let t = ((j[0] - s[0]) * dx + (j[1] - s[1]) * dy) / len2;
+                t = Math.max(0, Math.min(1, t));
+                const px = s[0] + t * dx;
+                const py = s[1] + t * dy;
+                const d = (px - j[0]) ** 2 + (py - j[1]) ** 2;
+                if (d < nearestD) { nearestD = d; nearestSeg = i; }
+              }
+              return (
+                <Circle
+                  key={`${name}-j-${ji}`}
+                  x={j[0]}
+                  y={j[1]}
+                  radius={4}
+                  fill={color}
+                  draggable={editing && nearestSeg >= 0}
+                  dragBoundFunc={function (this: Konva.Node, absPos) {
+                    const stage = this.getStage();
+                    if (!stage || nearestSeg < 0) return absPos;
+                    const sx = stage.x();
+                    const sy = stage.y();
+                    const sc = stage.scaleX();
+                    const scanX = (absPos.x - sx) / sc;
+                    const scanY = (absPos.y - sy) / sc;
+                    const s = segments[nearestSeg]!;
+                    const dx = s[2] - s[0];
+                    const dy = s[3] - s[1];
+                    const len2 = dx * dx + dy * dy;
+                    let t = len2 === 0 ? 0 : ((scanX - s[0]) * dx + (scanY - s[1]) * dy) / len2;
+                    t = Math.max(0, Math.min(1, t));
+                    const px = s[0] + t * dx;
+                    const py = s[1] + t * dy;
+                    return { x: px * sc + sx, y: py * sc + sy };
+                  }}
+                  onDragEnd={(e) => {
                     e.cancelBubble = true;
+                    const nx = Math.round(e.target.x());
+                    const ny = Math.round(e.target.y());
                     editPage((p) => {
                       const js = p.nets[name]?.junctions;
-                      if (js) js.splice(ji, 1);
+                      if (js && js[ji]) { js[ji]![0] = nx; js[ji]![1] = ny; }
                     });
-                  } else {
+                  }}
+                  onClick={(e) => {
                     e.cancelBubble = true;
-                    setSelection({ kind: 'net', name });
-                  }
-                }}
-              />
-            ))}
-            {/* Endpoint drag handles for segments of selected net (edit mode) */}
-            {editing && isActive &&
-              segments.map((s, si) =>
-                [0, 1].map((endIdx) => (
+                    if (tool === 'wire') {
+                      window.dispatchEvent(new CustomEvent('kronikarz:wire-endpoint-click', {
+                        detail: { x: j[0], y: j[1], netName: name, autoNet: name },
+                      }));
+                      return;
+                    }
+                    if (editing) {
+                      editPage((p) => {
+                        const js = p.nets[name]?.junctions;
+                        if (js) js.splice(ji, 1);
+                      });
+                    } else {
+                      setSelection({ kind: 'net', name });
+                    }
+                  }}
+                />
+              );
+            })}
+            {/* Drag handles only for the SELECTED segment (avoid handle spam) */}
+            {editing && selectedSegment >= 0 && segments[selectedSegment] &&
+              [0, 1].map((endIdx) => {
+                const s = segments[selectedSegment]!;
+                return (
                   <Circle
-                    key={`${name}-h-${si}-${endIdx}`}
+                    key={`${name}-h-${selectedSegment}-${endIdx}`}
                     x={s[endIdx * 2]!}
                     y={s[endIdx * 2 + 1]!}
                     radius={6 / zoom + 2}
-                    fill={selectedSegment === si ? '#2196F3' : '#FF9800'}
+                    fill="#2196F3"
                     stroke="#39ff14"
                     strokeWidth={1 / zoom}
                     draggable
+                    onDragStart={() =>
+                      onSegmentDragStart(name, selectedSegment, endIdx as 0 | 1)
+                    }
                     onDragMove={(e) =>
-                      onSegmentDrag(name, si, endIdx as 0 | 1, e)
+                      onSegmentDrag(name, selectedSegment, endIdx as 0 | 1, e)
                     }
                     onClick={(e) => {
                       e.cancelBubble = true;
-                      setSelection({ kind: 'segment', netName: name, segmentIdx: si });
+                      setSelection({ kind: 'segment', netName: name, segmentIdx: selectedSegment });
                     }}
                   />
-                )),
-              )}
+                );
+              })}
           </>
         );
       })}

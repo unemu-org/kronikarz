@@ -27,10 +27,10 @@ export function gateShape(gate: Gate, pkg: Package | null, icMap: IcMap | null):
   if (icDef?.shape === 'capacitor') return 'capacitor';
   if (icDef?.shape === 'capacitor_polarized') return 'capacitor_polarized';
 
-  // Detect flip-flop by pin labels
+  // Detect flip-flop by pin labels (require clk — eliminates register files like 74170)
   if (gate.gate && icDef?.gate_pins) {
     const gp = icDef.gate_pins[gate.gate];
-    if (gp && (gp.clk || gp.d || gp.q || gp.nq)) return 'flipflop';
+    if (gp?.clk) return 'flipflop';
   }
   return 'rect';
 }

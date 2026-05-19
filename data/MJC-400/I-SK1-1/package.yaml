@@ -5,39 +5,11 @@ package:
   doc: 12-006368-01-8A
   status: raw
   pages:
-  - id: 2-85
-    file: pages/2-85.sch.yaml
-    scan: scans/2-85.jpg
-    title: Schemat ideowy pakietu I-SK1-1
-    status: raw
-  - id: 2-86
-    file: pages/2-86.sch.yaml
-    scan: scans/2-86.jpg
-    title: Schemat ideowy pakietu I-SK1-1
-    status: raw
-  - id: 2-87
-    file: pages/2-87.sch.yaml
-    scan: scans/2-87.jpg
-    title: Schemat ideowy pakietu I-SK1-1
-    status: raw
-  - id: 2-88
-    file: pages/2-88.sch.yaml
-    scan: scans/2-88.jpg
-    title: Schemat ideowy pakietu I-SK1-1
-    status: raw
-  - id: 2-89
-    file: pages/2-89.sch.yaml
-    scan: scans/2-89.jpg
-    title: Schemat ideowy pakietu I-SK1-1
-    status: raw
-  - id: 2-90
-    file: pages/2-90.sch.yaml
-    scan: scans/2-90.jpg
-    title: Schemat ideowy pakietu I-SK1-1
-    status: raw
-  - id: 2-91
-    file: pages/2-91.sch.yaml
-    scan: scans/2-91.jpg
-    title: Schemat ideowy pakietu I-SK1-1
-    status: raw
+  - {id: 2-85, file: pages/2-85.sch.yaml, scan: scans/2-85.jpg, title: Schemat ideowy pakietu I-SK1-1, status: raw, sheet: 1}
+  - {id: 2-86, file: pages/2-86.sch.yaml, scan: scans/2-86.jpg, title: Schemat ideowy pakietu I-SK1-1, status: raw, sheet: 2}
+  - {id: 2-87, file: pages/2-87.sch.yaml, scan: scans/2-87.jpg, title: Schemat ideowy pakietu I-SK1-1, status: raw, sheet: 3}
+  - {id: 2-88, file: pages/2-88.sch.yaml, scan: scans/2-88.jpg, title: Schemat ideowy pakietu I-SK1-1, status: raw, sheet: 4}
+  - {id: 2-89, file: pages/2-89.sch.yaml, scan: scans/2-89.jpg, title: Schemat ideowy pakietu I-SK1-1, status: raw, sheet: 5}
+  - {id: 2-90, file: pages/2-90.sch.yaml, scan: scans/2-90.jpg, title: Schemat ideowy pakietu I-SK1-1, status: raw, sheet: 6}
+  - {id: 2-91, file: pages/2-91.sch.yaml, scan: scans/2-91.jpg, title: Schemat ideowy pakietu I-SK1-1, status: raw, sheet: 7}
 components: {}

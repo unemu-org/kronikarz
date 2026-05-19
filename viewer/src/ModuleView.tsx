@@ -38,22 +38,16 @@ export function ModuleView(): JSX.Element | null {
             {project.backplane.map((s, i) => (
               <tr key={i} className="border-b border-bg-accent">
                 <td className="text-phosphor">{s.signal}</td>
-                <td>
-                  <button
-                    className="text-text-dim hover:text-phosphor"
-                    onClick={() => navigate({ mode: 'package', pkg: s.from.package })}
-                  >
-                    {s.from.package}/{s.from.connector_pin}
-                  </button>
-                </td>
-                <td>→</td>
-                <td>
-                  <button
-                    className="text-text-dim hover:text-phosphor"
-                    onClick={() => navigate({ mode: 'package', pkg: s.to.package })}
-                  >
-                    {s.to.package}/{s.to.connector_pin}
-                  </button>
+                <td className="text-text-dim">
+                  {s.endpoints.map((ep, k) => (
+                    <button
+                      key={k}
+                      className="mr-2 hover:text-phosphor"
+                      onClick={() => navigate({ mode: 'package', pkg: ep.package })}
+                    >
+                      {ep.package}/{ep.connector}{ep.pin}
+                    </button>
+                  ))}
                 </td>
               </tr>
             ))}

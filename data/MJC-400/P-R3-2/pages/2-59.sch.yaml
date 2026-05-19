@@ -2,7 +2,486 @@ kronikarz: "1"
 page: 2-59
 package: P-R3-2
 scan_size: [2340, 1654]
-gates: []
+gates:
+- ref: M58
+  gate: B
+  x: 1166
+  y: 256
+  rotation: 0
+  pins:
+  - {num: 4, side: left, net: -Z, px: 1141, py: 263}
+  - {num: 5, side: left, net: +RPA, px: 1141, py: 235}
+  - {num: 6, side: right, net: NET_M58_B_6, px: 1194, py: 242}
+  label_left: 5,4
+  label_right: '6'
+  verified: true
+  note: null
+  w: 55
+  h: 84
+- ref: M58
+  gate: C
+  x: 1166
+  y: 334
+  rotation: 0
+  pins:
+  - {num: 9, side: left, net: +RPA, px: 1141, py: 321}
+  - {num: 10, side: left, net: -M, px: 1141, py: 344}
+  - {num: 8, side: right, net: NET_A3, px: 1196, py: 323}
+  label_left: 9,10
+  label_right: '8'
+  verified: true
+  note: null
+  w: 55
+  h: 73
+- ref: M58
+  gate: D
+  x: 1166
+  y: 409
+  rotation: 0
+  pins:
+  - {num: 12, side: left, net: +RPA, px: 1139, py: 425}
+  - {num: 13, side: left, net: -V, px: 1139, py: 390}
+  - {num: 11, side: right, net: NET_M57_A_7, px: 1194, py: 401}
+  label_left: 13,12
+  label_right: '11'
+  verified: true
+  note: null
+  w: 55
+  h: 77
+- ref: M58
+  gate: A
+  x: 1166
+  y: 487
+  rotation: 0
+  pins:
+  - {num: 1, side: left, net: -C, px: 1141, py: 500}
+  - {num: 2, side: left, net: +RPA, px: 1141, py: 475}
+  - {num: 3, side: right, net: NET_A27, px: 1194, py: 478}
+  label_left: 2,1
+  label_right: '3'
+  verified: true
+  note: null
+  w: 55
+  h: 78
+- ref: M56
+  gate: A
+  x: 739
+  y: 697
+  rotation: 0
+  pins:
+  - {num: 1, side: left, net: +W1, px: 685, py: 686}
+  - {num: 2, side: left, net: +W2, px: 685, py: 709}
+  - {num: 3, side: left, net: +W3, px: 685, py: 737}
+  - {num: 4, side: left, net: +RB, px: 685, py: 579}
+  - {num: 10, side: right, net: NET_M58_B_6, px: 793, py: 664}
+  - {num: 11, side: left, net: -CZYTRN, px: 685, py: 545}
+  - {num: 12, side: left, net: -PISZRN, px: 685, py: 839}
+  - {num: 13, side: left, net: +RB, px: 685, py: 819}
+  - {num: 14, side: left, net: +RA, px: 685, py: 792}
+  - {num: 15, side: left, net: +W0, px: 685, py: 655}
+  - {num: 5, side: left, net: +RA, px: 685, py: 608}
+  - {num: 6, side: right, net: NET_A27, px: 793, py: 744}
+  - {num: 7, side: right, net: NET_M57_A_7, px: 793, py: 713}
+  - {num: 9, side: right, net: NET_A3, px: 793, py: 686}
+  label_left: null
+  label_right: null
+  verified: true
+  note: R 170
+  w: 108
+  h: 346
+- ref: M57
+  gate: A
+  x: 739
+  y: 1047
+  rotation: 0
+  pins:
+  - {num: 1, side: left, net: +W1, px: 686, py: 1029}
+  - {num: 2, side: left, net: +W2, px: 686, py: 1055}
+  - {num: 3, side: left, net: +W3, px: 686, py: 1086}
+  - {num: 4, side: left, net: +RB, px: 685, py: 922}
+  - {num: 10, side: right, net: NET_M58_B_6, px: 792, py: 1009}
+  - {num: 11, side: left, net: -CZYTRW, px: 685, py: 891}
+  - {num: 12, side: left, net: -PISZRW, px: 686, py: 1190}
+  - {num: 13, side: left, net: +RB, px: 686, py: 1162}
+  - {num: 14, side: left, net: +RA, px: 686, py: 1135}
+  - {num: 15, side: left, net: +W0, px: 686, py: 1002}
+  - {num: 5, side: left, net: +RA, px: 686, py: 952}
+  - {num: 6, side: right, net: NET_A27, px: 792, py: 1089}
+  - {num: 7, side: right, net: NET_M57_A_7, px: 792, py: 1056}
+  - {num: 9, side: right, net: NET_A3, px: 792, py: 1037}
+  label_left: null
+  label_right: null
+  verified: true
+  note: R 170
+  w: 108
+  h: 353
+- ref: M1
+  gate: null
+  x: 427
+  y: 617
+  rotation: 0
+  pins:
+  - {num: 9, side: left, net: NET_B7, px: 401, py: 604}
+  - {num: 8, side: right, net: +W0, px: 453, py: 605}
+  label_left: '9'
+  label_right: '8'
+  verified: true
+  note: 04 inverter
+  w: 52
+  h: 83
+- ref: M1
+  gate: null
+  x: 426
+  y: 697
+  rotation: 0
+  pins:
+  - {num: 1, side: left, net: NET_B12, px: 401, py: 681}
+  - {num: 2, side: right, net: +W1, px: 452, py: 686}
+  label_left: '1'
+  label_right: '2'
+  verified: true
+  note: 04 inverter
+  w: 51
+  h: 77
+- ref: M1
+  gate: B
+  x: 422
+  y: 962
+  rotation: 0
+  pins:
+  - {num: 3, side: left, net: NET_B11, px: 395, py: 947}
+  - {num: 4, side: right, net: +W2, px: 449, py: 949}
+  label_left: '3'
+  label_right: '4'
+  verified: true
+  note: null
+  w: 54
+  h: 80
+- ref: M1
+  gate: C
+  x: 422
+  y: 1043
+  rotation: 0
+  pins:
+  - {num: 5, side: left, net: NET_B10, px: 395, py: 1028}
+  - {num: 6, side: right, net: +W3, px: 449, py: 1029}
+  label_left: '5'
+  label_right: '6'
+  verified: true
+  note: null
+  w: 54
+  h: 82
 power: []
-nets: {}
-annotations: []
+nets:
+  ? ''
+  : pins: [M56.A.3, M57.A.9, M57.A.3, M57.A.2, M57.A.15, M57.A.13, M56.A.14]
+    segments:
+    - [685, 709, 685, 737]
+    - [792, 1009, 792, 1037]
+    - [792, 1089, 686, 1086]
+    - [686, 1086, 686, 1055]
+    - [686, 1029, 686, 1002]
+    - [686, 1135, 686, 1162]
+    - [685, 839, 685, 792]
+    junctions: null
+  NET_B7:
+    pins: []
+    segments:
+    - [209, 604, 401, 604]
+    junctions: null
+  NET_M58_B_6:
+    pins: []
+    segments:
+    - [1194, 242, 1352, 242]
+    - [1352, 242, 1352, 928]
+    - [1352, 928, 1353, 1009]
+    - [1353, 1009, 921, 1009]
+    - [921, 1009, 792, 1009]
+    - [921, 1009, 921, 664]
+    - [921, 664, 793, 664]
+    - [1508, 928, 1352, 928]
+    junctions: null
+  NET_A3:
+    pins: []
+    segments:
+    - [1508, 1037, 1323, 1037]
+    - [1323, 1037, 894, 1037]
+    - [894, 1037, 792, 1037]
+    - [894, 1037, 894, 686]
+    - [894, 686, 793, 686]
+    - [1196, 323, 1323, 323]
+    - [1323, 323, 1323, 1037]
+    junctions: null
+  NET_M57_A_7:
+    pins: []
+    segments:
+    - [792, 1056, 874, 1056]
+    - [874, 1056, 1292, 1056]
+    - [1292, 1056, 1292, 984]
+    - [1292, 984, 1292, 401]
+    - [1292, 401, 1194, 401]
+    - [793, 713, 874, 713]
+    - [874, 713, 874, 1056]
+    - [1508, 984, 1292, 984]
+    junctions: null
+  NET_A27:
+    pins: []
+    segments:
+    - [1507, 1089, 1262, 1089]
+    - [1262, 1089, 848, 1089]
+    - [848, 1089, 792, 1089]
+    - [1262, 1089, 1262, 478]
+    - [1262, 478, 1194, 478]
+    - [793, 744, 848, 744]
+    - [848, 744, 848, 1089]
+    junctions: null
+  -PISZRN:
+    pins: []
+    segments:
+    - [232, 839, 685, 839]
+    junctions: null
+  -CZYTRW:
+    pins: []
+    segments:
+    - [231, 891, 685, 891]
+    junctions: null
+  NET_B11:
+    pins: []
+    segments:
+    - [211, 947, 395, 947]
+    junctions: null
+  NET_B10:
+    pins: []
+    segments:
+    - [209, 1028, 395, 1028]
+    junctions: null
+  +RB:
+    pins: []
+    segments:
+    - [605, 1162, 686, 1162]
+    - [685, 922, 607, 922]
+    - [607, 922, 605, 1162]
+    - [685, 819, 607, 819]
+    - [607, 819, 607, 922]
+    - [607, 819, 607, 579]
+    - [607, 579, 685, 579]
+    - [226, 1162, 605, 1162]
+    junctions: null
+  -PISZRW:
+    pins: []
+    segments:
+    - [226, 1190, 686, 1190]
+    junctions: null
+  +RA:
+    pins: []
+    segments:
+    - [226, 1135, 631, 1135]
+    - [631, 1135, 686, 1135]
+    - [686, 952, 631, 952]
+    - [631, 952, 631, 1135]
+    - [631, 952, 631, 792]
+    - [631, 792, 631, 608]
+    - [631, 608, 685, 608]
+    - [685, 792, 631, 792]
+    junctions: null
+  +W3:
+    pins: []
+    segments:
+    - [497, 1084, 497, 1460]
+    - [686, 1086, 497, 1084]
+    - [497, 1084, 497, 1029]
+    - [497, 1029, 497, 737]
+    - [497, 737, 685, 737]
+    - [449, 1029, 497, 1029]
+    - [1106, 1460, 497, 1460]
+    junctions: null
+  +W2:
+    pins: []
+    segments:
+    - [523, 1407, 523, 1055]
+    - [523, 1055, 523, 949]
+    - [523, 949, 523, 709]
+    - [523, 709, 685, 709]
+    - [449, 949, 523, 949]
+    - [523, 1055, 686, 1055]
+    - [1106, 1407, 523, 1407]
+    junctions: null
+  +W1:
+    pins: []
+    segments:
+    - [1106, 1354, 553, 1354]
+    - [553, 1354, 553, 1029]
+    - [553, 1029, 553, 686]
+    - [553, 686, 685, 686]
+    - [553, 686, 452, 686]
+    - [553, 1029, 686, 1029]
+    junctions: null
+  +W0:
+    pins: []
+    segments:
+    - [576, 1002, 575, 655]
+    - [575, 655, 575, 605]
+    - [575, 605, 453, 605]
+    - [575, 655, 685, 655]
+    - [686, 1002, 576, 1002]
+    - [1106, 1302, 574, 1302]
+    - [574, 1302, 576, 1002]
+    junctions: null
+  -CZYTRN:
+    pins: []
+    segments:
+    - [246, 545, 685, 545]
+    junctions: null
+  -C:
+    pins: []
+    segments:
+    - [246, 500, 1141, 500]
+    junctions: null
+  -V:
+    pins: []
+    segments:
+    - [246, 390, 1139, 390]
+    junctions: null
+  -M:
+    pins: []
+    segments:
+    - [246, 344, 1141, 344]
+    junctions: null
+  -Z:
+    pins: []
+    segments:
+    - [246, 263, 1141, 263]
+    junctions: null
+  +RPA:
+    pins: []
+    segments:
+    - [1141, 475, 1087, 475]
+    - [1087, 475, 1087, 425]
+    - [1087, 425, 1139, 425]
+    - [1089, 235, 1141, 235]
+    - [1087, 425, 1088, 321]
+    - [1088, 321, 1141, 321]
+    - [1088, 321, 1089, 235]
+    - [246, 235, 1089, 235]
+    junctions: null
+  NET_B12:
+    pins: []
+    segments:
+    - [209, 681, 401, 681]
+    junctions: null
+annotations:
+- {text: 'Schemat ideowy
+
+    pakietu P-R3-2', x: 1818, y: 1310, fontSize: 40}
+- {text: 2-59, x: 1604, y: 1448, fontSize: 40}
+- {text: Ark., x: 1730, y: 1460, fontSize: 15, rotation: 270}
+- {text: '2', x: 1746, y: 1429, fontSize: 30, rotation: 0}
+- {text: A-y, x: 1730, y: 1503, fontSize: 15, rotation: 270}
+- {text: '12', x: 1746, y: 1477, fontSize: 30}
+- {text: 12-006368-01-8A, x: 1802, y: 1451, fontSize: 50, rotation: 0}
+ports:
+- {connector: A, pin: 4, label: +L0, net: NET_M58_B_6, x: 1584, y: 928, side: right}
+- {connector: A, pin: 28, label: +L2, net: NET_M57_A_7, x: 1584, y: 982, side: right}
+- {connector: A, pin: 3, label: +L1, net: NET_A3, x: 1584, y: 1035, side: right}
+- {connector: A, pin: 27, label: +L3, net: NET_A27, x: 1584, y: 1089, side: right}
+- {connector: B, pin: 7, label: -W0, net: NET_B7, x: 133, y: 604, side: left}
+- {connector: B, pin: 12, label: -W1, net: NET_B12, x: 133, y: 681, side: left}
+- {connector: B, pin: 11, label: -W2, net: NET_B11, x: 133, y: 947, side: left}
+- {connector: B, pin: 10, label: -W3, net: NET_B10, x: 133, y: 1028, side: left}
+cross_refs:
+- net: +W0
+  label: +W0
+  pages: ['8']
+  x: 1106
+  y: 1302
+  side: right
+- net: +W1
+  label: +W1
+  pages: ['8']
+  x: 1106
+  y: 1354
+  side: right
+- net: +W2
+  label: +W2
+  pages: ['8']
+  x: 1106
+  y: 1407
+  side: right
+- net: +W3
+  label: +W3
+  pages: ['8']
+  x: 1106
+  y: 1460
+  side: right
+- net: -PISZRN
+  label: -PISZRN
+  pages: ['1']
+  x: 231
+  y: 839
+  side: left
+- net: -CZYTRW
+  label: -CZYTRW
+  pages: ['1']
+  x: 231
+  y: 892
+  side: left
+- net: +RPA
+  label: +RPA
+  pages: ['1']
+  x: 246
+  y: 235
+  side: left
+- net: -Z
+  label: -Z
+  pages: ['8']
+  x: 246
+  y: 263
+  side: left
+- net: -M
+  label: -M
+  pages: ['8']
+  x: 246
+  y: 344
+  side: left
+- net: -V
+  label: -V
+  pages: ['8']
+  x: 246
+  y: 390
+  side: left
+- net: -C
+  label: -C
+  pages: ['8']
+  x: 246
+  y: 500
+  side: left
+- net: -CZYTRN
+  label: -CZYTRN
+  pages: ['1']
+  x: 246
+  y: 545
+  side: left
+- label: +RA
+  net: +RA
+  pages: ['1']
+  x: 226
+  y: 1135
+  side: left
+- label: +RB
+  net: +RB
+  pages: ['1']
+  x: 226
+  y: 1162
+  side: left
+- label: -PISZRW
+  net: -PISZRW
+  pages: ['1']
+  x: 226
+  y: 1190
+  side: left
+decorations:
+- {kind: line, x1: 1774, y1: 1417, x2: 1592, y2: 1417}
+- {kind: line, x1: 1591, y1: 1416, x2: 1591, y2: 1511}
+- {kind: line, x1: 1590, y1: 1512, x2: 1773, y2: 1512}
+- {kind: line, x1: 1724, y1: 1418, x2: 1724, y2: 1512}
+- {kind: line, x1: 1773, y1: 1467, x2: 1724, y2: 1467}

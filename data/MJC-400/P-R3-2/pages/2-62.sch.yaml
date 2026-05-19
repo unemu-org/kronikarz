@@ -1,8 +1,623 @@
 kronikarz: "1"
 page: 2-62
 package: P-R3-2
-scan_size: [2340, 1654]
-gates: []
+scan_size:
+  - 2340
+  - 1654
+gates:
+  - ref: M26
+    gate: B
+    x: 1266.1838316807673
+    "y": 246.53291054639735
+    rotation: 0
+    pins:
+      - num: 4
+        side: left
+        net: ""
+        px: 1238
+        py: 263
+      - num: 5
+        side: left
+        net: ""
+        px: 1238
+        py: 234
+      - num: 6
+        side: right
+        net: ""
+        px: 1294
+        py: 234
+    label_left: 5/4
+    label_right: "6"
+    verified: false
+    note: OR gate (&/03)
+    w: 56
+    h: 83
+  - ref: M26
+    gate: C
+    x: 1266
+    "y": 327
+    rotation: 0
+    pins:
+      - num: 9
+        side: left
+        net: ""
+        px: 1238
+        py: 337
+      - num: 10
+        side: left
+        net: ""
+        px: 1238
+        py: 311
+      - num: 8
+        side: right
+        net: ""
+        px: 1294
+        py: 310
+    label_left: 10/9
+    label_right: "8"
+    verified: false
+    note: OR gate (&/03)
+    w: 56
+    h: 79
+  - ref: M26
+    gate: D
+    x: 1266
+    "y": 404.9577029880063
+    rotation: 0
+    pins:
+      - num: 12
+        side: left
+        net: ""
+        px: 1238
+        py: 415.7771720285193
+      - num: 13
+        side: left
+        net: ""
+        px: 1238
+        py: 387.7771720285193
+      - num: 11
+        side: right
+        net: ""
+        px: 1294
+        py: 387.7771720285193
+    label_left: 13/12
+    label_right: "11"
+    verified: false
+    note: OR gate (&/03)
+    w: 56
+    h: 79
+  - ref: M26
+    gate: A
+    x: 1265.2646732769304
+    "y": 484.99637638207264
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: ""
+        px: 1237.2646732769304
+        py: 467.99637638207264
+      - num: 2
+        side: left
+        net: ""
+        px: 1237.2646732769304
+        py: 495.99637638207264
+      - num: 3
+        side: right
+        net: ""
+        px: 1293
+        py: 468
+    label_left: 1/2
+    label_right: "3"
+    verified: false
+    note: OR gate (&/03)
+    w: 56
+    h: 78
+  - ref: M24
+    gate: A
+    x: 846
+    "y": 587.6699113023631
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: ""
+        px: 792.0000000000001
+        py: 573.3366563267322
+      - num: 2
+        side: left
+        net: ""
+        px: 792.0000000000001
+        py: 600.3366563267322
+      - num: 3
+        side: left
+        net: ""
+        px: 792
+        py: 628.6699113023631
+      - num: 4
+        side: left
+        net: ""
+        px: 792
+        py: 466
+      - num: 10
+        side: right
+        net: ""
+        px: 900.0000000000001
+        py: 545.3366563267322
+      - num: 11
+        side: left
+        net: ""
+        px: 792
+        py: 440
+      - num: 12
+        side: left
+        net: ""
+        px: 792
+        py: 733.6699113023631
+      - num: 13
+        side: left
+        net: ""
+        px: 792
+        py: 706.6699113023631
+      - num: 14
+        side: left
+        net: ""
+        px: 792
+        py: 681.6699113023631
+      - num: 15
+        side: left
+        net: ""
+        px: 792.0000000000001
+        py: 546.3366563267322
+      - num: 5
+        side: left
+        net: ""
+        px: 792.0000000000001
+        py: 495.33665632673217
+      - num: 6
+        side: right
+        net: ""
+        px: 900.0000000000001
+        py: 627.3366563267322
+      - num: 7
+        side: right
+        net: ""
+        px: 900.0000000000001
+        py: 601.3366563267322
+      - num: 9
+        side: right
+        net: ""
+        px: 900.0000000000001
+        py: 572.3366563267322
+    label_left: null
+    label_right: null
+    verified: true
+    note: Złożony układ z wejściami ED/RB/RA/A1/B1/C1/D1/WA/WE/EN i wyjściami A/B/C/D, typ R 170
+    w: 108
+    h: 344
+  - ref: M25
+    gate: A
+    x: 846
+    "y": 934
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: ""
+        px: 792
+        py: 918.3331161449736
+      - num: 2
+        side: left
+        net: ""
+        px: 792
+        py: 944.3331161449736
+      - num: 3
+        side: left
+        net: ""
+        px: 792
+        py: 971.3331161449736
+      - num: 4
+        side: left
+        net: ""
+        px: 792
+        py: 814.3331161449736
+      - num: 10
+        side: left
+        net: ""
+        px: 900
+        py: 889.3331161449736
+      - num: 11
+        side: left
+        net: ""
+        px: 792
+        py: 785.3331161449736
+      - num: 12
+        side: left
+        net: ""
+        px: 792
+        py: 1078.3331161449737
+      - num: 13
+        side: left
+        net: ""
+        px: 792
+        py: 1050.3331161449737
+      - num: 14
+        side: left
+        net: ""
+        px: 792
+        py: 1022.3331161449736
+      - num: 15
+        side: left
+        net: ""
+        px: 792
+        py: 891.3331161449736
+      - num: 5
+        side: right
+        net: ""
+        px: 792
+        py: 840.3331161449736
+      - num: 6
+        side: right
+        net: ""
+        px: 900
+        py: 973.3331161449736
+      - num: 7
+        side: right
+        net: ""
+        px: 900
+        py: 943.3331161449736
+      - num: 9
+        side: right
+        net: ""
+        px: 900
+        py: 918.3331161449736
+    label_left: null
+    label_right: null
+    verified: true
+    note: Złożony układ z wejściami ED/RB/RA/A1/B1/C1/D1/WA/WE/EN i wyjściami A/B/C/D, typ R 170
+    w: 108
+    h: 350
+  - ref: M2
+    gate: E
+    x: 531
+    "y": 530
+    rotation: 0
+    pins:
+      - num: 11
+        side: left
+        net: ""
+        px: 504
+        py: 517
+      - num: 10
+        side: right
+        net: ""
+        px: 558
+        py: 517
+    label_left: "11"
+    label_right: "10"
+    verified: false
+    note: 04 inverter
+    w: 56
+    h: 81
+  - ref: M1
+    gate: E
+    x: 531
+    "y": 613
+    rotation: 0
+    pins:
+      - num: 11
+        side: left
+        net: ""
+        px: 503
+        py: 598
+      - num: 10
+        side: right
+        net: ""
+        px: 559
+        py: 598
+    label_left: "11"
+    label_right: "10"
+    verified: false
+    note: 04 inverter
+    w: 56
+    h: 84
+  - ref: M2
+    gate: C
+    x: 530
+    "y": 849
+    rotation: 0
+    pins:
+      - num: 5
+        side: left
+        net: ""
+        px: 504
+        py: 837
+      - num: 6
+        side: right
+        net: ""
+        px: 556
+        py: 837
+    label_left: "5"
+    label_right: "6"
+    verified: false
+    note: "04"
+    w: 52
+    h: 78
+  - ref: M2
+    gate: B
+    x: 530
+    "y": 930
+    rotation: 0
+    pins:
+      - num: 3
+        side: left
+        net: ""
+        px: 504
+        py: 920
+      - num: 4
+        side: right
+        net: ""
+        px: 556
+        py: 918
+    label_left: "3"
+    label_right: "4"
+    verified: false
+    note: "04"
+    w: 52
+    h: 84
 power: []
-nets: {}
-annotations: []
+nets:
+  "":
+    pins:
+      - M25.A.7
+    segments:
+      - - 900
+        - 973.3331161449736
+        - 900
+        - 943.3331161449736
+    junctions: null
+annotations:
+  - text: 12-006368-01-8A
+    x: 1802
+    "y": 1451
+    fontSize: 50
+  - text: A-y
+    x: 1730
+    "y": 1503
+    fontSize: 15
+    rotation: 270
+  - text: Ark.
+    x: 1730
+    "y": 1460
+    fontSize: 15
+    rotation: 270
+  - text: "5"
+    x: 1746
+    "y": 1429
+    fontSize: 30
+  - text: "12"
+    x: 1746
+    "y": 1477
+    fontSize: 30
+  - text: 2-62
+    x: 1604
+    "y": 1448
+    fontSize: 40
+  - text: |-
+      Schemat ideowy
+      pakietu P-R3-2
+    x: 1818
+    "y": 1310
+    fontSize: 40
+decorations:
+  - kind: line
+    x1: 1774
+    y1: 1417
+    x2: 1592
+    y2: 1417
+  - kind: line
+    x1: 1591
+    y1: 1416
+    x2: 1591
+    y2: 1511
+  - kind: line
+    x1: 1590
+    y1: 1512
+    x2: 1773
+    y2: 1512
+  - kind: line
+    x1: 1724
+    y1: 1418
+    x2: 1724
+    y2: 1512
+ports:
+  - connector: B
+    pin: 16
+    label: "-W12"
+    net: ""
+    x: 242
+    "y": 519
+    side: left
+  - connector: B
+    pin: 8
+    label: "-W13"
+    net: ""
+    x: 242
+    "y": 601
+    side: left
+  - connector: B
+    pin: 17
+    label: "-W14"
+    net: ""
+    x: 243
+    "y": 838
+    side: left
+  - connector: B
+    pin: 18
+    label: "-W15"
+    net: ""
+    x: 243
+    "y": 918
+    side: left
+  - connector: A
+    pin: 6
+    label: +L12
+    net: ""
+    x: 1684
+    "y": 816
+    side: right
+  - connector: A
+    pin: 18
+    label: +L14
+    net: ""
+    x: 1684
+    "y": 869
+    side: right
+  - connector: A
+    pin: 5
+    label: +L13
+    net: ""
+    x: 1684
+    "y": 921
+    side: right
+  - connector: A
+    pin: 19
+    label: +L15
+    net: ""
+    x: 1684
+    "y": 974
+    side: right
+cross_refs:
+  - net: "-L"
+    label: "-L"
+    pages:
+      - "9"
+    x: 379
+    "y": 225
+    side: left
+  - net: +RPP
+    label: +RPP
+    pages:
+      - "1"
+    x: 379
+    "y": 255
+    side: left
+  - net: "-E"
+    label: "-E"
+    pages:
+      - "9"
+    x: 379
+    "y": 286
+    side: left
+  - net: "-G"
+    label: "-G"
+    pages:
+      - "9"
+    x: 379
+    "y": 316
+    side: left
+  - net: "-Y"
+    label: "-Y"
+    pages:
+      - "9"
+    x: 379
+    "y": 346
+    side: left
+  - net: "-CZYTAN"
+    label: "-CZYTAN"
+    pages:
+      - "1"
+    x: 379
+    "y": 438
+    side: left
+  - net: "-PISZRN"
+    label: "-PISZRN"
+    pages:
+      - "1"
+    x: 375
+    "y": 731
+    side: left
+  - net: "-CZYTRW"
+    label: "-CZYTRW"
+    pages:
+      - "1"
+    x: 375
+    "y": 784
+    side: left
+  - net: +RA
+    label: +RA
+    pages:
+      - "1"
+    x: 377
+    "y": 1018
+    side: left
+  - net: +RB
+    label: +RB
+    pages:
+      - "1"
+    x: 377
+    "y": 1048
+    side: left
+  - net: "-PISZRW"
+    label: "-PISZRW"
+    pages:
+      - "1"
+    x: 377
+    "y": 1078
+    side: left
+  - net: +L15
+    label: +L15
+    pages:
+      - "6"
+    x: 375
+    "y": 1130
+    side: left
+  - net: +L14
+    label: +L14
+    pages:
+      - "6"
+    x: 375
+    "y": 1164
+    side: left
+  - net: +L13
+    label: +L13
+    pages:
+      - "6"
+    x: 375
+    "y": 1197
+    side: left
+  - net: +L12
+    label: +L12
+    pages:
+      - "6"
+    x: 375
+    "y": 1231
+    side: left
+  - net: +W12
+    label: +W12
+    pages:
+      - "6"
+    x: 996
+    "y": 1293
+    side: right
+  - net: +W13
+    label: +W13
+    pages:
+      - "6"
+    x: 996
+    "y": 1346
+    side: right
+  - net: +W14
+    label: +W14
+    pages:
+      - "6"
+    x: 996
+    "y": 1398
+    side: right
+  - net: +W15
+    label: +W15
+    pages:
+      - "6"
+    x: 996
+    "y": 1451
+    side: right

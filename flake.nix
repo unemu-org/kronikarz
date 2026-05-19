@@ -33,6 +33,10 @@
             jq
 
             mdbook
+
+            # Python + uv for AI/CV scripts (vision digitize, ROI detect, YOLO export)
+            python3
+            uv
           ];
 
           shellHook = ''

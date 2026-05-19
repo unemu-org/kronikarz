@@ -5,54 +5,14 @@ package:
   doc: 12-006368-01-8A
   status: raw
   pages:
-  - id: 2-1
-    file: pages/2-1.sch.yaml
-    scan: scans/2-1.jpg
-    title: Schemat ideowy pakietu P-X3-2
-    status: raw
-  - id: 2-2
-    file: pages/2-2.sch.yaml
-    scan: scans/2-2.jpg
-    title: Schemat ideowy pakietu P-X3-2
-    status: raw
-  - id: 2-3
-    file: pages/2-3.sch.yaml
-    scan: scans/2-3.jpg
-    title: Schemat ideowy pakietu P-X3-2
-    status: raw
-  - id: 2-4
-    file: pages/2-4.sch.yaml
-    scan: scans/2-4.jpg
-    title: Schemat ideowy pakietu P-X3-2
-    status: raw
-  - id: 2-5
-    file: pages/2-5.sch.yaml
-    scan: scans/2-5.jpg
-    title: Schemat ideowy pakietu P-X3-2
-    status: raw
-  - id: 2-6
-    file: pages/2-6.sch.yaml
-    scan: scans/2-6.jpg
-    title: Schemat ideowy pakietu P-X3-2
-    status: raw
-  - id: 2-7
-    file: pages/2-7.sch.yaml
-    scan: scans/2-7.jpg
-    title: Schemat ideowy pakietu P-X3-2
-    status: raw
-  - id: 2-8
-    file: pages/2-8.sch.yaml
-    scan: scans/2-8.jpg
-    title: Schemat ideowy pakietu P-X3-2
-    status: raw
-  - id: 2-9
-    file: pages/2-9.sch.yaml
-    scan: scans/2-9.jpg
-    title: Schemat ideowy pakietu P-X3-2
-    status: raw
-  - id: 2-10
-    file: pages/2-10.sch.yaml
-    scan: scans/2-10.jpg
-    title: Schemat ideowy pakietu P-X3-2
-    status: raw
+  - {id: 2-1, file: pages/2-1.sch.yaml, scan: scans/2-1.jpg, title: Schemat ideowy pakietu P-X3-2, status: raw, sheet: 1}
+  - {id: 2-2, file: pages/2-2.sch.yaml, scan: scans/2-2.jpg, title: Schemat ideowy pakietu P-X3-2, status: raw, sheet: 2}
+  - {id: 2-3, file: pages/2-3.sch.yaml, scan: scans/2-3.jpg, title: Schemat ideowy pakietu P-X3-2, status: raw, sheet: 3}
+  - {id: 2-4, file: pages/2-4.sch.yaml, scan: scans/2-4.jpg, title: Schemat ideowy pakietu P-X3-2, status: raw, sheet: 4}
+  - {id: 2-5, file: pages/2-5.sch.yaml, scan: scans/2-5.jpg, title: Schemat ideowy pakietu P-X3-2, status: raw, sheet: 5}
+  - {id: 2-6, file: pages/2-6.sch.yaml, scan: scans/2-6.jpg, title: Schemat ideowy pakietu P-X3-2, status: raw, sheet: 6}
+  - {id: 2-7, file: pages/2-7.sch.yaml, scan: scans/2-7.jpg, title: Schemat ideowy pakietu P-X3-2, status: raw, sheet: 7}
+  - {id: 2-8, file: pages/2-8.sch.yaml, scan: scans/2-8.jpg, title: Schemat ideowy pakietu P-X3-2, status: raw, sheet: 8}
+  - {id: 2-9, file: pages/2-9.sch.yaml, scan: scans/2-9.jpg, title: Schemat ideowy pakietu P-X3-2, status: raw, sheet: 9}
+  - {id: 2-10, file: pages/2-10.sch.yaml, scan: scans/2-10.jpg, title: Schemat ideowy pakietu P-X3-2, status: raw, sheet: 10}
 components: {}

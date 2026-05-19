@@ -18,3 +18,13 @@ dist/kicad/
 data/.vision-cache/
 data/.ocr-cache/
 data/unmatched/
+
+# Auto-backups (detect-nets, manual undo)
+*.bak
+*.sch.yaml.*.bak
+.cv-cache
+
+# ML model checkpoints (SAM etc.)
+*.pt
+*.pth
+*.onnx

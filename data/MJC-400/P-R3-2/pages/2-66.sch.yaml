@@ -5,4 +5,18 @@ scan_size: [2340, 1654]
 gates: []
 power: []
 nets: {}
-annotations: []
+annotations:
+- {text: 12-006368-01-8A, x: 1802, y: 1451, fontSize: 50}
+- {text: A-y, x: 1730, y: 1503, fontSize: 15, rotation: 270}
+- {text: Ark., x: 1730, y: 1460, fontSize: 15, rotation: 270}
+- {text: '9', x: 1746, y: 1429, fontSize: 30}
+- {text: '12', x: 1746, y: 1477, fontSize: 30}
+- {text: 2-66, x: 1604, y: 1448, fontSize: 40}
+- {text: 'Schemat ideowy
+
+    pakietu P-R3-2', x: 1818, y: 1310, fontSize: 40}
+decorations:
+- {kind: line, x1: 1774, y1: 1417, x2: 1592, y2: 1417}
+- {kind: line, x1: 1591, y1: 1416, x2: 1591, y2: 1511}
+- {kind: line, x1: 1590, y1: 1512, x2: 1773, y2: 1512}
+- {kind: line, x1: 1724, y1: 1418, x2: 1724, y2: 1512}

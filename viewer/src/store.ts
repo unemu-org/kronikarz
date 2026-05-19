@@ -3,13 +3,29 @@ import type { Project, Package, Page, IcMap, Issue } from '@kronikarz/shared';
 import { serializePage, serializePackage } from '@kronikarz/shared';
 
 export type Mode = 'module' | 'package' | 'page' | 'empty';
-export type Tool = 'select' | 'edit';
+export type Tool = 'select' | 'edit' | 'roi' | 'wire' | 'zones';
+
+export type ZoneRole = 'gates' | 'ports_left' | 'ports_right' | 'cross_refs_left' | 'cross_refs_right';
+export interface VisionZone {
+  role: ZoneRole;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 export type Selection =
   | { kind: 'gate'; idx: number }
   | { kind: 'net'; name: string }
   | { kind: 'segment'; netName: string; segmentIdx: number }
   | { kind: 'pin'; gateIdx: number; pinIdx: number } // armed for wire creation
+  | { kind: 'port'; idx: number }
+  | { kind: 'cross_ref'; idx: number }
+  | { kind: 'annotation'; idx: number }
+  | { kind: 'decoration'; idx: number }
   | null;
+
+export type MultiKind = 'gate' | 'port' | 'cross_ref';
+export type MultiSelect = { kind: MultiKind; indices: number[] } | null;
 
 export interface Route {
   mode: Mode;
@@ -22,13 +38,17 @@ export interface DocState {
   project: Project | null;
   pkg: Package | null;
   page: Page | null;
+  allPages: Map<string, Page>;
   icMap: IcMap | null;
   issues: Issue[];
   tool: Tool;
   loadError: string | null;
   loading: boolean;
   selection: Selection;
+  multi: MultiSelect;
   scanOpacity: number;
+  overlaysVisible: boolean;
+  wireOrtho: boolean;
   zoom: number;
   past: Page[];
   future: Page[];
@@ -39,13 +59,18 @@ export interface DocState {
   setProject: (p: Project | null) => void;
   setPackage: (p: Package | null) => void;
   setPage: (p: Page | null) => void;
+  setAllPages: (m: Map<string, Page>) => void;
   setIcMap: (m: IcMap | null) => void;
   setIssues: (i: Issue[]) => void;
   setTool: (t: Tool) => void;
   setLoadError: (e: string | null) => void;
   setLoading: (b: boolean) => void;
   setSelection: (s: Selection) => void;
+  setMulti: (m: MultiSelect) => void;
+  toggleMulti: (kind: MultiKind, i: number) => void;
   setScanOpacity: (n: number) => void;
+  setOverlaysVisible: (b: boolean) => void;
+  setWireOrtho: (b: boolean) => void;
   setZoom: (n: number) => void;
   editPage: (mutator: (p: Page) => void) => void;
   editPackage: (mutator: (p: Package) => void) => void;
@@ -93,13 +118,17 @@ export const useDocStore = create<DocState>((set, get) => ({
   project: null,
   pkg: null,
   page: null,
+  allPages: new Map(),
   icMap: null,
   issues: [],
   tool: 'select',
   loadError: null,
   loading: false,
   selection: null,
+  multi: null,
   scanOpacity: 0.7,
+  overlaysVisible: true,
+  wireOrtho: true,
   zoom: 1,
   past: [],
   future: [],
@@ -110,13 +139,28 @@ export const useDocStore = create<DocState>((set, get) => ({
   setProject: (project) => set({ project }),
   setPackage: (pkg) => set({ pkg }),
   setPage: (page) => set({ page, past: [], future: [], selection: null }),
+  setAllPages: (allPages) => set({ allPages }),
   setIcMap: (icMap) => set({ icMap }),
   setIssues: (issues) => set({ issues }),
   setTool: (tool) => set({ tool }),
   setLoadError: (loadError) => set({ loadError }),
   setLoading: (loading) => set({ loading }),
-  setSelection: (selection) => set({ selection }),
+  setSelection: (selection) => set({ selection, multi: null }),
+  setMulti: (multi) => set({ multi }),
+  toggleMulti: (kind, i) => set((s) => {
+    if (!s.multi || s.multi.kind !== kind) {
+      return { multi: { kind, indices: [i] }, selection: null };
+    }
+    const has = s.multi.indices.includes(i);
+    const indices = has ? s.multi.indices.filter((x) => x !== i) : [...s.multi.indices, i];
+    return {
+      multi: indices.length ? { kind, indices } : null,
+      selection: null,
+    };
+  }),
   setScanOpacity: (scanOpacity) => set({ scanOpacity }),
+  setOverlaysVisible: (overlaysVisible) => set({ overlaysVisible }),
+  setWireOrtho: (wireOrtho) => set({ wireOrtho }),
   setZoom: (zoom) => set({ zoom }),
   setSaveStatus: (saveStatus, err = null) => set({ saveStatus, saveError: err }),
 

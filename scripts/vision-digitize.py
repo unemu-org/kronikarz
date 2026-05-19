@@ -65,6 +65,26 @@ power:                       # VCC / GND symbols visible on the schematic
     y: 40
     net: VCC
 
+ports:                       # backplane connectors — `< A50 >` symbols WITH a
+                             # connector pin label inside chevron brackets
+  - connector: "A50"         # connector pin label printed inside the bracket
+    label: "-BLR"            # signal label printed next to the bracket
+    net: "-BLR"              # net this port belongs to on this page
+    x: 80                    # tip position (where the wire connects), in pixels
+    y: 120
+    side: left               # which edge: left | right | top | bottom
+
+cross_refs:                  # intra-package cross-page references — printed
+                             # signal name followed by a comma list of pages
+                             # where the same net continues (NO chevron brackets,
+                             # typically on the right edge of a page)
+  - net: "-CZYTRW"
+    label: "-CZYTRW"         # as printed
+    pages: ["2-59", "2-60", "2-61"]   # page ids (often abbreviated like 2,3,4,5 — expand to full ids when possible, else keep as raw "2","3","4","5")
+    x: 2200                  # tip position (where the wire meets the label)
+    y: 380
+    side: right
+
 nets:                        # every distinct net on the page
   NET_NAME:
     pins:                    # list of "REF.GATE.NUM" or "REF.NUM" for passives
@@ -93,7 +113,30 @@ Rules:
 - The little number printed beside a pin (e.g. "13" left, "12" right)
   IS the pin number — capture it in label_left/label_right AND as pins[i].num.
 - `ic` field is the suffix only ("04" not "7404", "175" not "74175").
-- Cross-page exits: schematic shows "<A23>" or similar — fill `cross:`.
+- Cross-page exits on gate pins: schematic shows "<A23>" or similar next to a pin → fill `cross:`.
+- Two distinct kinds of edge annotations on a MERA-400 page:
+
+  1. PORTS (`ports:`) — chevron brackets `< CONN >` with a connector pin
+     label INSIDE the brackets (like A50, B94, C41). These connect to the
+     physical edge connector and on to the backplane. The connector label is
+     CRITICAL — copy byte-for-byte. Almost always on the LEFT edge for inputs.
+
+  2. CROSS-PAGE REFS (`cross_refs:`) — bare signal labels printed at the edge
+     WITHOUT brackets, followed by a comma-list of page numbers like
+     "-CZYTRW 2,3,4,5". They mean "this same net continues on pages 2-5 of
+     the same package". Almost always on the RIGHT edge (outputs going to
+     other pages within the package). The number list IS the list of pages.
+     Capture it as `pages: ["2-59","2-60","2-61"]` when you can map the
+     numbers to full page ids (page ids in this DTR look like "2-N"; bare
+     digits "2,3,4,5" almost certainly mean "2-59" form continuations of
+     the current page series — keep raw "2","3","4","5" if you cannot
+     disambiguate).
+
+- Do NOT confuse the two. A label WITH a chevron bracket is a port. A label
+  WITHOUT chevron + with comma-page-list is a cross_ref. Some signals appear
+  as both (one input port on left → one cross-ref on right with the same net
+  name).
+- Signal labels on either side preserve their +/- prefix verbatim.
 - Resistors / capacitors: gate=null, ic=null, add `value` if printed.
 - If a net has no printed label, invent NET_<descriptive> like NET_M60_OUT6.
 - Preserve original signal labels verbatim (with minus/plus signs).

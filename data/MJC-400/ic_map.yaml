@@ -6,33 +6,53 @@
   pins: 14
   gates: 4
   gate_pins:
+    A: { in: [1, 2], out: [3] }
+    B: { in: [4, 5], out: [6] }
+    C: { in: [9, 10], out: [8] }
+    D: { in: [12, 13], out: [11] }
+  power: { VCC: 14, GND: 7 }
+'03':
+  name: SN7403N
+  desc: Quad 2-input NAND (open-collector)
+  kicad_symbol: 74xx:SN7403
+  kicad_footprint: Package_DIP:DIP-14_W7.62mm
+  pins: 14
+  gates: 4
+  gate_pins:
+    A: { in: [1, 2], out: [3] }
+    B: { in: [4, 5], out: [6] }
+    C: { in: [9, 10], out: [8] }
+    D: { in: [12, 13], out: [11] }
+  power: { VCC: 14, GND: 7 }
+'170':
+  name: SN74170N
+  desc: 4x4 Register File (open-collector)
+  kicad_symbol: 74xx:SN74170
+  kicad_footprint: Package_DIP:DIP-16_W7.62mm
+  pins: 16
+  gates: 1
+  gate_pins:
     A:
-      in:
-      - 1
-      - 2
-      out:
-      - 3
-    B:
-      in:
-      - 4
-      - 5
-      out:
-      - 6
-    C:
-      in:
-      - 9
-      - 10
-      out:
-      - 8
-    D:
-      in:
-      - 12
-      - 13
-      out:
-      - 11
-  power:
-    VCC: 14
-    GND: 7
+      d: [1, 2, 3, 4]
+      wa: [11, 12]
+      we: [13]
+      ra: [14, 15]
+      re: [10]
+      q: [5, 6, 7, 9]
+  power: { VCC: 16, GND: 8 }
+'02':
+  name: SN7402N
+  desc: Quad 2-input NOR
+  kicad_symbol: 74xx:SN7402N
+  kicad_footprint: Package_DIP:DIP-14_W7.62mm
+  pins: 14
+  gates: 4
+  gate_pins:
+    A: { in: [2, 3], out: [1] }
+    B: { in: [5, 6], out: [4] }
+    C: { in: [8, 9], out: [10] }
+    D: { in: [11, 12], out: [13] }
+  power: { VCC: 14, GND: 7 }
 '04':
   name: SN7404N
   desc: Hex Inverter
@@ -41,106 +61,458 @@
   pins: 14
   gates: 6
   gate_pins:
-    A:
-      in:
-      - 1
-      out:
-      - 2
-    B:
-      in:
-      - 3
-      out:
-      - 4
-    C:
-      in:
-      - 5
-      out:
-      - 6
-    D:
-      in:
-      - 9
-      out:
-      - 8
-    E:
-      in:
-      - 11
-      out:
-      - 10
-    F:
-      in:
-      - 13
-      out:
-      - 12
-  power:
-    VCC: 14
-    GND: 7
-08:
+    A: { in: [1], out: [2] }
+    B: { in: [3], out: [4] }
+    C: { in: [5], out: [6] }
+    D: { in: [9], out: [8] }
+    E: { in: [11], out: [10] }
+    F: { in: [13], out: [12] }
+  power: { VCC: 14, GND: 7 }
+'08':
   name: SN7408N
   desc: Quad 2-input AND
   kicad_symbol: 74xx:SN7408N
+  kicad_footprint: Package_DIP:DIP-14_W7.62mm
   pins: 14
   gates: 4
   gate_pins:
-    A:
-      in:
-      - 1
-      - 2
-      out:
-      - 3
-    B:
-      in:
-      - 4
-      - 5
-      out:
-      - 6
-    C:
-      in:
-      - 9
-      - 10
-      out:
-      - 8
-    D:
-      in:
-      - 12
-      - 13
-      out:
-      - 11
-  power:
-    VCC: 14
-    GND: 7
-'175':
-  name: SN74175N
-  desc: Quad D Flip-Flop
-  kicad_symbol: 74xx:SN74175N
+    A: { in: [1, 2], out: [3] }
+    B: { in: [4, 5], out: [6] }
+    C: { in: [9, 10], out: [8] }
+    D: { in: [12, 13], out: [11] }
+  power: { VCC: 14, GND: 7 }
+'10':
+  name: SN7410N
+  desc: Triple 3-input NAND
+  kicad_symbol: 74xx:SN7410N
+  kicad_footprint: Package_DIP:DIP-14_W7.62mm
+  pins: 14
+  gates: 3
+  gate_pins:
+    A: { in: [1, 2, 13], out: [12] }
+    B: { in: [3, 4, 5], out: [6] }
+    C: { in: [9, 10, 11], out: [8] }
+  power: { VCC: 14, GND: 7 }
+'11':
+  name: SN7411N
+  desc: Triple 3-input AND
+  kicad_symbol: 74xx:SN7411N
+  kicad_footprint: Package_DIP:DIP-14_W7.62mm
+  pins: 14
+  gates: 3
+  gate_pins:
+    A: { in: [1, 2, 13], out: [12] }
+    B: { in: [3, 4, 5], out: [6] }
+    C: { in: [9, 10, 11], out: [8] }
+  power: { VCC: 14, GND: 7 }
+'14':
+  name: SN7414N
+  desc: Hex Schmitt Inverter
+  kicad_symbol: 74xx:SN7414N
+  kicad_footprint: Package_DIP:DIP-14_W7.62mm
+  pins: 14
+  gates: 6
+  gate_pins:
+    A: { in: [1], out: [2] }
+    B: { in: [3], out: [4] }
+    C: { in: [5], out: [6] }
+    D: { in: [9], out: [8] }
+    E: { in: [11], out: [10] }
+    F: { in: [13], out: [12] }
+  power: { VCC: 14, GND: 7 }
+'20':
+  name: SN7420N
+  desc: Dual 4-input NAND
+  kicad_symbol: 74xx:SN7420N
+  kicad_footprint: Package_DIP:DIP-14_W7.62mm
+  pins: 14
+  gates: 2
+  gate_pins:
+    A: { in: [1, 2, 4, 5], out: [6] }
+    B: { in: [9, 10, 12, 13], out: [8] }
+  power: { VCC: 14, GND: 7 }
+'21':
+  name: SN7421N
+  desc: Dual 4-input AND
+  kicad_symbol: 74xx:SN7421N
+  kicad_footprint: Package_DIP:DIP-14_W7.62mm
+  pins: 14
+  gates: 2
+  gate_pins:
+    A: { in: [1, 2, 4, 5], out: [6] }
+    B: { in: [9, 10, 12, 13], out: [8] }
+  power: { VCC: 14, GND: 7 }
+'27':
+  name: SN7427N
+  desc: Triple 3-input NOR
+  kicad_symbol: 74xx:SN7427N
+  kicad_footprint: Package_DIP:DIP-14_W7.62mm
+  pins: 14
+  gates: 3
+  gate_pins:
+    A: { in: [1, 2, 13], out: [12] }
+    B: { in: [3, 4, 5], out: [6] }
+    C: { in: [9, 10, 11], out: [8] }
+  power: { VCC: 14, GND: 7 }
+'30':
+  name: SN7430N
+  desc: Single 8-input NAND
+  kicad_symbol: 74xx:SN7430N
+  kicad_footprint: Package_DIP:DIP-14_W7.62mm
+  pins: 14
+  gates: 1
+  gate_pins:
+    A: { in: [1, 2, 3, 4, 5, 6, 11, 12], out: [8] }
+  power: { VCC: 14, GND: 7 }
+'32':
+  name: SN7432N
+  desc: Quad 2-input OR
+  kicad_symbol: 74xx:SN7432N
+  kicad_footprint: Package_DIP:DIP-14_W7.62mm
+  pins: 14
+  gates: 4
+  gate_pins:
+    A: { in: [1, 2], out: [3] }
+    B: { in: [4, 5], out: [6] }
+    C: { in: [9, 10], out: [8] }
+    D: { in: [12, 13], out: [11] }
+  power: { VCC: 14, GND: 7 }
+'37':
+  name: SN7437N
+  desc: Quad 2-input NAND buffer
+  kicad_symbol: 74xx:SN7437N
+  kicad_footprint: Package_DIP:DIP-14_W7.62mm
+  pins: 14
+  gates: 4
+  gate_pins:
+    A: { in: [1, 2], out: [3] }
+    B: { in: [4, 5], out: [6] }
+    C: { in: [9, 10], out: [8] }
+    D: { in: [12, 13], out: [11] }
+  power: { VCC: 14, GND: 7 }
+'38':
+  name: SN7438N
+  desc: Quad 2-input NAND OC
+  kicad_symbol: 74xx:SN7438N
+  kicad_footprint: Package_DIP:DIP-14_W7.62mm
+  pins: 14
+  gates: 4
+  gate_pins:
+    A: { in: [1, 2], out: [3] }
+    B: { in: [4, 5], out: [6] }
+    C: { in: [9, 10], out: [8] }
+    D: { in: [12, 13], out: [11] }
+  power: { VCC: 14, GND: 7 }
+'40':
+  name: SN7440N
+  desc: Dual 4-input NAND buffer
+  kicad_symbol: 74xx:SN7440N
+  kicad_footprint: Package_DIP:DIP-14_W7.62mm
+  pins: 14
+  gates: 2
+  gate_pins:
+    A: { in: [1, 2, 4, 5], out: [6] }
+    B: { in: [9, 10, 12, 13], out: [8] }
+  power: { VCC: 14, GND: 7 }
+'51':
+  name: SN7451N
+  desc: Dual 2-wide 2-input AND-OR-Invert (AOI)
+  kicad_symbol: 74xx:SN7451N
+  kicad_footprint: Package_DIP:DIP-14_W7.62mm
+  pins: 14
+  gates: 2
+  gate_pins:
+    A: { in: [2, 3, 4, 5], out: [6] }
+    B: { in: [9, 10, 11, 12], out: [8] }
+  power: { VCC: 14, GND: 7 }
+'74':
+  name: SN7474N
+  desc: Dual D-FF w/ PR/CLR
+  kicad_symbol: 74xx:SN7474N
+  kicad_footprint: Package_DIP:DIP-14_W7.62mm
+  pins: 14
+  gates: 2
+  gate_pins:
+    A: { d: [2], clk: [3], pre: [4], clr: [1], q: [5], nq: [6] }
+    B: { d: [12], clk: [11], pre: [10], clr: [13], q: [9], nq: [8] }
+  power: { VCC: 14, GND: 7 }
+'86':
+  name: SN7486N
+  desc: Quad 2-input XOR
+  kicad_symbol: 74xx:SN7486N
+  kicad_footprint: Package_DIP:DIP-14_W7.62mm
+  pins: 14
+  gates: 4
+  gate_pins:
+    A: { in: [1, 2], out: [3] }
+    B: { in: [4, 5], out: [6] }
+    C: { in: [9, 10], out: [8] }
+    D: { in: [12, 13], out: [11] }
+  power: { VCC: 14, GND: 7 }
+'109':
+  name: SN74109N
+  desc: Dual J-K FF
+  kicad_symbol: 74xx:SN74109N
+  kicad_footprint: Package_DIP:DIP-16_W7.62mm
+  pins: 16
+  gates: 2
+  gate_pins:
+    A: { j: [2], k: [3], clk: [4], pre: [5], clr: [1], q: [6], nq: [7] }
+    B: { j: [14], k: [13], clk: [12], pre: [11], clr: [15], q: [10], nq: [9] }
+  power: { VCC: 16, GND: 8 }
+'138':
+  name: SN74138N
+  desc: 3-to-8 Decoder
+  kicad_symbol: 74xx:SN74138N
+  kicad_footprint: Package_DIP:DIP-16_W7.62mm
   pins: 16
   gates: 1
   gate_pins:
     A:
-      clk:
-      - 9
-      clr:
-      - 1
-      d:
-      - 4
-      - 5
-      - 12
-      - 13
-      q:
-      - 2
-      - 7
-      - 10
-      - 15
-      nq:
-      - 3
-      - 6
-      - 11
-      - 14
-  power:
-    VCC: 16
-    GND: 8
+      sel: [1, 2, 3]
+      en: [4, 5, 6]
+      out: [15, 14, 13, 12, 11, 10, 9, 7]
+  power: { VCC: 16, GND: 8 }
+'139':
+  name: SN74139N
+  desc: Dual 2-to-4 Decoder
+  kicad_symbol: 74xx:SN74139N
+  kicad_footprint: Package_DIP:DIP-16_W7.62mm
+  pins: 16
+  gates: 2
+  gate_pins:
+    A: { en: [1], sel: [2, 3], out: [4, 5, 6, 7] }
+    B: { en: [15], sel: [14, 13], out: [12, 11, 10, 9] }
+  power: { VCC: 16, GND: 8 }
+'151':
+  name: SN74151N
+  desc: 8-to-1 Mux
+  kicad_symbol: 74xx:SN74151N
+  kicad_footprint: Package_DIP:DIP-16_W7.62mm
+  pins: 16
+  gates: 1
+  gate_pins:
+    A:
+      sel: [11, 10, 9]
+      en: [7]
+      d: [4, 3, 2, 1, 15, 14, 13, 12]
+      out: [5]
+      nout: [6]
+  power: { VCC: 16, GND: 8 }
+'153':
+  name: SN74153N
+  desc: Dual 4-to-1 Mux
+  kicad_symbol: 74xx:SN74153N
+  kicad_footprint: Package_DIP:DIP-16_W7.62mm
+  pins: 16
+  gates: 2
+  gate_pins:
+    A: { sel: [14, 2], en: [1], d: [6, 5, 4, 3], out: [7] }
+    B: { sel: [14, 2], en: [15], d: [10, 11, 12, 13], out: [9] }
+  power: { VCC: 16, GND: 8 }
+'157':
+  name: SN74157N
+  desc: Quad 2-to-1 Mux
+  kicad_symbol: 74xx:SN74157N
+  kicad_footprint: Package_DIP:DIP-16_W7.62mm
+  pins: 16
+  gates: 1
+  gate_pins:
+    A:
+      sel: [1]
+      en: [15]
+      a: [2, 5, 11, 14]
+      b: [3, 6, 10, 13]
+      out: [4, 7, 9, 12]
+  power: { VCC: 16, GND: 8 }
+'161':
+  name: SN74161N
+  desc: 4-bit Binary Counter (async clr)
+  kicad_symbol: 74xx:SN74161N
+  kicad_footprint: Package_DIP:DIP-16_W7.62mm
+  pins: 16
+  gates: 1
+  gate_pins:
+    A:
+      clk: [2]
+      clr: [1]
+      load: [9]
+      ent: [10]
+      enp: [7]
+      d: [3, 4, 5, 6]
+      q: [14, 13, 12, 11]
+      rco: [15]
+  power: { VCC: 16, GND: 8 }
+'163':
+  name: SN74163N
+  desc: 4-bit Binary Counter (sync clr)
+  kicad_symbol: 74xx:SN74163N
+  kicad_footprint: Package_DIP:DIP-16_W7.62mm
+  pins: 16
+  gates: 1
+  gate_pins:
+    A:
+      clk: [2]
+      clr: [1]
+      load: [9]
+      ent: [10]
+      enp: [7]
+      d: [3, 4, 5, 6]
+      q: [14, 13, 12, 11]
+      rco: [15]
+  power: { VCC: 16, GND: 8 }
+'164':
+  name: SN74164N
+  desc: 8-bit SIPO Shift Register
+  kicad_symbol: 74xx:SN74164N
+  kicad_footprint: Package_DIP:DIP-14_W7.62mm
+  pins: 14
+  gates: 1
+  gate_pins:
+    A:
+      clk: [8]
+      clr: [9]
+      ds: [1, 2]
+      q: [3, 4, 5, 6, 10, 11, 12, 13]
+  power: { VCC: 14, GND: 7 }
+'165':
+  name: SN74165N
+  desc: 8-bit PISO Shift Register
+  kicad_symbol: 74xx:SN74165N
+  kicad_footprint: Package_DIP:DIP-16_W7.62mm
+  pins: 16
+  gates: 1
+  gate_pins:
+    A:
+      clk: [2]
+      clk_inh: [15]
+      shld: [1]
+      ser: [10]
+      d: [11, 12, 13, 14, 3, 4, 5, 6]
+      q: [9]
+      nq: [7]
+  power: { VCC: 16, GND: 8 }
+'174':
+  name: SN74174N
+  desc: Hex D-FF
+  kicad_symbol: 74xx:SN74174N
+  kicad_footprint: Package_DIP:DIP-16_W7.62mm
+  pins: 16
+  gates: 1
+  gate_pins:
+    A:
+      clk: [9]
+      clr: [1]
+      d: [3, 4, 6, 11, 13, 14]
+      q: [2, 5, 7, 10, 12, 15]
+  power: { VCC: 16, GND: 8 }
+'175':
+  name: SN74175N
+  desc: Quad D-FF
+  kicad_symbol: 74xx:SN74175N
+  kicad_footprint: Package_DIP:DIP-16_W7.62mm
+  pins: 16
+  gates: 1
+  gate_pins:
+    A:
+      clk: [9]
+      clr: [1]
+      d: [4, 5, 12, 13]
+      q: [2, 7, 10, 15]
+      nq: [3, 6, 11, 14]
+  power: { VCC: 16, GND: 8 }
+'193':
+  name: SN74193N
+  desc: 4-bit Up/Down Counter
+  kicad_symbol: 74xx:SN74193N
+  kicad_footprint: Package_DIP:DIP-16_W7.62mm
+  pins: 16
+  gates: 1
+  gate_pins:
+    A:
+      clr: [14]
+      load: [11]
+      up: [5]
+      down: [4]
+      d: [15, 1, 10, 9]
+      q: [3, 2, 6, 7]
+      carry: [12]
+      borrow: [13]
+  power: { VCC: 16, GND: 8 }
+'240':
+  name: SN74240N
+  desc: Octal Inverting Buffer (3-state)
+  kicad_symbol: 74xx:SN74240N
+  kicad_footprint: Package_DIP:DIP-20_W7.62mm
+  pins: 20
+  gates: 1
+  gate_pins:
+    A:
+      oe: [1, 19]
+      in: [2, 4, 6, 8, 11, 13, 15, 17]
+      out: [18, 16, 14, 12, 9, 7, 5, 3]
+  power: { VCC: 20, GND: 10 }
+'244':
+  name: SN74244N
+  desc: Octal Non-Inverting Buffer (3-state)
+  kicad_symbol: 74xx:SN74244N
+  kicad_footprint: Package_DIP:DIP-20_W7.62mm
+  pins: 20
+  gates: 1
+  gate_pins:
+    A:
+      oe: [1, 19]
+      in: [2, 4, 6, 8, 11, 13, 15, 17]
+      out: [18, 16, 14, 12, 9, 7, 5, 3]
+  power: { VCC: 20, GND: 10 }
+'245':
+  name: SN74245N
+  desc: Octal Transceiver (3-state)
+  kicad_symbol: 74xx:SN74245N
+  kicad_footprint: Package_DIP:DIP-20_W7.62mm
+  pins: 20
+  gates: 1
+  gate_pins:
+    A:
+      oe: [19]
+      dir: [1]
+      a: [2, 3, 4, 5, 6, 7, 8, 9]
+      b: [18, 17, 16, 15, 14, 13, 12, 11]
+  power: { VCC: 20, GND: 10 }
+'273':
+  name: SN74273N
+  desc: Octal D-FF w/ CLR
+  kicad_symbol: 74xx:SN74273N
+  kicad_footprint: Package_DIP:DIP-20_W7.62mm
+  pins: 20
+  gates: 1
+  gate_pins:
+    A:
+      clk: [11]
+      clr: [1]
+      d: [3, 4, 7, 8, 13, 14, 17, 18]
+      q: [2, 5, 6, 9, 12, 15, 16, 19]
+  power: { VCC: 20, GND: 10 }
+'374':
+  name: SN74374N
+  desc: Octal D-FF (3-state)
+  kicad_symbol: 74xx:SN74374N
+  kicad_footprint: Package_DIP:DIP-20_W7.62mm
+  pins: 20
+  gates: 1
+  gate_pins:
+    A:
+      clk: [11]
+      oe: [1]
+      d: [3, 4, 7, 8, 13, 14, 17, 18]
+      q: [2, 5, 6, 9, 12, 15, 16, 19]
+  power: { VCC: 20, GND: 10 }
 R:
   kicad_symbol: Device:R
   shape: resistor
 C:
   kicad_symbol: Device:C
   shape: capacitor
+CP:
+  kicad_symbol: Device:CP
+  shape: capacitor_polarized

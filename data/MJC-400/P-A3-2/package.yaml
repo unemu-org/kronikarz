@@ -5,79 +5,19 @@ package:
   doc: 12-006368-01-8A
   status: raw
   pages:
-  - id: 2-70
-    file: pages/2-70.sch.yaml
-    scan: scans/2-70.jpg
-    title: Schemat ideowy pakietu P-A3-2
-    status: raw
-  - id: 2-71
-    file: pages/2-71.sch.yaml
-    scan: scans/2-71.jpg
-    title: Schemat ideowy pakietu P-A3-2
-    status: raw
-  - id: 2-72
-    file: pages/2-72.sch.yaml
-    scan: scans/2-72.jpg
-    title: Schemat ideowy pakietu P-A3-2
-    status: raw
-  - id: 2-73
-    file: pages/2-73.sch.yaml
-    scan: scans/2-73.jpg
-    title: Schemat ideowy pakietu P-A3-2
-    status: raw
-  - id: 2-74
-    file: pages/2-74.sch.yaml
-    scan: scans/2-74.jpg
-    title: Schemat ideowy pakietu P-A3-2
-    status: raw
-  - id: 2-75
-    file: pages/2-75.sch.yaml
-    scan: scans/2-75.jpg
-    title: Schemat ideowy pakietu P-A3-2
-    status: raw
-  - id: 2-76
-    file: pages/2-76.sch.yaml
-    scan: scans/2-76.jpg
-    title: Schemat ideowy pakietu P-A3-2
-    status: raw
-  - id: 2-77
-    file: pages/2-77.sch.yaml
-    scan: scans/2-77.jpg
-    title: Schemat ideowy pakietu P-A3-2
-    status: raw
-  - id: 2-78
-    file: pages/2-78.sch.yaml
-    scan: scans/2-78.jpg
-    title: Schemat ideowy pakietu P-A3-2
-    status: raw
-  - id: 2-79
-    file: pages/2-79.sch.yaml
-    scan: scans/2-79.jpg
-    title: Schemat ideowy pakietu P-A3-2
-    status: raw
-  - id: 2-80
-    file: pages/2-80.sch.yaml
-    scan: scans/2-80.jpg
-    title: Schemat ideowy pakietu P-A3-2
-    status: raw
-  - id: 2-81
-    file: pages/2-81.sch.yaml
-    scan: scans/2-81.jpg
-    title: Schemat ideowy pakietu P-A3-2
-    status: raw
-  - id: 2-82
-    file: pages/2-82.sch.yaml
-    scan: scans/2-82.jpg
-    title: Schemat ideowy pakietu P-A3-2
-    status: raw
-  - id: 2-83
-    file: pages/2-83.sch.yaml
-    scan: scans/2-83.jpg
-    title: Schemat ideowy pakietu P-A3-2
-    status: raw
-  - id: 2-84
-    file: pages/2-84.sch.yaml
-    scan: scans/2-84.jpg
-    title: Schemat ideowy pakietu P-A3-2
-    status: raw
+  - {id: 2-70, file: pages/2-70.sch.yaml, scan: scans/2-70.jpg, title: Schemat ideowy pakietu P-A3-2, status: raw, sheet: 1}
+  - {id: 2-71, file: pages/2-71.sch.yaml, scan: scans/2-71.jpg, title: Schemat ideowy pakietu P-A3-2, status: raw, sheet: 2}
+  - {id: 2-72, file: pages/2-72.sch.yaml, scan: scans/2-72.jpg, title: Schemat ideowy pakietu P-A3-2, status: raw, sheet: 3}
+  - {id: 2-73, file: pages/2-73.sch.yaml, scan: scans/2-73.jpg, title: Schemat ideowy pakietu P-A3-2, status: raw, sheet: 4}
+  - {id: 2-74, file: pages/2-74.sch.yaml, scan: scans/2-74.jpg, title: Schemat ideowy pakietu P-A3-2, status: raw, sheet: 5}
+  - {id: 2-75, file: pages/2-75.sch.yaml, scan: scans/2-75.jpg, title: Schemat ideowy pakietu P-A3-2, status: raw, sheet: 6}
+  - {id: 2-76, file: pages/2-76.sch.yaml, scan: scans/2-76.jpg, title: Schemat ideowy pakietu P-A3-2, status: raw, sheet: 7}
+  - {id: 2-77, file: pages/2-77.sch.yaml, scan: scans/2-77.jpg, title: Schemat ideowy pakietu P-A3-2, status: raw, sheet: 8}
+  - {id: 2-78, file: pages/2-78.sch.yaml, scan: scans/2-78.jpg, title: Schemat ideowy pakietu P-A3-2, status: raw, sheet: 9}
+  - {id: 2-79, file: pages/2-79.sch.yaml, scan: scans/2-79.jpg, title: Schemat ideowy pakietu P-A3-2, status: raw, sheet: 10}
+  - {id: 2-80, file: pages/2-80.sch.yaml, scan: scans/2-80.jpg, title: Schemat ideowy pakietu P-A3-2, status: raw, sheet: 11}
+  - {id: 2-81, file: pages/2-81.sch.yaml, scan: scans/2-81.jpg, title: Schemat ideowy pakietu P-A3-2, status: raw, sheet: 12}
+  - {id: 2-82, file: pages/2-82.sch.yaml, scan: scans/2-82.jpg, title: Schemat ideowy pakietu P-A3-2, status: raw, sheet: 13}
+  - {id: 2-83, file: pages/2-83.sch.yaml, scan: scans/2-83.jpg, title: Schemat ideowy pakietu P-A3-2, status: raw, sheet: 14}
+  - {id: 2-84, file: pages/2-84.sch.yaml, scan: scans/2-84.jpg, title: Schemat ideowy pakietu P-A3-2, status: raw, sheet: 15}
 components: {}

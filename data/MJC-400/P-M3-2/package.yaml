@@ -5,99 +5,23 @@ package:
   doc: 12-006368-01-8A
   status: raw
   pages:
-  - id: 2-11
-    file: pages/2-11.sch.yaml
-    scan: scans/2-11.jpg
-    title: Schemat ideowy pakietu P-M3-2
-    status: raw
-  - id: 2-12
-    file: pages/2-12.sch.yaml
-    scan: scans/2-12.jpg
-    title: Schemat ideowy pakietu P-M3-2
-    status: raw
-  - id: 2-13
-    file: pages/2-13.sch.yaml
-    scan: scans/2-13.jpg
-    title: Schemat ideowy pakietu P-M3-2
-    status: raw
-  - id: 2-14
-    file: pages/2-14.sch.yaml
-    scan: scans/2-14.jpg
-    title: Schemat ideowy pakietu P-M3-2
-    status: raw
-  - id: 2-15
-    file: pages/2-15.sch.yaml
-    scan: scans/2-15.jpg
-    title: Schemat ideowy pakietu P-M3-2
-    status: raw
-  - id: 2-16
-    file: pages/2-16.sch.yaml
-    scan: scans/2-16.jpg
-    title: Schemat ideowy pakietu P-M3-2
-    status: raw
-  - id: 2-17
-    file: pages/2-17.sch.yaml
-    scan: scans/2-17.jpg
-    title: Schemat ideowy pakietu P-M3-2
-    status: raw
-  - id: 2-18
-    file: pages/2-18.sch.yaml
-    scan: scans/2-18.jpg
-    title: Schemat ideowy pakietu P-M3-2
-    status: raw
-  - id: 2-19
-    file: pages/2-19.sch.yaml
-    scan: scans/2-19.jpg
-    title: Schemat ideowy pakietu P-M3-2
-    status: raw
-  - id: 2-20
-    file: pages/2-20.sch.yaml
-    scan: scans/2-20.jpg
-    title: Schemat ideowy pakietu P-M3-2
-    status: raw
-  - id: 2-21
-    file: pages/2-21.sch.yaml
-    scan: scans/2-21.jpg
-    title: Schemat ideowy pakietu P-M3-2
-    status: raw
-  - id: 2-22
-    file: pages/2-22.sch.yaml
-    scan: scans/2-22.jpg
-    title: Schemat ideowy pakietu P-M3-2
-    status: raw
-  - id: 2-23
-    file: pages/2-23.sch.yaml
-    scan: scans/2-23.jpg
-    title: Schemat ideowy pakietu P-M3-2
-    status: raw
-  - id: 2-24
-    file: pages/2-24.sch.yaml
-    scan: scans/2-24.jpg
-    title: Schemat ideowy pakietu P-M3-2
-    status: raw
-  - id: 2-25
-    file: pages/2-25.sch.yaml
-    scan: scans/2-25.jpg
-    title: Schemat ideowy pakietu P-M3-2
-    status: raw
-  - id: 2-26
-    file: pages/2-26.sch.yaml
-    scan: scans/2-26.jpg
-    title: Schemat ideowy pakietu P-M3-2
-    status: raw
-  - id: 2-27
-    file: pages/2-27.sch.yaml
-    scan: scans/2-27.jpg
-    title: Schemat ideowy pakietu P-M3-2
-    status: raw
-  - id: 2-28
-    file: pages/2-28.sch.yaml
-    scan: scans/2-28.jpg
-    title: Schemat ideowy pakietu P-M3-2
-    status: raw
-  - id: 2-29
-    file: pages/2-29.sch.yaml
-    scan: scans/2-29.jpg
-    title: Schemat ideowy pakietu P-M3-2
-    status: raw
+  - {id: 2-11, file: pages/2-11.sch.yaml, scan: scans/2-11.jpg, title: Schemat ideowy pakietu P-M3-2, status: raw, sheet: 1}
+  - {id: 2-12, file: pages/2-12.sch.yaml, scan: scans/2-12.jpg, title: Schemat ideowy pakietu P-M3-2, status: raw, sheet: 2}
+  - {id: 2-13, file: pages/2-13.sch.yaml, scan: scans/2-13.jpg, title: Schemat ideowy pakietu P-M3-2, status: raw, sheet: 3}
+  - {id: 2-14, file: pages/2-14.sch.yaml, scan: scans/2-14.jpg, title: Schemat ideowy pakietu P-M3-2, status: raw, sheet: 4}
+  - {id: 2-15, file: pages/2-15.sch.yaml, scan: scans/2-15.jpg, title: Schemat ideowy pakietu P-M3-2, status: raw, sheet: 5}
+  - {id: 2-16, file: pages/2-16.sch.yaml, scan: scans/2-16.jpg, title: Schemat ideowy pakietu P-M3-2, status: raw, sheet: 6}
+  - {id: 2-17, file: pages/2-17.sch.yaml, scan: scans/2-17.jpg, title: Schemat ideowy pakietu P-M3-2, status: raw, sheet: 7}
+  - {id: 2-18, file: pages/2-18.sch.yaml, scan: scans/2-18.jpg, title: Schemat ideowy pakietu P-M3-2, status: raw, sheet: 8}
+  - {id: 2-19, file: pages/2-19.sch.yaml, scan: scans/2-19.jpg, title: Schemat ideowy pakietu P-M3-2, status: raw, sheet: 9}
+  - {id: 2-20, file: pages/2-20.sch.yaml, scan: scans/2-20.jpg, title: Schemat ideowy pakietu P-M3-2, status: raw, sheet: 10}
+  - {id: 2-21, file: pages/2-21.sch.yaml, scan: scans/2-21.jpg, title: Schemat ideowy pakietu P-M3-2, status: raw, sheet: 11}
+  - {id: 2-22, file: pages/2-22.sch.yaml, scan: scans/2-22.jpg, title: Schemat ideowy pakietu P-M3-2, status: raw, sheet: 12}
+  - {id: 2-23, file: pages/2-23.sch.yaml, scan: scans/2-23.jpg, title: Schemat ideowy pakietu P-M3-2, status: raw, sheet: 13}
+  - {id: 2-24, file: pages/2-24.sch.yaml, scan: scans/2-24.jpg, title: Schemat ideowy pakietu P-M3-2, status: raw, sheet: 14}
+  - {id: 2-25, file: pages/2-25.sch.yaml, scan: scans/2-25.jpg, title: Schemat ideowy pakietu P-M3-2, status: raw, sheet: 15}
+  - {id: 2-26, file: pages/2-26.sch.yaml, scan: scans/2-26.jpg, title: Schemat ideowy pakietu P-M3-2, status: raw, sheet: 16}
+  - {id: 2-27, file: pages/2-27.sch.yaml, scan: scans/2-27.jpg, title: Schemat ideowy pakietu P-M3-2, status: raw, sheet: 17}
+  - {id: 2-28, file: pages/2-28.sch.yaml, scan: scans/2-28.jpg, title: Schemat ideowy pakietu P-M3-2, status: raw, sheet: 18}
+  - {id: 2-29, file: pages/2-29.sch.yaml, scan: scans/2-29.jpg, title: Schemat ideowy pakietu P-M3-2, status: raw, sheet: 19}
 components: {}

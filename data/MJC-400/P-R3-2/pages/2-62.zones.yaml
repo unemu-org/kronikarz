@@ -1,0 +1,13 @@
+zones:
+  - {role: gates, x: 1077, 'y': 137, w: 346, h: 431}
+  - {role: gates, x: 672, 'y': 368, w: 300, h: 754}
+  - {role: gates, x: 431, 'y': 450, w: 156, h: 243}
+  - {role: gates, x: 479, 'y': 776, w: 128, h: 241}
+  - {role: cross_refs_left, x: 286, 'y': 177, w: 166, h: 188}
+  - {role: cross_refs_left, x: 310, 'y': 390, w: 147, h: 72}
+  - {role: ports_left, x: 198, 'y': 467, w: 210, h: 192}
+  - {role: ports_left, x: 200, 'y': 786, w: 202, h: 183}
+  - {role: cross_refs_left, x: 275, 'y': 694, w: 200, h: 100}
+  - {role: cross_refs_left, x: 314, 'y': 981, w: 144, h: 289}
+  - {role: cross_refs_right, x: 830, 'y': 1228, w: 312, h: 323}
+  - {role: ports_right, x: 1487, 'y': 733, w: 299, h: 344}
