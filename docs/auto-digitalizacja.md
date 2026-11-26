@@ -824,3 +824,339 @@ Overlay: cały skan w pełnej rozdzielczości, jasnoszary. Kolory ramek:
   `leads`…).
 
 Niebieskie kropki to kandydaci pinów.
+
+## Wyniki: VLM na wycinkach (kr-9p8.4)
+
+Spike: który model najlepiej czyta tekst schematu z małych wycinków — lokalnie (MLX na M5 Pro
+64 GB) albo online. Pola: wnętrze bramki (symbol, typ, ref), numery pinów przy bokach, port
+(złącze+pin, etykieta), cross-ref (etykieta, lista arkuszy). Hipoteza: najlepszy model lokalny
+≥ 97 % dokładnych trafień na każde pole i ≤ 60 s na arkusz. Skrypt `scripts/vlm-bakeoff.py`,
+testy `scripts/test_vlm_bakeoff.py`.
+
+**Werdykt.** Hipoteza **nie jest spełniona.**
+
+- **Najlepszy lokalny** (Qwen3.8-27B 4-bit, prompt v3, ×2) na held-out:
+  - bramki (symbol, typ, ref), piny i złącza portów: 100 %;
+  - etykiety portów 93,1 % (27/29), etykiety cross-refów 83,8 % (62/74), listy arkuszy
+    93,2 % (69/74);
+  - 178 s na arkusz średnio, 266 s na 2-63.
+  Nie spełnia ani progu 97 %, ani 60 s. Szybki MoE Qwen3.6-35B-A3B ma średnio 50 s, ale na
+  gęstym 2-63 75 s (> 60 s), a etykiety cross-refów czyta na 60,8 % (45/74).
+- **Online najlepszy jest Claude Opus 5.5** (effort low, v3): 98,8 % wszystkich pól
+  (601/608), $0,17 na arkusz. On też nie przekracza 97 % na etykietach cross-refów held-out
+  (94,6 %, 70/74).
+- Prawda ma 16 poprawek wzorca, wszystkie potwierdzone przez opiekuna na pełnych arkuszach
+  (USER). 6 z nich jest na held-out 2-63; bez nich wszystkie modele tracą tyle samo (piny
+  36/39, typ 37/39), więc ranking się nie zmienia.
+- **Trudność nie leży w bramkach, tylko w ręcznie pisanych etykietach sygnałów:**
+  - R z zawijasem czytane jako A/Q/D, P↔D, B↔8, 5↔S, `11` jako `H`;
+  - numer arkusza przed etykietą przy lewej krawędzi.
+- **Cały arkusz w jednym callu** (Opus) daje to samo co wycinki na bramkach i portach, a na
+  etykietach cross-refów trochę mniej. Na 2-60 ma 100 %. Para „wycinek + cały arkusz” zgadza
+  się na 597 z 608 pól i wtedy myli się 3 razy (99,5 %). Niezgodne pola (~2 na arkusz) idą do
+  przeglądu.
+
+### Metoda
+
+- **Wycinki z geometrii wzorca**, nie z detekcji: 231 sztuk na P-R3-2 (74 bramki, 53 porty,
+  104 cross-refy). Strojenie na 2-58/2-59 (89 wycinków), held-out 2-60/2-61/2-63 (142).
+  - bramka: prostokąt + 36 px w poziomie (numery pinów nad drutem i kółko negacji),
+    10 px w górę, 4 px w dół, a pionowo co najmniej każdy pin wzorca `py − 22 … py + 4`;
+  - port: wiersz `y − 30 … y + 26`, 48 px na zewnątrz od szewronu i 215 px w głąb arkusza;
+  - cross-ref: wiersz `y − 30 … y + 14`; przy prawym końcu drutu 175 px w lewo i 125 px
+    w prawo, przy lewej krawędzi 75 px w lewo i 200 px w prawo;
+  - port i cross-ref mają biały margines 14 px po bokach z czerwonymi trójkątami na wysokości
+    drutu celu. Sąsiednie wiersze (co 25–55 px) są w kadrze, trójkąty mówią, który czytać;
+  - **zmiana po obejrzeniu held-out:** pierwsza wersja dawała bramce z pinami „top” +34 px
+    u góry. Jedyna taka bramka, 2-63 M19 (held-out), ma te piny w rzeczywistości z lewej, a
+    margines wciągał ref sąsiada M8. Margines usunąłem i zbudowałem wszystkie wycinki bramek
+    od nowa. Żaden wynik w tabelach nie pochodzi ze starych wycinków (na starych szedł tylko
+    test dymny 4 wycinków), ale sama decyzja opiera się na stronie held-out;
+  - skala 1 (natywnie) i 2 (LANCZOS ×2). Na stronach strojenia ×2 wygrywa dla Qwen
+    (piny 94 % vs 89 %, symbol/typ/ref Qwen3.6 +5–6 pp.), dla Opus remis, dla GPT ×1 (ref 94 %
+    vs 74 %). Dalej: Qwen i Opus ×2, GPT ×1.
+- **Prawda** to wzorzec plus 16 jawnych poprawek (wycinków) `TRUTH_OVERRIDES` tam, gdzie
+  wzorzec nie opisuje NADRUKU. Wszystkie potwierdził opiekun na pełnych arkuszach (USER,
+  2026-11-26), z jednym wyjątkiem opisanym przy M8:
+  - typ z `package.yaml` różny od nadruku: 2-58 M55 D/F (nadruk `04`, rejestr `170`),
+    2-63 M18 (`174` vs `74`), 2-63 M8 (`175` vs `00`);
+  - porty bez własnej etykiety, wzorzec ma tu nazwę netu. Każdy łączy się z opisanym portem:
+    - 2-58: C41 z A50 `-BLR`, C48 z B48 `-RA`, C46 z B49 `-RB`, C43 z B47 `-W∤R`,
+      C47 z A49 `-RC`;
+    - 2-63: D40 z A86 `-DNBØ`, D43 z B84 `-DNB3`;
+  - piny:
+    - 2-58 M52 B: nadruk 1/13/9/10, wzorzec 11/12/9/10;
+    - 2-58 M7 B: 6 nad 5;
+    - 2-63 M30: pin 4 nienarysowany;
+    - 2-63 M19: piny 9 i 1 z lewej, bo górę zajmuje M8;
+    - 2-63 M8: nienarysowane wyjścia 3/6/11/14. Opiekun nie był o nie pytany, więc ta część
+      jest NIEPOTWIERDZONA; typ M8 potwierdzony;
+  - **błąd wzorca w etykiecie:** 2-58 A49 ma nadruk `-RC`, wzorzec `-PC` (USER).
+  Podejrzenia rozstrzygnięte przez opiekuna na korzyść wzorca (USER):
+  - B03 `+RPC`, B43 `+A52`, 2-61 `+L11` i `-CZYTRN`, 2-63 `+ŁRP`;
+  - odczyty modeli `+RDC`, `+AS2`, `+LH1`, `-CZYTAN`, `+ŁRB` to więc prawdziwe błędy;
+  - w tym piśmie wielkie A ma szpiczastą górę, a R z zawijasem nie.
+
+  **Zastrzeżenie.** 6 poprawek dotyczy held-out 2-63: M18 A, M8 A, M30 A, M19 A, D40, D43.
+  - Znalazłem je przy oglądaniu tej strony: zestawienia wycinków i pełny skan.
+  - Typ M8 wrócił dopiero po pierwszych błędach Opusa na held-out: wpis zginął przez
+    zdublowany klucz w słowniku.
+  - Audyt prawdy nie był systematyczny. Objął pola, które obejrzałem, i pola, gdzie modele
+    nie zgadzały się ze wzorcem. Nie objął wszystkich 608 pól; błąd wzorca, z którym model się
+    zgadza, zostałby niezauważony.
+  - Efekt (MEASURED, `score --no-overrides`) na held-out, dla każdego modelu tak samo:
+    - piny bramek 39/39 → 36/39;
+    - typ 39/39 → 37/39;
+    - symbol 39/39 → 37/38 (M18 z typem `74` nie ma symbolu w mapie);
+    - etykieta portu Opus v3 28/29 → 27/29.
+  - Opiekun sprawdził potem wszystkie poprawki na pełnych arkuszach i potwierdził je (USER;
+    wyjątek: nienarysowane wyjścia M8 nie były pytane). Sposób ich znalezienia pozostaje
+    zastrzeżeniem: wzorzec nie został przejrzany pole po polu.
+- **Symbol** wynika z typu (`&` dla 00/03/08/10/11/H11/20, `1` dla 02/04, `R` dla
+  170/174/175); 51 (AOI) ma dwa symbole i nie jest oceniany.
+- **Normalizacja** przed porównaniem: bez spacji, minusy `−–—` → `-`, `Ø` → `0`; znak
+  „∤” w środku etykiety (`W∤R`; wzorzec pisze go jako `/`, `#` albo `+`) → `/`. Litera `O` i
+  cyfra `0` NIE są utożsamiane, wielkość liter i polskie litery bez zmian. Złącze: litera +
+  liczba bez zer wiodących (`B03` = `B3`). Arkusze: posortowana lista liczb. Piny bramki:
+  zaliczone, gdy listy lewa/prawa/góra są identyczne (z kolejnością).
+- **Prompty** (angielskie, JSON):
+  - `v1` — opis pola z przykładami;
+  - `v2` — inne sformułowanie bez przykładów, drugi „głos” do flagi (a);
+  - `v3` = v1 + wskazówki wyprowadzone **wyłącznie** z błędów na 2-58/2-59. Wskazówki:
+    R w tym piśmie wygląda jak Q/D/A; 5 jak S; `∤` to `/`; numer arkusza przy lewej krawędzi
+    stoi przed etykietą; Ł tylko z wyraźną kreską; format pól bramki (Qwen3.6 wpisywał ref
+    w typ).
+- **Modele** (wersje sprawdzone na kartach 2026-11-26):
+  - lokalne przez `mlx-vlm` 0.8.1, temperatura 0, myślenie wyłączone:
+    - `Qwen3.8-27B` 4-bit (15 GB) i 8-bit (28 GB) — już na dysku;
+    - pobrane do `/Volumes/Dane/llm/hf`: `mlx-community/Qwen3.6-35B-A3B-4bit` (MoE, 20,4 GB)
+      i `mlx-community/PaddleOCR-VL-1.6-4bit` (0,7 GB). PaddleOCR-VL daje wolny tekst
+      (`OCR:`), pola wyłuskuje parser regułowy, więc pinów nie czyta wcale;
+  - online:
+    - `claude-opus-5-5` (effort low; medium na próbce 50);
+    - `claude-fable-5-2` (tylko próbka 50);
+    - `gpt-5.6-sol` — najnowszy GPT-5.x z `models.list()`, cena $4/$20 za MTok
+      z developers.openai.com/api/docs/pricing; effort low, medium na próbce 50.
+    Bez fallbacków, żeby wynik dotyczył jednego modelu.
+- **Cały arkusz** (linia bazowa): jeden call z pełnym skanem i JSON wszystkich pól
+  z przybliżonym położeniem. Wymagany był 2-60; zrobiłem wszystkie 5 stron, bo 2-60 jest
+  najrzadszy.
+  - **Dopasowanie** elementów do wycinków wzorca jest zachłanne. Koszt = odległość od
+    położenia wzorca / 100 px + liczba pól niezgodnych z odczytem WYCINKOWYM tego samego
+    dostawcy (Opus arkusz ↔ Opus v3, GPT arkusz ↔ GPT v3), próg 6. Pola nieoceniane (symbol
+    bramki 51) się nie liczą.
+  - Prawda nie bierze udziału. Pierwsza wersja dopasowywała do prawdy i zawyżała wynik:
+    GPT xref.label held-out 85,1 → 79,7 % po zmianie, Opus bez zmian.
+  - Samo położenie nie wystarcza: stosy bramek i porty są co 25–55 px, a współrzędne GPT
+    są zgrubne.
+  - Dopasowanie do odczytu wycinkowego sprzyja zgodności, więc liczba niezgodności „wycinek
+    vs arkusz” niżej to raczej dolna granica (ASSUMED).
+
+### Liczby (MEASURED)
+
+Dokładne trafienia na held-out (2-60, 2-61, 2-63: 39 bramek, 29 portów, 74 cross-refy), %
+i liczba. Szum próby: 1 pole to 2,6 pp. na bramkach, 3,4 pp. na portach i 1,35 pp. na
+cross-refach.
+
+- **Odtwarzalność:**
+  - temperatury w API online nie da się ustawić;
+  - Opus cały arkusz low vs medium różni się 1 polem (MEASURED);
+  - powtórzenie runu może zmienić kilka odpowiedzi (ASSUMED, nie powtarzałem runów).
+- **Czas i koszt tylko z 3 stron held-out:**
+  - s/arkusz = suma czasów wycinków danej strony, czyli sekwencyjnie; średnia i maksimum
+    po stronach;
+  - nie obejmuje ładowania modelu, renderu wycinków ani detekcji CV;
+  - online z 6 wątkami ściana jest 5,7–5,9× krótsza (MEASURED z czasów runów Opus/GPT v3);
+  - pamięć to szczyt MLX.
+
+| model, prompt, skala | symbol | typ | ref | piny | złącze | etyk. portu | etyk. xref | arkusze | s/arkusz śr. / max | pamięć | $/arkusz |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Qwen3.8-27B 4-bit, v3, ×2 | 100 (39/39) | 100 (39/39) | 100 (39/39) | 100 (39/39) | 100 (29/29) | 93,1 (27/29) | 83,8 (62/74) | 93,2 (69/74) | 178 / 266 | 17,4 GB | 0 |
+| Qwen3.8-27B 4-bit, v1, ×2 | 100 (39/39) | 100 (39/39) | 100 (39/39) | 100 (39/39) | 100 (29/29) | 89,7 (26/29) | 75,7 (56/74) | 83,8 (62/74) | 159 / 228 | 17,4 GB | 0 |
+| Qwen3.8-27B 8-bit, v3, ×2 | 84,6 (33/39) | 84,6 (33/39) | 82,1 (32/39) | 84,6 (33/39) | 96,6 (28/29) | 89,7 (26/29) | 79,7 (59/74) | 90,5 (67/74) | 359 / 523 | 30,8 GB | 0 |
+| Qwen3.6-35B-A3B 4-bit, v3, ×2 | 97,4 (38/39) | 100 (39/39) | 97,4 (38/39) | 97,4 (38/39) | 100 (29/29) | 89,7 (26/29) | 60,8 (45/74) | 77,0 (57/74) | 50 / 75 | 21,4 GB | 0 |
+| Qwen3.6-35B-A3B 4-bit, v1, ×2 | 94,9 (37/39) | 97,4 (38/39) | 97,4 (38/39) | 100 (39/39) | 96,6 (28/29) | 93,1 (27/29) | 63,5 (47/74) | 63,5 (47/74) | 40 / 58 | 21,5 GB | 0 |
+| PaddleOCR-VL-1.6 4-bit, OCR, ×2 | 25,6 (10/39) | 17,9 (7/39) | 33,3 (13/39) | 0 (0/39) | 96,6 (28/29) | 69,0 (20/29) | 31,1 (23/74) | 14,9 (11/74) | 6 / 9 | 1,9 GB | 0 |
+| Opus 5.5 low, v3, ×2 | 100 (39/39) | 100 (39/39) | 100 (39/39) | 100 (39/39) | 100 (29/29) | 96,6 (28/29) | 94,6 (70/74) | 100 (74/74) | 72 / 105 | – | 0,17 |
+| Opus 5.5 low, v1, ×2 | 100 (39/39) | 100 (39/39) | 97,4 (38/39) | 100 (39/39) | 100 (29/29) | 96,6 (28/29) | 83,8 (62/74) | 98,6 (73/74) | 76 / 111 | – | 0,15 |
+| GPT-5.6-sol low, v3, ×1 | 100 (39/39) | 100 (39/39) | 89,7 (35/39) | 94,9 (37/39) | 93,1 (27/29) | 75,9 (22/29) | 73,0 (54/74) | 98,6 (73/74) | 159 / 232 | – | 0,23 |
+| Opus 5.5, **cały arkusz** | 100 (39/39) | 100 (39/39) | 100 (39/39) | 100 (39/39) | 100 (29/29) | 100 (29/29) | 91,9 (68/74) | 100 (74/74) | 14 / 19 | – | 0,06 |
+| GPT-5.6-sol, **cały arkusz** | 100 (39/39) | 100 (39/39) | 89,7 (35/39) | 94,9 (37/39) | 100 (29/29) | 82,8 (24/29) | 79,7 (59/74) | 98,6 (73/74) | 20 / 23 | – | 0,06 |
+
+- **Odtwarzalność z cache:** wszystkie 21 runów wycinkowych przeliczone z
+  `run --cache-only --rescore` dają te same odpowiedzi co przy wywołaniu (MEASURED,
+  0 różnic). Dotyczy to także Qwen3.6 v1, który wcześniej nie dawał się odtworzyć: zmiana
+  nazwy modelu zmieniła klucz cache. Teraz klucz MLX zawiera hash pełnej ścieżki, a stare
+  wpisy są czytane pod dawnymi nazwami i kopiowane pod nowy klucz.
+
+- **Cały arkusz 2-60** (wymagana linia bazowa): Opus 5.5 ma 33/33 elementów i wszystkie pola
+  poprawne. Trwa 11,6 s i kosztuje $0,05. GPT-5.6-sol na tym arkuszu ma xref.label 13/15.
+  Opus na pozostałych arkuszach: 2-61 xref.label 16/20 (R→A w `-PISZRN`, `-CZYTRW`…),
+  2-58 port.label 12/16 (`W∤R` → `WAR`, P→D, 5→S). Opus low i medium na całym arkuszu
+  różnią się jednym polem (2-61 `+RPP` → `+RPD` przy medium).
+- **Strojenie (2-58/2-59) vs held-out.** Opus v3: tune 100 % na wszystkich polach poza
+  port.label 91,7 % (22/24; błędy B03 `+RDC` i B43 `+AS2`, wzorzec poprawny — USER). Qwen3.8-27B
+  4-bit v3: tune piny 94,3 % (33/35), port.label 91,7 % (22/24), xref.label 83,3 % (25/30). Held-out nie jest gorszy, czyli
+  wskazówki v3 nie przeuczyły się na 2-58/2-59.
+- **Wpływ v3** (wskazówki z 2-58/2-59) na held-out:
+  - Opus xref.label 83,8 → 94,6 %;
+  - Qwen3.8-27B xref.label 75,7 → 83,8 %, arkusze 83,8 → 93,2 %;
+  - Qwen3.6-35B-A3B: gramatyka pól lepsza (symbol 94,9 → 97,4 %), ale arkusze przy lewej
+    krawędzi dalej gubi;
+  - v2 (bez przykładów) jest gorszy u wszystkich: Opus xref.label 81,1 %, Qwen3.6 piny 61,5 %.
+- **Effort / model online** (próbka 50 wycinków = 137 pól, w tym 65 pól z 2-58/2-59;
+  porównanie na tych samych wycinkach):
+  - Opus v1 medium 134/137 vs low 133/137; na stronach strojenia 64/65 oba. Medium jest
+    ~14 % droższy, więc zostaje low;
+  - Fable 5.2 low: v1 130/137 (Opus 133/137), v3 136/137 (Opus 137/137). Jedyny błąd Fable
+    v3 to 2-61 M38 B ref `M36`. 2× droższy od Opus ($0,0075/wycinek), bez zysku na tej
+    próbce;
+  - GPT v1 medium 120/137 = low 120/137.
+- **Skala ×1 vs ×2:** Qwen3.6 ×2 lepszy na bramkach; Qwen3.8 ×2 lepszy na pinach
+  (94,3 vs 88,6 % tune); Opus remis; GPT ×1 dużo lepszy na refach (94,3 vs 74,3 % tune).
+
+### Pomyłki (MEASURED)
+
+Pary prawda → odczyt; liczby to pola na wszystkich 5 stronach.
+
+- **Opus 5.5 v3** (7 błędów na 608 pól = 98,8 %):
+  - P→D/B ×2 (`+RPC` → `+RDC`, `+ŁRP` → `+ŁRB`);
+  - 11→H ×2 (`+L11` → `+LH1`/`+LH`), 5→S ×1 (`+A52` → `+AS2`), R→A ×1 (`-CZYTRN`);
+  - port bez etykiety: odczytana etykieta sąsiedniego cross-refa (2-63 D40 → `+NB0`).
+- **Opus 5.5 v1**: R→Q ×7, R→A ×4, R→D ×2. To „R” z zawijasem, które v3 prawie usuwa.
+- **GPT-5.6-sol v3** (45 błędów):
+  - L→Ł ×7 (v1 ×2: ×11), B→8 ×4;
+  - cyfry w refach ×6 (`M54` → `M51`, `M57` → `M37`, `M47` → `M17`, `M38` → `M3`/`M48`/`M36`);
+  - odczyt sąsiedniego wiersza ×5 (`+W12` → `+W13`, `-CZYTRN` → `-CZYTRW`, `-M` → `-V`);
+  - `∤` → `1`/`Y`.
+- **Qwen3.8-27B 4-bit v3** (30 błędów): R→A/Q ×5, P→D ×2, B→8 ×2, 11→1 w pinach (2-58 M63 C),
+  zmyślony pin u góry ×1, `∤` → `A`/`4`, Ł→L.
+- **Qwen3.6-35B-A3B v3** (76 błędów):
+  - brak numeru arkusza ×15, wszystkie przy lewej krawędzi (`[1]` → `[]`);
+  - R→A/Q ×11, B→8 ×4;
+  - numer arkusza doklejony do etykiety (`8-M`, `g-E`);
+  - minus→plus ×2.
+- **0 vs O w refach i typach: 0 pomyłek; H11 vs M11: 0** u wszystkich modeli. Zero z kreską
+  (Ø) modele piszą jako 0 albo Ø; Ø normalizuję do 0. Odwrotnie zdarza się w etykietach:
+  `+STROB1` → `+STR0B1` (Qwen v1 ×3), PaddleOCR `+RB0` → `+QBO`.
+
+Wycinki do obejrzenia (s2, w scratchpadzie sesji; skany nie trafiają do repo):
+
+1. `crops/s2/2-61/2-61_X_13_+L11.png` — `+L11` czytane jako `+LH1` (Opus v3; Qwen3.6 `+LH`);
+2. `crops/s2/2-61/2-61_X_09_-CZYTRN.png` — `-CZYTAN` (R→A), Opus v3 i Opus cały arkusz;
+3. `crops/s2/2-58/2-58_P_B43.png` — `+A52` → `+AS2` u wszystkich modeli; wzorzec poprawny (USER);
+4. `crops/s2/2-58/2-58_P_A49.png` — wzorzec miał `-PC`, wszystkie modele czytały `-RC`; opiekun
+   potwierdził nadruk `-RC` (USER), więc to błąd wzorca, teraz poprawiony;
+5. `crops/s2/2-60/2-60_X_00_-E.png` — Qwen3.6: `g-E` i brak arkusza `9` przy lewej krawędzi.
+
+### Flagi do kolejki przeglądu (MEASURED)
+
+Precyzja i czułość flagi jako predyktora błędu, na polach (608 pól na 5 stronach).
+
+| sygnał | oflagowane pola | P | R |
+|---|---|---|---|
+| (b) słownik, Opus v3 | 0 | – | 0/7 |
+| (b) słownik, Qwen3.8-27B v3 | 3 | 1,00 | 0,10 |
+| (b) słownik, Qwen3.6-35B-A3B v3 | 25 | 1,00 | 0,33 |
+| (a) dwa prompty: Opus v3 vs v2 | 39 | 0,05 | 0,29 |
+| (a) dwa prompty: Qwen3.6 v3 vs v2 | 154 | 0,36 | 0,72 |
+| (a) dwa modele: Opus v3 vs GPT v3 | 47 | 0,13 | 0,86 |
+| (a) dwa modele: Qwen3.8 v3 vs Qwen3.6 v3 | 64 | 0,22 | 0,47 |
+| (a) kwantyzacja: Qwen3.8 4-bit vs 8-bit, v3 | 51 | 0,08 | 0,13 |
+| (a) Opus: wycinek v3 vs cały arkusz | 11 | 0,36 | 0,57 |
+
+- Flaga słownikowa (b) **nigdy się nie myli (P = 1,00), ale łapie mało**. Etykiety sygnałów nie
+  mają słownika, a to w nich są prawie wszystkie błędy. Słownik etykiet z pakietu (cross-ref
+  musi mieć powrót, etykieta portu jest na backplane) to najtańsze rozszerzenie (ASSUMED).
+- Niezgodność dwóch modeli albo dwóch promptów łapie ½–¾ błędów, ale oflagowuje 4–8× więcej
+  pól niż błędów. v2 jest za słaby jako drugi głos.
+- **Opus wycinek + Opus cały arkusz**:
+  - gdy oba się zgadzają (597 pól), zostają 3 błędy (99,5 %): `+RPC` → `+RDC`,
+    `+A52` → `+AS2`, `-CZYTRN` → `-CZYTAN`. Wszystkie trzy to prawdziwe błędy, bo wzorzec jest
+    tu poprawny (USER);
+  - niezgodne pola to 11 na 5 arkuszy (~2 na arkusz);
+  - koszt ~$0,23 na arkusz.
+  To najlepsza para spośród zmierzonych.
+
+### Werdykt i rekomendacja
+
+- **Najlepszy lokalny: Qwen3.8-27B 4-bit, prompt v3, ×2** (MEASURED):
+  - bramki, piny i złącza 100 % na held-out;
+  - etykiety portów 93,1 %, etykiety cross-refów 83,8 %, arkusze 93,2 %;
+  - 178 s na arkusz średnio (266 s na 2-63), 17,4 GB.
+  Nie spełnia ani progu 97 % (etykiety), ani 60 s.
+- 8-bit: 35 z 37 błędnych pól bramek to 9 bramek (bloki 170/174/175 i M52) uciętych na
+  `max_tokens=300` (MEASURED: wszystkie mają dokładnie 300 tokenów wyjścia). Model zaczyna od
+  prozy zamiast JSON i nie mieści odpowiedzi w limicie. To limit harnessu, nie błąd czytania.
+  Pozostałe 2 to odczyt: 2-58 M63 C pin 11→1 (jak 4-bit) i 2-61 M38 A ref `M36`. Etykiety czyta tak jak 4-bit (port 26/29, xref 59/74). Jest 2× wolniejszy
+  (359 s/arkusz średnio, 523 s na 2-63) i zajmuje 30,8 GB.
+- Qwen3.6-35B-A3B (MoE) ma średnio 50 s/arkusz, ale na 2-63 75 s, więc 60 s nie trzyma na
+  gęstym arkuszu. Etykiety cross-refów ma na 60,8 % (45/74).
+- PaddleOCR-VL odpada: czyta tylko złącza (96,6 %); bramek i list pinów regułowy parser
+  z wolnego tekstu nie odtworzy.
+- **Online: Opus 5.5, effort low, v3, ×2** (MEASURED):
+  - 98,8 % wszystkich pól (held-out: wszystkie pola bramek 100 %, port.label 96,6 %,
+    xref.label 94,6 %);
+  - $0,17 na arkusz.
+  - GPT-5.6-sol jest wyraźnie słabszy na refach i etykietach (L→Ł, cyfry), Fable 5.2 nie
+    lepszy na próbce.
+- **Cały arkusz zamiast wycinków:** Opus z całego skanu (jeden call, ~14 s, $0,06) czyta
+  bramki, piny i złącza tak samo dobrze jak z wycinków, a etykiety cross-refów gorzej
+  (91,9 vs 94,6 %). Na 2-60 ma 100 %. Wycinki opłacają się jako drugi, niezależny odczyt
+  (tabela flag), nie jako jedyny.
+- **Zalecenie na teraz:**
+  - tekst: Opus 5.5 low, prompt v3, ×2 na wycinkach z geometrii CV;
+  - plus jeden odczyt całego arkusza tym samym modelem; niezgodności do kolejki przeglądu;
+  - koszt 155 arkuszy ≈ 155 × $0,23 ≈ $36 (ASSUMED: arkusze podobne do P-R3-2).
+  - Lokalnie Qwen3.8-27B 4-bit v3 nadaje się na bramki, piny i złącza, czyli pola z tabeli
+    wyżej, które mają 100 %.
+
+### Co musiałaby dać LoRA (kr-9p8.9)
+
+ASSUMED, na podstawie powyższych pomyłek:
+
+- **Cel:** etykiety sygnałów (port i cross-ref) i numer arkusza przy lewej krawędzi. Bramki,
+  piny i złącza już mają 100 %.
+- **Błędy do wyuczenia:**
+  - kształt „R” z zawijasem (R↔A/Q/D), P↔D, B↔8, 5↔S, 11↔H;
+  - glif `∤`, Ł tylko z kreską;
+  - etykieta przy porcie bez własnego napisu ma być pusta.
+- **Dane:**
+  - ~40 wycinków na arkusz, z czego ~25 to etykiety; 30–40 zatwierdzonych arkuszy spoza
+    `data/gold` daje ~1000 przykładów etykiet;
+  - pseudo-etykiety mogą pochodzić z Opusa (para wycinek + arkusz, 99,5 % przy zgodności,
+    ~$0,23/arkusz). Człowiek poprawia tylko niezgodności;
+  - augmentacja: przesunięcie wiersza (sąsiednie etykiety w kadrze), bladość, skala ×1/×2.
+- **Model bazowy:**
+  - Qwen3.6-35B-A3B, jeśli LoRA ma zmieścić się w 60 s/arkusz. Teraz 50 s średnio, ale
+    75 s na 2-63, więc trzeba też skrócić odpowiedzi;
+  - Qwen3.8-27B, jeśli ważniejsza jest dokładność (178 s średnio, czyli 155 arkuszy to
+    ~7,7 h — w nocy do przyjęcia);
+  - próg wejścia jak w „Pętli uczenia”: lepszy na `data/gold` bez regresji.
+- **Czas lokalny** bez LoRA da się skrócić: krótsze odpowiedzi (bramki ~40 tokenów
+  wyjścia), cache prefiksu promptu, kilka wycinków w jednym obrazie (ASSUMED, niezmierzone).
+
+### Uruchomienie
+
+```bash
+OUT=<katalog wyników>  # wycinki, odpowiedzi, score.md — poza repo
+export UV_CACHE_DIR=/Volumes/Dane/llm/uv-cache HF_HOME=/Volumes/Dane/llm/hf
+uv run scripts/vlm-bakeoff.py crops --out $OUT --scale 1 2
+uv run --with mlx-vlm scripts/vlm-bakeoff.py run --out $OUT --scale 2 --prompt v3 \
+    --model mlx:/Volumes/Dane/llm/models/lmstudio-community/Qwen3.8-27B-MLX-4bit
+uv run scripts/vlm-bakeoff.py run --out $OUT --scale 2 --prompt v3 \
+    --model anthropic:claude-opus-5-5 --effort low [--limit 20]
+uv run scripts/vlm-bakeoff.py run --out $OUT --scale 1 --prompt v3 --model openai:gpt-5.6-sol
+uv run scripts/vlm-bakeoff.py sheet --out $OUT --page 2-60 --model anthropic:claude-opus-5-5 \
+    --ref-run anthropic_claude-opus-5-5_low__v3__s2
+uv run scripts/vlm-bakeoff.py run ... --cache-only --rescore   # przeliczenie bez wywołań modelu
+uv run scripts/vlm-bakeoff.py score --out $OUT --pairs 'runA|runB' [--no-overrides]
+PYTHONDONTWRITEBYTECODE=1 uv run --with pytest --with pyyaml --with pillow \
+    pytest -p no:cacheprovider scripts/test_vlm_bakeoff.py
+```
+
+Klucze API skrypt czyta z `.env` głównego checkoutu i nigdy ich nie wypisuje. Odpowiedzi są
+cache'owane w `/Volumes/Dane/llm/kronikarz-cache/vlm-bakeoff` po (model, parametry, hash
+wycinka, hash promptu). Ponowny `score` nic nie kosztuje. Łączny koszt spike'a: ~$7
+(Anthropic ~$4,6, OpenAI ~$2,4; MEASURED z `usage`, z dokładnością do podwójnie liczonych
+wycinków z cache).
