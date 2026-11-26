@@ -84,6 +84,10 @@ ma liczbę, którą poprawiamy.
 - **Linia bazowa:** obecny `vision-page.py` (Claude) na tych samych arkuszach.
 - **Próg sukcesu etapu:** ≤ 5 poprawek na arkusz przy ≥ 95 % poprawnych par pin–net.
 
+## Modele online — dla porównania
+
+OmniSch (arXiv 2604.00270, 1854 prawdziwe schematy, zero-shot schemat → graf) mierzy Net F1: GPT-5.2 0,20; Claude Sonnet 4.6 0,17; Gemini 3.1 Pro 0,27; Qwen3.5-122B-A10B 0,42; klasyczny pipeline CV 0,59; człowiek 0,99. Z podanymi ramkami elementów Gemini 3.1 Pro czyta nazwy netów z dokładnością 0,89. Czyli: żaden model online nie odtwarza połączeń z całego arkusza, a w czytaniu tekstu przy znanym położeniu są dobre. Modele online (Claude Opus 5.5 / Fable 5.2, Gemini 3.x, GPT-5.x) wchodzą do bake-offu obok lokalnych, w obu trybach (cały arkusz i wycinki). Koszt nie jest przeszkodą (pełny przebieg rzędu kilkudziesięciu USD, do zmierzenia); decyduje dokładność.
+
 ## Lokalne modele (do sprawdzenia w bake-offie)
 
 Kandydaci na start, uruchamiani przez `mlx-vlm` na M5 Pro 64 GB (4-bit, z zapasem pamięci):
