@@ -6,12 +6,19 @@
 //   pending  — debounce timer running, body not sent yet
 //   inflight — PUT sent, not settled; PUTs to one path are chained, never parallel
 //   failed   — last PUT failed and no newer body superseded it
+//   conflict — the server answered 409 (file changed outside this tab, its
+//              ETag no longer matches): the newest body is kept, never sent
+//              again and not retried by flush — only a reload resolves it
 //   fenced   — the server is rewriting / has rewritten the file (restore-bak…):
 //              bodies scheduled for it are kept aside and NEVER sent, so a body
 //              built from the old file cannot land over the new one. A fence
 //              ends only with a page reload, or when the rewrite clearly did
 //              not happen (then the kept body is scheduled normally).
 // isDirty() is true while the server lacks something the user sees.
+//
+// Optimistic concurrency: the queue remembers the server ETag per path (from
+// the page load via setLoadedEtag, then from each successful PUT) and passes
+// it to send() as If-Match.
 
 export type SaveStatus = 'idle' | 'pending' | 'saving' | 'error';
 
@@ -20,9 +27,46 @@ export interface SendOptions {
   keepalive?: boolean;
 }
 
+/** send() rejects with this when the server refuses the If-Match (HTTP 409). */
+export class SaveConflictError extends Error {
+  constructor(message = 'conflict') {
+    super(message);
+    this.name = 'SaveConflictError';
+  }
+}
+
+/** Error shown for a path whose PUT hit a 409. */
+export function conflictMessage(path: string): string {
+  return `${path}: plik zmieniony poza tą kartą — przeładuj stronę; zmiany nie zostały zapisane`;
+}
+
+/** Transport for SaveQueue.updateFile (GET + conditional PUT of one file). */
+export interface FileIO {
+  get(path: string): Promise<{ status: number; text: string; etag: string | null }>;
+  put(path: string, body: string, ifMatch: string | undefined): Promise<{ status: number; etag: string | null }>;
+}
+
+/**
+ * Result of SaveQueue.updateFile:
+ *   ok          — written
+ *   unchanged   — mutate() returned null, nothing written
+ *   not-started — not attempted: unsaved edits could not be flushed, or the
+ *                 path is fenced (waiting for a reload); stop a batch
+ *   error       — this file was not written (404, 409, parse error, …)
+ */
+export type UpdateResult =
+  | { status: 'ok' }
+  | { status: 'unchanged' }
+  | { status: 'not-started'; error: string }
+  | { status: 'error'; error: string };
+
 export interface SaveQueueDeps {
-  /** Write `body` to `path`; must reject on any failure (network or non-2xx). */
-  send: (path: string, body: string, opts: SendOptions) => Promise<void>;
+  /**
+   * Write `body` to `path`, with `If-Match: ifMatch` when given. Resolves with
+   * the new ETag from the response (null/undefined if none). Must reject on
+   * any failure (network or non-2xx); with SaveConflictError on 409.
+   */
+  send: (path: string, body: string, opts: SendOptions, ifMatch?: string) => Promise<string | null | void>;
   setTimer: (fn: () => void, ms: number) => unknown;
   clearTimer: (handle: unknown) => void;
   delayMs: number;
@@ -74,6 +118,26 @@ export interface SaveQueue {
   discard(path: string): void;
   /** Persistent error for a fenced path (shown until reload). */
   setFenceError(path: string, msg: string): void;
+  /**
+   * ETag of `path` as just loaded by GET. `ticket` is loadTicket(path) taken
+   * before that GET; the tag is ignored if the path is dirty or a PUT of it
+   * completed since (the GET may predate it).
+   */
+  setLoadedEtag(path: string, etag: string | null, ticket: number): void;
+  /** Take before a GET whose ETag goes to setLoadedEtag. */
+  loadTicket(path: string): number;
+  /** Last known server ETag of `path` (sent as If-Match). */
+  etag(path: string): string | undefined;
+  /** True while `path` waits for a reload after a server-side rewrite. */
+  isFenced(path: string): boolean;
+  /**
+   * Read-modify-write of a file outside the debounced auto-save (e.g. another
+   * page of the package): flush pending saves, GET, `mutate(text)` → new body
+   * or null (no change), PUT with If-Match of that GET. A 409 is an error,
+   * never retried. The new ETag is not given to the auto-save queue (see
+   * implementation): a body the queue has for the path then gets a 409.
+   */
+  updateFile(path: string, mutate: (text: string) => string | null, io: FileIO): Promise<UpdateResult>;
   /** Paths whose content the server does not have (for messages). */
   dirtyPaths(): string[];
   isDirty(): boolean;
@@ -103,6 +167,9 @@ export function createSaveQueue(deps: SaveQueueDeps): SaveQueue {
   const pending = new Map<string, Pending>();
   const inflight = new Map<string, Promise<void>>();
   const failed = new Map<string, { body: string; error: string }>();
+  const conflicts = new Map<string, { body: string; error: string }>();
+  const etags = new Map<string, string>();
+  const putsDone = new Map<string, number>(); // successful PUTs per path (load tickets)
   const fenced = new Map<string, string | null>(); // path → latest body kept aside
   const fenceErrors = new Map<string, string>();
   const rewriting = new Set<string>(); // runRewrite in progress (incl. pre-flush)
@@ -118,7 +185,11 @@ export function createSaveQueue(deps: SaveQueueDeps): SaveQueue {
   function computeStatus(): { status: SaveStatus; error: string | null } {
     if (inflight.size) return { status: 'saving', error: null };
     if (pending.size) return { status: 'pending', error: null };
-    const errs = [...fenceErrors.values(), ...[...failed.values()].map((f) => f.error)];
+    const errs = [
+      ...fenceErrors.values(),
+      ...[...conflicts.values()].map((c) => c.error),
+      ...[...failed.values()].map((f) => f.error),
+    ];
     if (errs.length) {
       const more = errs.length > 1 ? ` (+${errs.length - 1})` : '';
       return { status: 'error', error: errs[0]! + more };
@@ -142,11 +213,29 @@ export function createSaveQueue(deps: SaveQueueDeps): SaveQueue {
     const p: Promise<void> = (prev ?? Promise.resolve())
       .then(async () => {
         if (genOf(path) !== g) return; // discarded/fenced while queued behind prev
+        // A body chained behind a PUT that hit 409 would hit it too.
+        if (conflicts.has(path)) {
+          conflicts.set(path, { body, error: conflicts.get(path)!.error });
+          return;
+        }
         try {
-          await deps.send(path, body, opts);
+          // Read the tag now, not at fire(): a chained PUT uses the previous one's result.
+          const tag = await deps.send(path, body, opts, etags.get(path));
+          if (typeof tag === 'string' && tag) etags.set(path, tag);
+          else etags.delete(path); // unknown → next PUT unconditional, never a stale tag
+          putsDone.set(path, (putsDone.get(path) ?? 0) + 1);
           failed.delete(path); // a later success supersedes an earlier failure
         } catch (err) {
-          if (genOf(path) !== g || pending.has(path)) return; // superseded
+          if (genOf(path) !== g) return; // superseded
+          if (err instanceof SaveConflictError) {
+            // Keep the newest body (a pending one would 409 as well) and stop.
+            const newest = pending.get(path)?.body ?? body;
+            clearPending(path);
+            failed.delete(path);
+            conflicts.set(path, { body: newest, error: conflictMessage(path) });
+            return;
+          }
+          if (pending.has(path)) return; // superseded
           failed.set(path, { body, error: err instanceof Error ? err.message : String(err) });
         }
       })
@@ -179,6 +268,12 @@ export function createSaveQueue(deps: SaveQueueDeps): SaveQueue {
         emit();
         return;
       }
+      const c = conflicts.get(path);
+      if (c) {
+        conflicts.set(path, { body, error: c.error }); // kept, never sent
+        emit();
+        return;
+      }
       clearPending(path);
       failed.delete(path); // the new full body supersedes a failed one
       const entry: Pending = { body, timer: null };
@@ -206,8 +301,9 @@ export function createSaveQueue(deps: SaveQueueDeps): SaveQueue {
         await Promise.allSettled([...inflight.values()]);
       }
       emit();
-      if (failed.size) {
-        const errs = [...failed.values()].map((f) => f.error).join('; ');
+      // Conflicted paths are not retried (they would 409 again) but still unsaved.
+      if (failed.size || conflicts.size) {
+        const errs = [...conflicts.values(), ...failed.values()].map((f) => f.error).join('; ');
         throw new Error(`zapis nieudany: ${errs}`);
       }
     },
@@ -219,9 +315,11 @@ export function createSaveQueue(deps: SaveQueueDeps): SaveQueue {
 
     fence(path) {
       // Keep the newest unsent body aside in case the rewrite does not happen.
-      const kept = pending.get(path)?.body ?? failed.get(path)?.body ?? fenced.get(path) ?? null;
+      const kept =
+        pending.get(path)?.body ?? failed.get(path)?.body ?? conflicts.get(path)?.body ?? fenced.get(path) ?? null;
       clearPending(path);
       failed.delete(path);
+      conflicts.delete(path);
       bump(path);
       fenced.set(path, kept);
       emit();
@@ -239,6 +337,7 @@ export function createSaveQueue(deps: SaveQueueDeps): SaveQueue {
     discard(path) {
       clearPending(path);
       failed.delete(path);
+      conflicts.delete(path);
       if (fenced.has(path)) fenced.set(path, null);
       bump(path);
       emit();
@@ -249,8 +348,60 @@ export function createSaveQueue(deps: SaveQueueDeps): SaveQueue {
       emit();
     },
 
+    setLoadedEtag(path, etag, ticket) {
+      if (q.dirtyPaths().includes(path) || (putsDone.get(path) ?? 0) !== ticket) return;
+      if (etag) etags.set(path, etag);
+      else etags.delete(path);
+    },
+
+    loadTicket(path) {
+      return putsDone.get(path) ?? 0;
+    },
+
+    etag(path) {
+      return etags.get(path);
+    },
+
+    isFenced(path) {
+      return fenced.has(path) || rewriting.has(path);
+    },
+
+    async updateFile(path, mutate, io) {
+      const fencedMsg = `${path}: strona czeka na przeładowanie po operacji na serwerze — przeładuj stronę`;
+      if (q.isFenced(path)) return { status: 'not-started', error: fencedMsg };
+      try {
+        await q.flush();
+      } catch (err) {
+        return {
+          status: 'not-started',
+          error: `nie udało się zapisać bieżących zmian (${err instanceof Error ? err.message : String(err)})`,
+        };
+      }
+      if (q.isFenced(path)) return { status: 'not-started', error: fencedMsg };
+      try {
+        const got = await io.get(path);
+        if (got.status === 404) return { status: 'error', error: `${path}: brak pliku` };
+        if (got.status < 200 || got.status >= 300) return { status: 'error', error: `GET ${path} → ${got.status}` };
+        const body = mutate(got.text);
+        if (body === null) return { status: 'unchanged' };
+        if (q.isFenced(path)) return { status: 'not-started', error: fencedMsg };
+        const r = await io.put(path, body, got.etag ?? undefined);
+        if (r.status === 409) {
+          return { status: 'error', error: `${path}: plik zmieniony w międzyczasie (inna karta lub zapis) — nie zapisano` };
+        }
+        if (r.status < 200 || r.status >= 300) return { status: 'error', error: `PUT ${path} → ${r.status}` };
+        // The new ETag is NOT handed to the auto-save queue: whatever the
+        // queue (or the page in the store) holds for `path` was built without
+        // this change, so its next PUT must get a 409, not silently drop it.
+        // A fresh tag comes with the next load of the page (loader GET).
+        return { status: 'ok' };
+      } catch (err) {
+        return { status: 'error', error: `${path}: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    },
+
     dirtyPaths() {
-      const s = new Set<string>([...pending.keys(), ...inflight.keys(), ...failed.keys()]);
+      const s = new Set<string>([...pending.keys(), ...inflight.keys(), ...failed.keys(), ...conflicts.keys()]);
       for (const [path, body] of fenced) if (body !== null) s.add(path);
       return [...s];
     },

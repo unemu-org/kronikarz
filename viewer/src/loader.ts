@@ -10,16 +10,17 @@ import {
   validateProject,
 } from '@kronikarz/shared';
 import type { Issue, Page } from '@kronikarz/shared';
-import { useDocStore } from './store.ts';
+import { fetchDataFile, flushSaves, useDocStore } from './store.ts';
 
+// Both record the file's ETag for auto-save If-Match (fetchDataFile).
 async function fetchText(path: string): Promise<string> {
-  const r = await fetch(`/files/${path}`);
+  const r = await fetchDataFile(path);
   if (!r.ok) throw new Error(`GET /files/${path} → ${r.status}`);
   return r.text();
 }
 
 async function fetchTextOptional(path: string): Promise<string | null> {
-  const r = await fetch(`/files/${path}`);
+  const r = await fetchDataFile(path);
   if (r.status === 404) return null;
   if (!r.ok) throw new Error(`GET /files/${path} → ${r.status}`);
   return r.text();
@@ -69,6 +70,11 @@ export function useLoader(): void {
       }
 
       setLoading(true);
+      // Land queued auto-saves first, so going A→B→A within the debounce
+      // cannot load A from before its last edit. On failure load anyway — the
+      // error stays visible in SaveToast (the queue keeps the path dirty).
+      await flushSaves().catch(() => {});
+      if (cancelled) return;
       try {
         // Always try project + ic_map at MJC-400 root
         const project = await fetchTextOptional('MJC-400/project.yaml').then((t) =>

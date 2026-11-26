@@ -5,9 +5,12 @@ import { apiWrite } from './api.ts';
 import {
   createSaveQueue,
   rewriteOutcomeFor,
+  SaveConflictError,
+  type FileIO,
   type RewriteOutcome,
   type RewriteResult,
   type SaveQueue,
+  type UpdateResult,
 } from './saveQueue.ts';
 
 export type Mode = 'module' | 'package' | 'page' | 'empty';
@@ -95,23 +98,23 @@ function clone<T>(o: T): T {
 }
 
 // Debounced auto-save (per-path, 500 ms) — logic in saveQueue.ts. Every PUT
-// goes through apiWrite (X-Kronikarz header). Status mirrors into the store
-// (saveStatus/saveError → SaveToast).
+// goes through apiWrite (X-Kronikarz header) with If-Match = the last ETag the
+// queue knows (from the load, then from each PUT); 409 → SaveConflictError.
+// Status mirrors into the store (saveStatus/saveError → SaveToast).
 const DEBOUNCE_MS = 500;
 // Browsers cap the total body of in-flight keepalive requests at 64 KiB; past
 // that fetch() rejects, so larger bodies go as a plain PUT.
 const KEEPALIVE_MAX_BYTES = 60 * 1024;
 
 const saveQueue: SaveQueue = createSaveQueue({
-  async send(path, body, opts) {
+  async send(path, body, opts, ifMatch) {
     const keepalive = opts.keepalive === true && new Blob([body]).size <= KEEPALIVE_MAX_BYTES;
-    const r = await apiWrite(`/files/${path}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'text/yaml' },
-      body,
-      keepalive,
-    });
+    const headers: Record<string, string> = { 'Content-Type': 'text/yaml' };
+    if (ifMatch) headers['If-Match'] = ifMatch;
+    const r = await apiWrite(`/files/${path}`, { method: 'PUT', headers, body, keepalive });
+    if (r.status === 409) throw new SaveConflictError(`PUT ${path} → 409`);
     if (!r.ok) throw new Error(`PUT ${path} → ${r.status}`);
+    return r.headers.get('ETag');
   },
   setTimer: (fn, ms) => setTimeout(fn, ms),
   clearTimer: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
@@ -121,6 +124,41 @@ const saveQueue: SaveQueue = createSaveQueue({
 
 function schedulePut(path: string, body: string): void {
   saveQueue.schedule(path, body);
+}
+
+/**
+ * GET a data file and hand its ETag to the save queue (used as If-Match by
+ * the next auto-save of that path; a 404 forgets it). Same contract as fetch().
+ */
+export async function fetchDataFile(path: string): Promise<Response> {
+  const ticket = saveQueue.loadTicket(path);
+  const r = await fetch(`/files/${path}`);
+  if (r.ok) saveQueue.setLoadedEtag(path, r.headers.get('ETag'), ticket);
+  else if (r.status === 404) saveQueue.setLoadedEtag(path, null, ticket);
+  return r;
+}
+
+const fileIO: FileIO = {
+  async get(path) {
+    const r = await fetch(`/files/${path}`);
+    return { status: r.status, text: r.ok ? await r.text() : '', etag: r.headers.get('ETag') };
+  },
+  async put(path, body, ifMatch) {
+    const headers: Record<string, string> = { 'Content-Type': 'text/yaml' };
+    if (ifMatch) headers['If-Match'] = ifMatch;
+    const r = await apiWrite(`/files/${path}`, { method: 'PUT', headers, body });
+    return { status: r.status, etag: r.headers.get('ETag') };
+  },
+};
+
+/**
+ * Change a data file that is not the page being edited (another page of the
+ * package): flush auto-saves, GET, `mutate(text)` → new body or null (no
+ * change), PUT with If-Match. Never overwrites a file changed meanwhile (409
+ * → error). See SaveQueue.updateFile / UpdateResult.
+ */
+export function updateDataFile(path: string, mutate: (text: string) => string | null): Promise<UpdateResult> {
+  return saveQueue.updateFile(path, mutate, fileIO);
 }
 
 /**

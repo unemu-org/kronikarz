@@ -2,8 +2,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  conflictMessage,
   createSaveQueue,
   rewriteOutcomeFor,
+  SaveConflictError,
+  type FileIO,
   type RewriteDeps,
   type RewriteOutcome,
   type SaveStatus,
@@ -17,7 +20,8 @@ interface Call {
   path: string;
   body: string;
   opts: SendOptions;
-  resolve: () => void;
+  ifMatch: string | undefined;
+  resolve: (etag?: string) => void;
   reject: (e: Error) => void;
 }
 
@@ -26,9 +30,9 @@ function harness(opts: { autoResolve?: boolean; failPaths?: Set<string> } = {}) 
   const calls: Call[] = [];
   const statuses: Array<[SaveStatus, string | null]> = [];
   const q = createSaveQueue({
-    send(path, body, o) {
-      return new Promise<void>((resolve, reject) => {
-        calls.push({ path, body, opts: o, resolve, reject });
+    send(path, body, o, ifMatch) {
+      return new Promise<string | void>((resolve, reject) => {
+        calls.push({ path, body, opts: o, ifMatch, resolve, reject });
         if (opts.failPaths?.has(path)) reject(new Error(`PUT ${path} → 500`));
         else if (opts.autoResolve) resolve();
       });
@@ -535,4 +539,176 @@ test('page edit during the post-rewrite flush (other PUT in flight) is not sent'
   await settle();
   assert.ok(!h.calls.some((c) => c.path === 'page.yaml'), 'no page PUT');
   assert.equal(h.q.isDirty(), false, 'kept stale body discarded before reload');
+});
+
+// --- kr-0sn.5: ETag / If-Match / 409 -----------------------------------------
+
+test('If-Match: loaded ETag sent with the PUT; each response ETag used by the next', async () => {
+  const h = harness();
+  h.q.setLoadedEtag('a.yaml', '"e0"', h.q.loadTicket('a.yaml'));
+  h.q.schedule('a.yaml', 'v1');
+  h.tick();
+  await settle();
+  assert.equal(h.calls[0]!.ifMatch, '"e0"');
+  h.q.schedule('a.yaml', 'v2'); // chained behind the in-flight PUT
+  h.tick();
+  h.calls[0]!.resolve('"e1"');
+  await settle();
+  assert.equal(h.calls[1]!.ifMatch, '"e1"', 'chained PUT uses the tag returned by the previous one');
+  h.calls[1]!.resolve('"e2"');
+  await settle();
+  assert.equal(h.q.etag('a.yaml'), '"e2"');
+  // no tag known for another path → no If-Match
+  h.q.schedule('b.yaml', 'b1');
+  h.tick();
+  await settle();
+  assert.equal(h.calls[2]!.ifMatch, undefined);
+});
+
+test('setLoadedEtag: ignored while dirty or when a PUT finished after the GET started', async () => {
+  const h = harness();
+  h.q.setLoadedEtag('a.yaml', '"e0"', h.q.loadTicket('a.yaml'));
+  const ticket = h.q.loadTicket('a.yaml'); // a GET starts here…
+  h.q.schedule('a.yaml', 'v1');
+  h.q.setLoadedEtag('a.yaml', '"get-while-pending"', h.q.loadTicket('a.yaml'));
+  assert.equal(h.q.etag('a.yaml'), '"e0"', 'dirty path keeps its own tag');
+  h.tick();
+  await settle();
+  h.calls[0]!.resolve('"e1"');
+  await settle();
+  // …and answers after our PUT landed: its tag is older than ours.
+  h.q.setLoadedEtag('a.yaml', '"e0"', ticket);
+  assert.equal(h.q.etag('a.yaml'), '"e1"');
+  // a GET started after the PUT is authoritative
+  h.q.setLoadedEtag('a.yaml', '"e9"', h.q.loadTicket('a.yaml'));
+  assert.equal(h.q.etag('a.yaml'), '"e9"');
+});
+
+test('409 → error with Polish message, dirty, not retried by flush, later edits not sent', async () => {
+  const h = harness();
+  h.q.setLoadedEtag('a.yaml', '"stale"', 0);
+  h.q.schedule('a.yaml', 'v1');
+  h.tick();
+  await settle();
+  h.q.schedule('a.yaml', 'v2'); // pending while the PUT is in flight
+  h.calls[0]!.reject(new SaveConflictError());
+  await settle();
+  const msg = conflictMessage('a.yaml');
+  assert.match(msg, /plik zmieniony poza tą kartą — przeładuj stronę; zmiany nie zostały zapisane/);
+  assert.equal(h.q.status(), 'error');
+  assert.deepEqual(h.statuses.at(-1), ['error', msg]);
+  assert.equal(h.q.isDirty(), true);
+  assert.deepEqual(h.q.dirtyPaths(), ['a.yaml']);
+  h.tick(); // the pending v2 timer (cancelled) must not fire a PUT
+  await assert.rejects(h.q.flush(), /plik zmieniony poza tą kartą/);
+  h.q.schedule('a.yaml', 'v3');
+  h.tick();
+  h.q.flushNow({ keepalive: true });
+  await settle();
+  assert.deepEqual(h.calls.map((c) => c.body), ['v1'], 'nothing resent after the 409');
+  assert.equal(h.q.isDirty(), true, 'beforeunload still warns');
+  // other paths keep saving
+  h.q.schedule('b.yaml', 'b1');
+  h.tick();
+  await settle();
+  assert.deepEqual(h.calls.map((c) => c.path), ['a.yaml', 'b.yaml']);
+});
+
+// --- kr-pfj.2: updateFile (read-modify-write of another page) ---------------
+
+function fakeIO(files: Record<string, { text: string; etag: string }>, putStatus = 200) {
+  const log: Array<[string, string, string | undefined]> = []; // method, path, ifMatch
+  const io: FileIO = {
+    async get(path) {
+      log.push(['GET', path, undefined]);
+      const f = files[path];
+      return f ? { status: 200, text: f.text, etag: f.etag } : { status: 404, text: '', etag: null };
+    },
+    async put(path, body, ifMatch) {
+      log.push(['PUT', path, ifMatch]);
+      if (putStatus !== 200) return { status: putStatus, etag: null };
+      files[path] = { text: body, etag: `"${body}"` };
+      return { status: 200, etag: `"${body}"` };
+    },
+  };
+  return { io, log, files };
+}
+
+test('updateFile: flushes pending saves first, PUTs with the GET ETag, does not hand the new tag to the queue', async () => {
+  const h = harness({ autoResolve: true });
+  const f = fakeIO({ 'b.yaml': { text: 'b0', etag: '"b0"' } });
+  h.q.schedule('a.yaml', 'a1'); // unsaved edit elsewhere
+  const res = await h.q.updateFile('b.yaml', (t) => `${t}+x`, f.io);
+  assert.deepEqual(res, { status: 'ok' });
+  assert.deepEqual(h.calls.map((c) => c.body), ['a1'], 'pending auto-save flushed before');
+  assert.deepEqual(f.log, [['GET', 'b.yaml', undefined], ['PUT', 'b.yaml', '"b0"']]);
+  assert.equal(f.files['b.yaml']!.text, 'b0+x');
+  assert.equal(h.q.etag('b.yaml'), undefined, 'queue tag unchanged (none was loaded)');
+});
+
+test('updateFile on a loaded page: queue keeps the loaded tag → its next auto-save ends in conflict', async () => {
+  // Store holds page b loaded at E0; a copy writes +x (E1) behind its back.
+  const h = harness();
+  const f = fakeIO({ 'b.yaml': { text: 'b0', etag: '"E0"' } });
+  h.q.setLoadedEtag('b.yaml', '"E0"', h.q.loadTicket('b.yaml'));
+  const res = await h.q.updateFile('b.yaml', (t) => `${t}+x`, f.io);
+  assert.deepEqual(res, { status: 'ok' });
+  assert.equal(h.q.etag('b.yaml'), '"E0"');
+  // the store's copy lacks +x; its auto-save must not overwrite the copy
+  h.q.schedule('b.yaml', 'b0-edited-without-x');
+  h.tick();
+  await settle();
+  assert.equal(h.calls[0]!.ifMatch, '"E0"');
+  h.calls[0]!.reject(new SaveConflictError()); // what the server answers to E0 now
+  await settle();
+  assert.equal(h.q.status(), 'error');
+  assert.deepEqual(h.statuses.at(-1), ['error', conflictMessage('b.yaml')]);
+  assert.equal(h.q.isDirty(), true);
+});
+
+test('updateFile: 409 → error (Polish), nothing remembered; null mutate → unchanged, no PUT; 404 → error', async () => {
+  const h = harness({ autoResolve: true });
+  const f = fakeIO({ 'b.yaml': { text: 'b0', etag: '"b0"' } }, 409);
+  h.q.setLoadedEtag('b.yaml', '"old"', 0);
+  let res = await h.q.updateFile('b.yaml', (t) => `${t}+x`, f.io);
+  assert.equal(res.status, 'error');
+  assert.match(res.status === 'error' ? res.error : '', /b\.yaml: plik zmieniony w międzyczasie .* nie zapisano/);
+  assert.equal(h.q.etag('b.yaml'), '"old"');
+  res = await h.q.updateFile('b.yaml', () => null, f.io);
+  assert.deepEqual(res, { status: 'unchanged' });
+  assert.deepEqual(f.log.map((l) => l[0]), ['GET', 'PUT', 'GET']);
+  res = await h.q.updateFile('missing.yaml', (t) => t, f.io);
+  assert.equal(res.status, 'error');
+  assert.equal(h.q.isDirty(), false, 'helper errors do not touch the auto-save state');
+});
+
+test('updateFile: not-started when the flush fails or the path is fenced; no GET', async () => {
+  const h = harness({ failPaths: new Set(['a.yaml']) });
+  const f = fakeIO({ 'b.yaml': { text: 'b0', etag: '"b0"' } });
+  h.q.schedule('a.yaml', 'a1');
+  let res = await h.q.updateFile('b.yaml', (t) => `${t}+x`, f.io);
+  assert.equal(res.status, 'not-started');
+  assert.match(res.status === 'not-started' ? res.error : '', /nie udało się zapisać bieżących zmian/);
+  h.q.discard('a.yaml');
+  h.q.fence('b.yaml');
+  assert.equal(h.q.isFenced('b.yaml'), true);
+  res = await h.q.updateFile('b.yaml', (t) => `${t}+x`, f.io);
+  assert.equal(res.status, 'not-started');
+  assert.match(res.status === 'not-started' ? res.error : '', /przeładuj stronę/);
+  assert.deepEqual(f.log, []);
+});
+
+test('updateFile: an auto-save body queued meanwhile keeps its old tag (gets 409, does not win)', async () => {
+  const h = harness({ autoResolve: true });
+  const f = fakeIO({ 'b.yaml': { text: 'b0', etag: '"b0"' } });
+  h.q.setLoadedEtag('b.yaml', '"b0"', 0);
+  const res = await h.q.updateFile('b.yaml', (t) => {
+    h.q.schedule('b.yaml', 'edit-without-x'); // user edit built on the old file
+    return `${t}+x`;
+  }, f.io);
+  assert.deepEqual(res, { status: 'ok' });
+  assert.equal(h.q.etag('b.yaml'), '"b0"', 'tag of our write not handed to the stale body');
+  h.tick();
+  await settle();
+  assert.equal(h.calls.at(-1)!.ifMatch, '"b0"');
 });

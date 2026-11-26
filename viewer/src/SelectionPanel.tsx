@@ -1,13 +1,58 @@
 import type { ChangeEvent } from 'react';
 import { useRef as useReactRef } from 'react';
 import type { Page, Side, IcMap } from '@kronikarz/shared';
-import { parsePinId, resolveIcKey } from '@kronikarz/shared';
-import { useDocStore } from './store.ts';
-import { apiWrite } from './api.ts';
+import { parsePage, parsePinId, resolveIcKey, serializePage } from '@kronikarz/shared';
+import { updateDataFile, useDocStore } from './store.ts';
 import { passivePins } from './AddGateDialog.tsx';
 
 const ROTATIONS: Array<0 | 90 | 180 | 270> = [0, 90, 180, 270];
 const SIDES: Side[] = ['left', 'right', 'top', 'bottom'];
+
+// "kopiuj do wszystkich stron pakietu": each page through updateDataFile
+// (flush auto-save, GET, PUT with If-Match — a page changed meanwhile is
+// reported, not overwritten). `add` mutates the page, false = already there.
+// The page open in this tab at that moment is skipped (checked per page and
+// again right before the PUT): its in-memory copy would not have the item and
+// its next auto-save would conflict.
+async function copyToPages(pkgId: string, pageIds: string[], add: (pg: Page) => boolean): Promise<void> {
+  const isOpen = (id: string) => {
+    const st = useDocStore.getState();
+    return st.route.pkg === pkgId && st.page?.page === id;
+  };
+  let ok = 0;
+  let same = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+  for (const id of pageIds) {
+    if (isOpen(id)) {
+      skipped++;
+      continue;
+    }
+    const path = `MJC-400/${pkgId}/pages/${id}.sch.yaml`;
+    const seen = { openNow: false };
+    const res = await updateDataFile(path, (txt) => {
+      if (isOpen(id)) {
+        seen.openNow = true;
+        return null;
+      }
+      const pg = parsePage(txt, path);
+      return add(pg) ? serializePage(pg) : null;
+    });
+    if (res.status === 'ok') ok++;
+    else if (res.status === 'unchanged') {
+      if (seen.openNow) skipped++;
+      else same++;
+    } else if (res.status === 'not-started') {
+      alert(`Kopiowanie przerwane: ${res.error}\nSkopiowano do ${ok} z ${pageIds.length} stron.`);
+      return;
+    } else errors.push(res.error);
+  }
+  const summary = `Skopiowano do ${ok} z ${pageIds.length} stron` +
+    (same ? `, już było na ${same}` : '') +
+    (skipped ? `, pominięto otwartą stronę: ${skipped}` : '') +
+    `, błędy: ${errors.length}.`;
+  alert(errors.length ? `${summary}\n\n${errors.join('\n')}` : summary);
+}
 
 export function SelectionPanel(): JSX.Element | null {
   const page = useDocStore((s) => s.page);
@@ -338,24 +383,13 @@ export function SelectionPanel(): JSX.Element | null {
                 if (!pkg || !page) return;
                 const targets = pkg.package.pages.filter((p) => p.id !== page.page);
                 if (!confirm(`Skopiować ten tekst do ${targets.length} pozostałych stron pakietu?`)) return;
-                let ok = 0;
-                for (const ref of targets) {
-                  try {
-                    const path = `MJC-400/${pkg.package.id}/pages/${ref.id}.sch.yaml`;
-                    const r = await fetch(`/files/${path}`);
-                    if (!r.ok) continue;
-                    const txt = await r.text();
-                    const { parsePage, serializePage } = await import('@kronikarz/shared');
-                    const pg = parsePage(txt, path);
-                    pg.annotations ??= [];
-                    // Skip jezeli juz istnieje identyczny tekst w identycznej pozycji
-                    if (pg.annotations.some((a) => a.text === ann.text && a.x === ann.x && a.y === ann.y)) continue;
-                    pg.annotations.push({ text: ann.text, x: ann.x, y: ann.y, fontSize: ann.fontSize });
-                    await apiWrite(`/files/${path}`, { method: 'PUT', body: serializePage(pg) });
-                    ok++;
-                  } catch { /* skip */ }
-                }
-                alert(`Skopiowano do ${ok}/${targets.length} stron.`);
+                await copyToPages(pkg.package.id, targets.map((t) => t.id), (pg) => {
+                  pg.annotations ??= [];
+                  // Skip jezeli juz istnieje identyczny tekst w identycznej pozycji
+                  if (pg.annotations.some((a) => a.text === ann.text && a.x === ann.x && a.y === ann.y)) return false;
+                  pg.annotations.push({ text: ann.text, x: ann.x, y: ann.y, fontSize: ann.fontSize });
+                  return true;
+                });
               }}
             >
               📋 kopiuj do wszystkich stron pakietu
@@ -404,25 +438,14 @@ export function SelectionPanel(): JSX.Element | null {
                 if (!pkg || !page) return;
                 const targets = pkg.package.pages.filter((p) => p.id !== page.page);
                 if (!confirm(`Skopiować do ${targets.length} pozostałych stron pakietu?`)) return;
-                let ok = 0;
-                for (const ref of targets) {
-                  try {
-                    const path = `MJC-400/${pkg.package.id}/pages/${ref.id}.sch.yaml`;
-                    const r = await fetch(`/files/${path}`);
-                    if (!r.ok) continue;
-                    const txt = await r.text();
-                    const { parsePage, serializePage } = await import('@kronikarz/shared');
-                    const pg = parsePage(txt, path);
-                    pg.decorations ??= [];
-                    // Dedup by identyczne pola
-                    const sig = JSON.stringify(d);
-                    if (pg.decorations.some((dd) => JSON.stringify(dd) === sig)) continue;
-                    pg.decorations.push({ ...d });
-                    await apiWrite(`/files/${path}`, { method: 'PUT', body: serializePage(pg) });
-                    ok++;
-                  } catch { /* skip */ }
-                }
-                alert(`Skopiowano do ${ok}/${targets.length} stron.`);
+                const sig = JSON.stringify(d);
+                await copyToPages(pkg.package.id, targets.map((t) => t.id), (pg) => {
+                  pg.decorations ??= [];
+                  // Dedup by identyczne pola
+                  if (pg.decorations.some((dd) => JSON.stringify(dd) === sig)) return false;
+                  pg.decorations.push({ ...d });
+                  return true;
+                });
               }}
             >
               📋 kopiuj do wszystkich stron pakietu

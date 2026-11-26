@@ -1,12 +1,13 @@
 import { Layer, Text, Group, Line, Rect, Circle } from 'react-konva';
-import type { CrossRef } from '@kronikarz/shared';
+import type { CrossRef, Page } from '@kronikarz/shared';
 import { parsePage, serializePage } from '@kronikarz/shared';
-import { useDocStore } from '../store.ts';
+import { updateDataFile, useDocStore } from '../store.ts';
 import { navigate } from '../router.ts';
-import { apiWrite } from '../api.ts';
 import { activeNets } from './selection.ts';
 
-// Pobierz YAML strony, dorzuc cross_ref i zapisz spowrotem.
+// Pobierz YAML strony, dorzuc cross_ref i zapisz spowrotem (updateDataFile:
+// flush auto-save, GET, PUT z If-Match — bez nadpisania zmian z innej karty).
+// Błąd → alert; nawigacja i tak następuje.
 async function autoAddCrossRefOn(
   targetPageId: string,
   net: string,
@@ -16,31 +17,37 @@ async function autoAddCrossRefOn(
   const pkgId = useDocStore.getState().pkg?.package.id;
   if (!pkgId) return;
   const path = `MJC-400/${pkgId}/pages/${targetPageId}.sch.yaml`;
-  const r = await fetch(`/files/${path}`);
-  if (!r.ok) return;
-  const txt = await r.text();
-  const pg = parsePage(txt, path);
-  pg.cross_refs ??= [];
-  // Skip if already present
-  if (pg.cross_refs.some((c) => c.net === net)) return;
-  // Default position: lewy gorny rog skanu
-  const newCr: CrossRef = {
-    net,
-    label,
-    pages: sourceSheet !== undefined ? [String(sourceSheet)] : [],
-    x: 100,
-    y: 100 + pg.cross_refs.length * 40,
-    side: 'left',
-  };
-  pg.cross_refs.push(newCr);
-  // Upewnij sie ze net istnieje w pg.nets
-  if (!pg.nets[net]) {
-    pg.nets[net] = { pins: [], segments: null, junctions: null };
+  const out: { written: Page | null } = { written: null };
+  const res = await updateDataFile(path, (txt) => {
+    const pg = parsePage(txt, path);
+    pg.cross_refs ??= [];
+    // Skip if already present
+    if (pg.cross_refs.some((c) => c.net === net)) return null;
+    // Default position: lewy gorny rog skanu
+    const newCr: CrossRef = {
+      net,
+      label,
+      pages: sourceSheet !== undefined ? [String(sourceSheet)] : [],
+      x: 100,
+      y: 100 + pg.cross_refs.length * 40,
+      side: 'left',
+    };
+    pg.cross_refs.push(newCr);
+    // Upewnij sie ze net istnieje w pg.nets
+    if (!pg.nets[net]) {
+      pg.nets[net] = { pins: [], segments: null, junctions: null };
+    }
+    out.written = pg;
+    return serializePage(pg);
+  });
+  if (res.status === 'error' || res.status === 'not-started') {
+    window.alert(`Nie dodano cross_ref „${label}” na stronie ${targetPageId}: ${res.error}`);
+    return;
   }
-  await apiWrite(`/files/${path}`, { method: 'PUT', body: serializePage(pg) });
+  if (res.status !== 'ok' || !out.written) return;
   // Update store cache too
   const allPages = new Map(useDocStore.getState().allPages);
-  allPages.set(targetPageId, pg);
+  allPages.set(targetPageId, out.written);
   useDocStore.getState().setAllPages(allPages);
 }
 

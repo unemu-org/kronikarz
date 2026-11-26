@@ -2,8 +2,9 @@ import express from 'express';
 import { promises as fs, createReadStream, existsSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
+import yaml from 'js-yaml';
 
 // Repo root: server/ → ..
 const REPO = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..');
@@ -85,34 +86,113 @@ export function isSafeSegment(s) {
   return typeof s === 'string' && s.length <= 128 && SEGMENT_RE.test(s) && !s.includes('..');
 }
 
-function isoStamp() {
-  return new Date().toISOString().replace(/[:.]/g, '-');
+function isoStamp(ms = Date.now()) {
+  return new Date(ms).toISOString().replace(/[:.]/g, '-');
 }
 
 // Timestamped backup `<file>.<ISO>.bak`; returns its path.
-async function timestampedBackup(yamlPath) {
-  const tsPath = `${yamlPath}.${isoStamp()}.bak`;
+async function timestampedBackup(yamlPath, ms) {
+  const tsPath = `${yamlPath}.${isoStamp(ms)}.bak`;
   await fs.copyFile(yamlPath, tsPath);
   return tsPath;
 }
 
 // Rolling `<file>.bak` + timestamped backup.
-async function backupPage(yamlPath) {
+async function backupPage(yamlPath, ms) {
   const bakPath = `${yamlPath}.bak`;
   await fs.copyFile(yamlPath, bakPath);
-  const tsPath = await timestampedBackup(yamlPath);
+  const tsPath = await timestampedBackup(yamlPath, ms);
   return { bakPath, tsPath };
 }
+
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Delete all but the newest `keep` timestamped backups `<file>.<ISO>.bak` of
+// `filePath` (ISO stamps sort lexically = chronologically).
+async function pruneTimestamped(filePath, keep) {
+  const re = new RegExp(`^${escapeRe(path.basename(filePath))}\\.\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}-\\d{2}-\\d{3}Z\\.bak$`);
+  const dir = path.dirname(filePath);
+  const all = (await fs.readdir(dir)).filter((f) => re.test(f)).sort();
+  for (const f of all.slice(0, Math.max(0, all.length - keep))) {
+    await fs.rm(path.join(dir, f), { force: true });
+  }
+}
+
+// Strong ETag = quoted sha1 of the content (data files are small; a content
+// hash, unlike mtime+size, does not change on a no-op rewrite and has no
+// timestamp-granularity blind spot).
+export function etagOf(buf) {
+  return `"${createHash('sha1').update(buf).digest('hex')}"`;
+}
+
+// If-Match: `*` or a comma-separated list of strong tags (a weak `W/` tag
+// never matches — RFC 9110 strong comparison).
+function ifMatchOk(header, currentTag) {
+  if (currentTag === null) return false;
+  return header.split(',').map((t) => t.trim()).some((t) => t === '*' || t === currentTag);
+}
+
+// YAML files the viewer loads must stay loadable. Rule per file name:
+//   *.sch.yaml, package.yaml, project.yaml -> mapping with `kronikarz: "1"`
+//   ic_map.yaml, *.zones.yaml              -> mapping (real files have no key)
+// Anything else is not checked. Returns an error message or null.
+const VERSIONED_YAML = (name) => name.endsWith('.sch.yaml') || name === 'package.yaml' || name === 'project.yaml';
+const PLAIN_YAML = (name) => name === 'ic_map.yaml' || name.endsWith('.zones.yaml');
+export function yamlBodyError(name, buf) {
+  if (!VERSIONED_YAML(name) && !PLAIN_YAML(name)) return null;
+  let doc;
+  try {
+    doc = yaml.load(buf.toString('utf-8'));
+  } catch (e) {
+    return `invalid YAML: ${e.message.split('\n')[0]}`;
+  }
+  if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) return 'YAML top level must be a mapping';
+  if (VERSIONED_YAML(name) && doc.kronikarz !== '1') return 'missing or wrong `kronikarz: "1"`';
+  return null;
+}
+
+// Autosave backups (CLAUDE.md "Backups"): a PUT writes only a timestamped
+// `<file>.<ISO>.bak`, at most one per file per window; after each one the
+// newest BACKUP_KEEP of them are kept. The rolling `<file>.bak` is the last
+// manual checkpoint (/make-bak, or before /vision-page*) — never autosave.
+export const BACKUP_INTERVAL_MS = 10 * 60 * 1000;
+export const BACKUP_KEEP = 50;
 
 export function createApp({
   root,
   spawn: spawnFn = spawn,
   uvCommand: uvCmd = uvCommand,
   rename: renameFn = (from, to) => fs.rename(from, to),
+  now = () => Date.now(),
+  backupIntervalMs = BACKUP_INTERVAL_MS,
+  backupKeep = BACKUP_KEEP,
 } = {}) {
 const ROOT = path.resolve(root ?? path.join(REPO, 'data'));
 
+// Per-file write lock: writes to one absolute path run one at a time, in the
+// order their handlers started (= order the full request was received).
+const writeChains = new Map();
+function withFileLock(abs, fn) {
+  const prev = writeChains.get(abs) ?? Promise.resolve();
+  const run = prev.then(fn);
+  const tail = run.catch(() => {});
+  writeChains.set(abs, tail);
+  tail.then(() => { if (writeChains.get(abs) === tail) writeChains.delete(abs); });
+  return run;
+}
+
+// Last-resort error reply for a handler whose promise rejected.
+function fail500(res, e) {
+  if (!res.headersSent) res.status(500).json({ error: e.message });
+}
+
+// abs path -> time of the last autosave backup of it. In memory only: after
+// a restart the next PUT of a file simply backs it up again.
+const lastBackupAt = new Map();
+const backupDue = (abs) => !lastBackupAt.has(abs) || now() - lastBackupAt.get(abs) >= backupIntervalMs;
+
 const app = express();
+app.set('etag', false);
 
 app.use((req, res, next) => {
   const t0 = Date.now();
@@ -137,7 +217,9 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.raw({ type: '*/*', limit: '50mb' }));
+// Every request body is raw bytes whatever its Content-Type, also without
+// one (a '*/*' matcher skips those and leaves req.body = {} -> kr-0sn.11).
+app.use(express.raw({ type: () => true, limit: '50mb' }));
 
 function safeResolve(rel) {
   const resolved = path.resolve(ROOT, rel);
@@ -193,6 +275,13 @@ app.get('/files/*', async (req, res) => {
   try {
     const stat = await fs.stat(abs);
     if (stat.isDirectory()) return res.status(400).json({ error: 'is a directory' });
+    if (abs.endsWith('.yaml')) {
+      // Small data files: read whole, send with an ETag for If-Match on PUT.
+      const data = await fs.readFile(abs);
+      res.setHeader('ETag', etagOf(data));
+      res.setHeader('Content-Length', data.length);
+      return res.end(data);
+    }
     res.setHeader('Content-Length', stat.size);
     createReadStream(abs).pipe(res);
   } catch (err) {
@@ -201,27 +290,73 @@ app.get('/files/*', async (req, res) => {
   }
 });
 
-app.put('/files/*', async (req, res) => {
+app.put('/files/*', (req, res) => {
+  const key = safeResolve(req.params[0]);
+  if (!key) return res.status(403).json({ error: 'path traversal' });
+  // Lock taken synchronously, before any await, so arrival order holds.
+  return withFileLock(key, () => putFile(req, res)).catch((e) => fail500(res, e));
+});
+
+// PUT /files/*: validate, check If-Match, back up, write atomically.
+async function putFile(req, res) {
   const abs = await resolveInside(req.params[0]);
   if (!abs) return res.status(403).json({ error: 'path traversal' });
   if (abs === ROOT) return res.status(400).json({ error: 'need a file path' });
+  // No body at all (no Content-Length / Transfer-Encoding) is a client bug;
+  // refusing it beats truncating the file. An explicit empty body is a Buffer.
+  if (!Buffer.isBuffer(req.body)) return res.status(400).json({ error: 'missing request body' });
+  const body = req.body;
   let tmp = null;
   try {
     const st = await fs.stat(abs).catch((e) => { if (e.code === 'ENOENT') return null; throw e; });
     if (st?.isDirectory()) return res.status(400).json({ error: 'is a directory' });
+    const yamlErr = yamlBodyError(path.basename(abs), body);
+    if (yamlErr) return res.status(422).json({ error: yamlErr });
+    const newTag = etagOf(body);
+    const ifMatch = req.get('If-Match');
+    if (ifMatch !== undefined) {
+      const curTag = st ? etagOf(await fs.readFile(abs)) : null;
+      if (!ifMatchOk(ifMatch, curTag)) {
+        // Retry of a PUT that did land (response lost): old tag, same body.
+        // Nothing to write; report success.
+        if (curTag === newTag) {
+          res.setHeader('ETag', newTag);
+          return res.json({ ok: true, bytes: body.length, unchanged: true });
+        }
+        return res.status(409).json({ error: 'conflict', etag: curTag });
+      }
+    }
+    if (st && abs.endsWith('.yaml') && backupDue(abs)) {
+      const t = now();
+      try {
+        await timestampedBackup(abs, t);
+      } catch (e) {
+        return res.status(500).json({ error: `backup failed: ${e.message}` });
+      }
+      lastBackupAt.set(abs, t);
+      // The backup exists; a failed cleanup must not cost the user the save.
+      await pruneTimestamped(abs, backupKeep).catch((e) => console.warn(`prune ${abs}: ${e.message}`));
+    }
     await fs.mkdir(path.dirname(abs), { recursive: true });
     tmp = `${abs}.${randomBytes(6).toString('hex')}.tmp`;
-    await fs.writeFile(tmp, req.body);
+    await fs.writeFile(tmp, body);
     await renameFn(tmp, abs);
     tmp = null;
-    res.json({ ok: true, bytes: req.body.length });
+    res.setHeader('ETag', newTag);
+    res.json({ ok: true, bytes: body.length });
   } catch (err) {
     if (tmp) await fs.rm(tmp, { force: true }).catch(() => {});
     res.status(500).json({ error: err.message });
   }
+}
+
+app.delete('/files/*', (req, res) => {
+  const key = safeResolve(req.params[0]);
+  if (!key) return res.status(403).json({ error: 'path traversal' });
+  return withFileLock(key, () => deleteFile(req, res)).catch((e) => fail500(res, e));
 });
 
-app.delete('/files/*', async (req, res) => {
+async function deleteFile(req, res) {
   const abs = await resolveInside(req.params[0]);
   if (!abs) return res.status(403).json({ error: 'path traversal' });
   if (abs === ROOT) return res.status(400).json({ error: 'need a file path' });
@@ -233,7 +368,7 @@ app.delete('/files/*', async (req, res) => {
     if (err.code === 'ENOENT') return res.status(404).json({ error: 'not found' });
     res.status(500).json({ error: err.message });
   }
-});
+}
 
 async function listDir(rel, res) {
   const abs = await resolveInside(rel);
@@ -303,7 +438,7 @@ app.post('/vision-page', async (req, res) => {
   // Backup BEFORE running vision — keep rolling .bak + timestamped (only if file exists).
   if (existsSync(yamlPath)) {
     try {
-      await backupPage(yamlPath);
+      await backupPage(yamlPath, now());
     } catch (e) {
       return res.status(500).json({ error: `backup failed: ${e.message}` });
     }
@@ -338,7 +473,7 @@ app.post('/vision-page-zones', async (req, res) => {
 
   if (existsSync(yamlPath)) {
     try {
-      await backupPage(yamlPath);
+      await backupPage(yamlPath, now());
     } catch (e) {
       return res.status(500).json({ error: `backup failed: ${e.message}` });
     }
@@ -366,27 +501,47 @@ app.post('/vision-page-zones', async (req, res) => {
 
 // --- Manual backup ----------------------------------------------------------
 
-app.post('/make-bak', async (req, res) => {
+// Page yaml path for a lock key (sync), or null after sending 400.
+function pageKeyOr(res, pkg, page) {
+  const yamlPath = pageYamlPath(pkg, page);
+  if (!yamlPath) res.status(400).json({ error: 'invalid package/page' });
+  return yamlPath;
+}
+
+app.post('/make-bak', (req, res) => {
   const body = parseJsonBody(req);
   const { package: pkg, page } = body || {};
   if (!pkg || !page) return res.status(400).json({ error: 'need {package, page}' });
-  const yamlPath = await pageYamlOr(res, pkg, page);
+  const yamlPath = pageKeyOr(res, pkg, page);
   if (!yamlPath) return;
+  // Per-file lock (as PUT): the copy never sees a half-finished write.
+  return withFileLock(yamlPath, () => makeBak(res, yamlPath)).catch((e) => fail500(res, e));
+});
+
+async function makeBak(res, yamlPath) {
+  if (!(await isConfined(yamlPath))) return res.status(403).json({ error: 'path escapes data root' });
   if (!existsSync(yamlPath)) return res.status(404).json({ error: 'page yaml not found' });
   try {
-    const { bakPath, tsPath } = await backupPage(yamlPath);
+    const { bakPath, tsPath } = await backupPage(yamlPath, now());
     res.json({ ok: true, bak: bakPath, timestamped: tsPath });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
-});
+}
 
-app.post('/restore-bak', async (req, res) => {
+app.post('/restore-bak', (req, res) => {
   const body = parseJsonBody(req);
   const { package: pkg, page } = body || {};
   if (!pkg || !page) return res.status(400).json({ error: 'need {package, page}' });
-  const yamlPath = await pageYamlOr(res, pkg, page);
+  const yamlPath = pageKeyOr(res, pkg, page);
   if (!yamlPath) return;
+  // Same per-file lock as PUT, taken before any await: a restore never
+  // interleaves with a write.
+  return withFileLock(yamlPath, () => restoreBak(res, yamlPath)).catch((e) => fail500(res, e));
+});
+
+async function restoreBak(res, yamlPath) {
+  if (!(await isConfined(yamlPath))) return res.status(403).json({ error: 'path escapes data root' });
   const bakPath = `${yamlPath}.bak`;
   if (!existsSync(bakPath)) return res.status(404).json({ error: 'no .bak file' });
   if (!(await isConfined(bakPath))) return res.status(403).json({ error: 'path escapes data root' });
@@ -397,7 +552,7 @@ app.post('/restore-bak', async (req, res) => {
     const data = await fs.readFile(bakPath);
     // Keep the current state recoverable: timestamped backup first (not the
     // rolling .bak — that is what we are restoring from).
-    backup = existsSync(yamlPath) ? await timestampedBackup(yamlPath) : null;
+    backup = existsSync(yamlPath) ? await timestampedBackup(yamlPath, now()) : null;
     // Atomic restore: write tmp in the same dir, then rename over.
     tmp = `${yamlPath}.${randomBytes(6).toString('hex')}.tmp`;
     await fs.writeFile(tmp, data);
@@ -410,7 +565,7 @@ app.post('/restore-bak', async (req, res) => {
     if (backup) await fs.rm(backup, { force: true }).catch(() => {});
     res.status(500).json({ error: e.message });
   }
-});
+}
 
 // --- YOLO dataset -----------------------------------------------------------
 
