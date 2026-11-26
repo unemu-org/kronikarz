@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Stage, Layer, Rect, Group, Text, Line } from 'react-konva';
 import type Konva from 'konva';
 import { useDocStore, type VisionZone, type ZoneRole } from './store.ts';
+import { apiWrite } from './api.ts';
 import { ImageLayer } from './layers/ImageLayer.tsx';
 import { GateLayer } from './layers/GateLayer.tsx';
 import { PinLayer } from './layers/PinLayer.tsx';
@@ -519,7 +520,7 @@ export function Canvas(): JSX.Element {
       const body = zones.length === 0
         ? 'zones: []\n'
         : yaml.dump({ zones }, { flowLevel: 2, lineWidth: 120 });
-      fetch(`/files/MJC-400/${route.pkg}/pages/${page.page}.zones.yaml`, {
+      apiWrite(`/files/MJC-400/${route.pkg}/pages/${page.page}.zones.yaml`, {
         method: 'PUT',
         body,
       }).catch(() => { /* ignore */ });
@@ -961,7 +962,7 @@ export function Canvas(): JSX.Element {
     if (!confirm(`Vision-digitize z ${zones.length} strefami? Plik nadpisany (auto .bak).`)) return;
     setVisionBusy(true);
     try {
-      const r = await fetch('/vision-page-zones', {
+      const r = await apiWrite('/vision-page-zones', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ package: route.pkg, page: page.page, zones }),
@@ -1181,7 +1182,7 @@ export function Canvas(): JSX.Element {
     if (!r || r.w < 8 || r.h < 8 || !page || !route.pkg) return;
     setRoiBusy(true);
     try {
-      const resp = await fetch('/ai-detect', {
+      const resp = await apiWrite('/ai-detect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ package: route.pkg, page: page.page, x: r.x, y: r.y, w: r.w, h: r.h }),

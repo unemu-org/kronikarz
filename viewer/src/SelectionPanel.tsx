@@ -3,6 +3,7 @@ import { useRef as useReactRef } from 'react';
 import type { Page, Side, IcMap } from '@kronikarz/shared';
 import { parsePinId, resolveIcKey } from '@kronikarz/shared';
 import { useDocStore } from './store.ts';
+import { apiWrite } from './api.ts';
 import { passivePins } from './AddGateDialog.tsx';
 
 const ROTATIONS: Array<0 | 90 | 180 | 270> = [0, 90, 180, 270];
@@ -350,7 +351,7 @@ export function SelectionPanel(): JSX.Element | null {
                     // Skip jezeli juz istnieje identyczny tekst w identycznej pozycji
                     if (pg.annotations.some((a) => a.text === ann.text && a.x === ann.x && a.y === ann.y)) continue;
                     pg.annotations.push({ text: ann.text, x: ann.x, y: ann.y, fontSize: ann.fontSize });
-                    await fetch(`/files/${path}`, { method: 'PUT', body: serializePage(pg) });
+                    await apiWrite(`/files/${path}`, { method: 'PUT', body: serializePage(pg) });
                     ok++;
                   } catch { /* skip */ }
                 }
@@ -417,7 +418,7 @@ export function SelectionPanel(): JSX.Element | null {
                     const sig = JSON.stringify(d);
                     if (pg.decorations.some((dd) => JSON.stringify(dd) === sig)) continue;
                     pg.decorations.push({ ...d });
-                    await fetch(`/files/${path}`, { method: 'PUT', body: serializePage(pg) });
+                    await apiWrite(`/files/${path}`, { method: 'PUT', body: serializePage(pg) });
                     ok++;
                   } catch { /* skip */ }
                 }

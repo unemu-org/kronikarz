@@ -3,6 +3,7 @@ import type { CrossRef } from '@kronikarz/shared';
 import { parsePage, serializePage } from '@kronikarz/shared';
 import { useDocStore } from '../store.ts';
 import { navigate } from '../router.ts';
+import { apiWrite } from '../api.ts';
 import { activeNets } from './selection.ts';
 
 // Pobierz YAML strony, dorzuc cross_ref i zapisz spowrotem.
@@ -36,7 +37,7 @@ async function autoAddCrossRefOn(
   if (!pg.nets[net]) {
     pg.nets[net] = { pins: [], segments: null, junctions: null };
   }
-  await fetch(`/files/${path}`, { method: 'PUT', body: serializePage(pg) });
+  await apiWrite(`/files/${path}`, { method: 'PUT', body: serializePage(pg) });
   // Update store cache too
   const allPages = new Map(useDocStore.getState().allPages);
   allPages.set(targetPageId, pg);

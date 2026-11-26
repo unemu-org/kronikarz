@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Project, Package, Page, IcMap, Issue } from '@kronikarz/shared';
 import { serializePage, serializePackage } from '@kronikarz/shared';
+import { apiWrite } from './api.ts';
 
 export type Mode = 'module' | 'package' | 'page' | 'empty';
 export type Tool = 'select' | 'edit' | 'roi' | 'wire' | 'zones';
@@ -100,7 +101,7 @@ function schedulePut(path: string, body: string, store: { setSaveStatus: DocStat
       pendingTimers.delete(path);
       store.setSaveStatus('saving');
       try {
-        const r = await fetch(`/files/${path}`, {
+        const r = await apiWrite(`/files/${path}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'text/yaml' },
           body,

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useDocStore } from './store.ts';
 import { navigate } from './router.ts';
+import { apiWrite } from './api.ts';
 
 export function Toolbar(): JSX.Element {
   const route = useDocStore((s) => s.route);
@@ -29,7 +30,7 @@ export function Toolbar(): JSX.Element {
     )) return;
     setVisionBusy(true);
     try {
-      const r = await fetch('/vision-page', {
+      const r = await apiWrite('/vision-page', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ package: route.pkg, page: page.page }),
@@ -55,7 +56,7 @@ export function Toolbar(): JSX.Element {
 
   async function makeBak() {
     if (!page || !route.pkg) return;
-    const r = await fetch('/make-bak', {
+    const r = await apiWrite('/make-bak', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ package: route.pkg, page: page.page }),
@@ -68,7 +69,7 @@ export function Toolbar(): JSX.Element {
   async function restoreBak() {
     if (!page || !route.pkg) return;
     if (!confirm('Przywrócić ostatni .bak? Aktualne zmiany zostaną nadpisane.')) return;
-    const r = await fetch('/restore-bak', {
+    const r = await apiWrite('/restore-bak', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ package: route.pkg, page: page.page }),
@@ -396,7 +397,7 @@ export function Toolbar(): JSX.Element {
           <button
             onClick={async () => {
               if (!confirm('Regenerate YOLO dataset z YAMLi? Nadpisuje samples.')) return;
-              const r = await fetch('/yolo-export', { method: 'POST' });
+              const r = await apiWrite('/yolo-export', { method: 'POST' });
               const d = await r.json();
               if (!r.ok) { alert('export failed: ' + (d.error ?? r.statusText)); return; }
               alert(`Exported: ${d.total} bboxes (${d.gates} gates, ${d.ports} ports, ${d.cross_refs} xrefs, ${d.power} power) across ${d.pages} pages. Skipped ${d.skipped_gates}.`);
