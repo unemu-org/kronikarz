@@ -22,11 +22,9 @@ Tryby:
       Do kandydata trafiają bramki z białej listy pól (ref, gate, x, y, w, h, rotation,
       pins{num, side, px, py, net}, verified: false); `pin.net` = net drutu, którego wolny
       koniec leży przy pinie (<= PIN_TOL px), inaczej "" (singleton).
-  (b) bez `--gates`: bramki wykrywane same — ramki bramek są grubsze od drutu, więc
-      otwarcie prostokątem BOX_T x BOX_L zostawia grube kreski; bramka = domknięty
-      czworobok: dwa przeciwległe boki grube o zgodnych końcach, dwa pozostałe ciągłe
-      (przerwa <= BOX_SIDE_GAP), rozmiar w BOX_WMIN..BOX_WMAX x BOX_HMIN..BOX_HMAX; maskowane
-      tak samo; `gates: []`.
+  (b) bez `--gates`: bramki wykrywane same przez scripts/cv-gates.py (kr-9p8.3): domknięte
+      ramki o czystych narożnikach z drutami przy bokach; maskowane są całe bloki (stos
+      bramek, złożony układ, element bierny); `gates: []`.
 
 Rozmiary względem grubości kreski. Grubość `sw` jest mierzona na stronie (średni bieg
 poprzeczny pikseli długich linii, Otsu, bez biegów > mediana + 1 — ramki bramek). Parametry z wartością None w PARAMS są liczone ze `sw` (wzory w
@@ -155,14 +153,9 @@ PARAMS = dict(
     DOT_ON_WIRE=4,       # kropka w raporcie/overlayu tylko <= tyle px od drutu
     T_NEEDS_DOT=True,    # T bez kropki = brak połączenia
     # --- bramki
-    BOX_L=40,            # tryb b: minimalna długość grubej kreski ramki
-    BOX_SIDE_GAP=6,      # tryb b: maks. przerwa w cienkim boku czworoboku
-    BOX_ALIGN=3,         # tryb b: tolerancja współliniowości / zawierania / duplikatów
-    BOX_TOL_ADD=6,       # tryb b: zgodność końców grubych boków = BOX_T + BOX_TOL_ADD
-    BOX_ROW_BAND=1,      # tryb b: pas +- px przy szukaniu poziomej kreski stosu
-    BOX_MERGE=10,        # tryb b: przerwa w grubej kresce ramki do zszycia
-    BOX_WMIN=25, BOX_WMAX=200,   # tryb b: szerokość bramki
-    BOX_HMIN=40, BOX_HMAX=700,   # tryb b: wysokość bramki (lub stosu bramek)
+    GATES_P={"PIN_SIDES_MIN": 1},  # tryb b: nadpisania PARAMS scripts/cv-gates.py — do
+                         #  maski wystarczą druty z jednej strony: domknięta ramka o czystych
+                         #  narożnikach nie jest drutem, nawet jeśli to nie bramka
     BOX_SEARCH=6,        # dociąganie boku bramki do narysowanej ramki (+- px)
     BOX_INSET=6,         # ... pomiar ramki z pominięciem narożników
     BOX_FRAC=0.6,        # ... wiersz/kolumna ramki: udział tuszu wzdłuż boku
@@ -259,117 +252,30 @@ def binarize(gray: np.ndarray, thr: int | None = None) -> np.ndarray:
     return (gray <= th).astype(np.uint8)  # <=: na obrazie 0/255 Otsu daje th=0
 
 
-def _thick_segments(bw: np.ndarray, horizontal: bool, P: dict) -> list[list[float]]:
-    """Grube kreski jednej orientacji: [a0, a1, c] (wzdłuż od-do, w poprzek)."""
-    t, L = P["BOX_T"], P["BOX_L"]
-    k = (L, t) if horizontal else (t, L)
-    m = cv2.morphologyEx(bw, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, k))
-    n, lab, stats, _ = cv2.connectedComponentsWithStats(m, connectivity=8)
-    segs = []
-    for i in range(1, n):
-        x, y, w, h, _a = stats[i]
-        ys, xs = np.nonzero(lab[y : y + h, x : x + w] == i)
-        if horizontal:
-            segs.append([float(x), float(x + w - 1), float(np.median(ys) + y)])
-        else:
-            segs.append([float(y), float(y + h - 1), float(np.median(xs) + x)])
-    # zszycie współliniowych kawałków (ramka przerwana pinem / skanem)
-    segs.sort(key=lambda s: (round(s[2]), s[0]))
-    out: list[list[float]] = []
-    for s in segs:
-        for o in out:
-            if (abs(o[2] - s[2]) <= P["BOX_ALIGN"] and s[0] <= o[1] + P["BOX_MERGE"]
-                    and o[0] <= s[1] + P["BOX_MERGE"]):
-                o[0], o[1] = min(o[0], s[0]), max(o[1], s[1])
-                break
-        else:
-            out.append(list(s))
-    return out
+def _load_cv_gates():
+    """scripts/cv-gates.py (nazwa z myślnikiem — ładowana z pliku, raz)."""
+    global _CVG
+    if _CVG is None:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("cv_gates", Path(__file__).with_name("cv-gates.py"))
+        _CVG = importlib.util.module_from_spec(spec)
+        old, sys.dont_write_bytecode = sys.dont_write_bytecode, True  # bez scripts/__pycache__
+        try:
+            spec.loader.exec_module(_CVG)
+        finally:
+            sys.dont_write_bytecode = old
+    return _CVG
 
 
-def _side_gap(bw: np.ndarray, vertical: bool, c: float, lo: float, hi: float, w: int) -> int:
-    """Najdłuższa przerwa w tuszu wzdłuż boku (pas +-w wokół c, od lo do hi)."""
-    H, W = bw.shape
-    lo, hi = max(0, int(round(lo))), int(round(hi)) + 1
-    c = int(round(c))
-    if vertical:
-        prof = bw[lo:min(H, hi), max(0, c - w):min(W, c + w + 1)].max(axis=1)
-    else:
-        prof = bw[max(0, c - w):min(H, c + w + 1), lo:min(W, hi)].max(axis=0)
-    if prof.size == 0:
-        return 10**9
-    r = _runs((1 - prof).reshape(-1, 1), 0)
-    return int(r.max()) if len(r) else 0
+_CVG = None
 
 
-def _extend_stack(bw: np.ndarray, r, P: dict):
-    """Stos bramek: oba boki pionowe biegną dalej w górę/dół (przerwy <= BOX_SIDE_GAP) aż do
-    poziomej kreski przez całą szerokość — przedłuż prostokąt do najdalszej takiej kreski
-    (ramka górnej bramki stosu bywa cienka, np. P-X3-2 2-1 M2)."""
-    H, W = bw.shape
-    x0, y0, x1, y1 = (int(round(v)) for v in r)
-    w = P["BOX_T"]
-    g = P["BOX_SIDE_GAP"]
-    side = (bw[:, max(0, x0 - w):x0 + w + 1].max(axis=1)
-            & bw[:, max(0, x1 - w):min(W, x1 + w + 1)].max(axis=1))
-    row_gap = lambda y: _side_gap(bw, False, y, x0, x1, P["BOX_ROW_BAND"])  # noqa: E731
-    out = [y0, y1]
-    for step, start, idx in ((-1, y0, 0), (1, y1, 1)):
-        y, miss, best = start + step, 0, out[idx]
-        while 0 <= y < H and miss <= g and abs(y - out[1 - idx]) <= P["BOX_HMAX"]:
-            miss = 0 if side[y] else miss + 1
-            if side[y] and abs(y - start) > g and row_gap(y) <= g:
-                best = y
-            y += step
-        out[idx] = best
-    return (r[0], float(out[0]), r[2], float(out[1]))
-
-
-def detect_gate_boxes(bw: np.ndarray, P: dict) -> list[tuple[float, float, float, float]]:
-    """Tryb b: bramka = domknięty czworobok, którego dwa przeciwległe boki są grubymi
-    kreskami (otwarcie BOX_T x BOX_L), o zgodnych końcach (+-tol), a dwa pozostałe boki
-    są ciągłe (przerwa <= BOX_SIDE_GAP px, dowolna grubość — ramka bywa pogrubiona tylko
-    z jednej strony). Rozmiar BOX_WMIN..BOX_WMAX x BOX_HMIN..BOX_HMAX. Prostokąty zawarte
-    w większych (przegródki R175, stosy bramek) odpadają."""
-    tol = P["BOX_T"] + P["BOX_TOL_ADD"]
-    half = P["BOX_T"] / 2
-    rects = []
-    for horiz in (True, False):
-        S = sorted(_thick_segments(bw, horiz, P), key=lambda s: s[2])
-        for i, t in enumerate(S):
-            for u in S[i + 1 :]:
-                d = u[2] - t[2]
-                if d < (P["BOX_HMIN"] if horiz else P["BOX_WMIN"]):
-                    continue
-                if d > (P["BOX_HMAX"] if horiz else P["BOX_WMAX"]):
-                    break
-                if abs(t[0] - u[0]) > tol or abs(t[1] - u[1]) > tol:
-                    continue
-                a0, a1 = (t[0] + u[0]) / 2, (t[1] + u[1]) / 2
-                span = a1 - a0
-                if not ((P["BOX_WMIN"] if horiz else P["BOX_HMIN"]) <= span
-                        <= (P["BOX_WMAX"] if horiz else P["BOX_HMAX"])):
-                    continue
-                # boki poprzeczne: tusz między t i u przy obu końcach
-                if max(_side_gap(bw, horiz, a0 + half, t[2], u[2], tol // 2),
-                       _side_gap(bw, horiz, a1 - half, t[2], u[2], tol // 2)) > P["BOX_SIDE_GAP"]:
-                    continue
-                if horiz:
-                    rects.append((a0, t[2] - half, a1, u[2] + half))
-                else:
-                    rects.append((t[2] - half, a0, u[2] + half, a1))
-    rects = [_extend_stack(bw, r, P) for r in rects]
-    keep = []
-    al = P["BOX_ALIGN"]
-    for a in rects:
-        inside = any(
-            b is not a and b[0] - al <= a[0] and b[1] - al <= a[1] and a[2] <= b[2] + al
-            and a[3] <= b[3] + al and (b[2] - b[0]) * (b[3] - b[1]) > (a[2] - a[0]) * (a[3] - a[1])
-            for b in rects
-        )
-        if not inside and not any(max(abs(u - v) for u, v in zip(a, k)) <= al for k in keep):
-            keep.append(a)
-    return keep
+def detect_gate_boxes(gray: np.ndarray, P: dict) -> list[tuple[float, float, float, float]]:
+    """Tryb b: ramki bramek z scripts/cv-gates.py (kr-9p8.3) — bloki w całości (stos bramek,
+    złożony układ, element bierny), bo maska nie musi dzielić stosu. Parametry cv-gates można
+    nadpisać przez P["GATES_P"]."""
+    res = _load_cv_gates().detect(gray, P.get("GATES_P"))
+    return [tuple(float(v) for v in b["box"]) for b in res["blocks"]]
 
 
 def refine_rects(bw: np.ndarray, rects, P: dict):
@@ -890,7 +796,7 @@ def digitize(gray: np.ndarray, gates: list[dict] | None, P: dict | None = None, 
         boxes = gate_rects(gates)
         pin_sides = ["tb" if (g.get("rotation") or 0) % 180 == 90 else "lr" for g in gates]
     else:
-        boxes = detect_gate_boxes(bw, P)
+        boxes = detect_gate_boxes(gray, P)
         pin_sides = ["lr" if (r[3] - r[1]) >= (r[2] - r[0]) else "tb" for r in boxes]
     boxes = refine_rects(bw, boxes, P)
     mask = mask_rects(bw.shape, boxes, P["PAD"])

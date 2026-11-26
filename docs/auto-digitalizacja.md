@@ -423,14 +423,14 @@ Mutacje kodu: `CVW_SCRIPT=<zmieniona kopia>`. Też każda wywala test:
 
 | mutacja kodu | test, który pada |
 |---|---|
-| bez sprawdzenia boków czworoboku | two_bars_without_sides |
-| bez `_extend_stack` | stack_with_thin_top_frame |
+| ~~bez sprawdzenia boków czworoboku~~ (kod usunięty w kr-9p8.3) | ~~two_bars_without_sides~~ |
+| ~~bez `_extend_stack`~~ (kod usunięty w kr-9p8.3) | ~~stack_with_thin_top_frame~~ |
 | bez przebudowy grafu po pętli odgałęzień | spur_removal_rebuilds_graph[1] |
 | stare zamalowanie (`DOT_D`², bez szarości) | negation_bubble_on_crossing, speckle_hole |
 | bez `trim_to_dots` | dot_does_not_bridge_to_parallel_wire[10/12/14] |
 | bez wyłączenia kropek z domknięcia | dot_does_not_bridge…[10–22] |
-| `BOX_WMAX`/`BOX_HMAX` = ∞ | oversized_box |
-| `BOX_SIDE_GAP` = ∞ | two_bars…, stack… |
+| ~~`BOX_WMAX`/`BOX_HMAX` = ∞~~ (parametry usunięte w kr-9p8.3) | ~~oversized_box~~ |
+| ~~`BOX_SIDE_GAP` = ∞~~ (parametr usunięty w kr-9p8.3) | ~~two_bars…, stack…~~ |
 | stary `_odd` | derive_dot_d_nearest_odd |
 
 Kryterium „grubości pierścienia” wokół dziury (propozycja z recenzji) odrzuciłem: przy
@@ -477,3 +477,350 @@ PYTHONDONTWRITEBYTECODE=1 uv run --with pytest --with pyyaml --with numpy \
 CVW_MUTATE="PIN_BAND=0" PYTHONDONTWRITEBYTECODE=1 uv run --with pytest --with pyyaml \
     --with numpy --with opencv-python-headless pytest -p no:cacheprovider scripts/test_cv_wires.py
 ```
+
+## Wyniki: bramki (kr-9p8.3)
+
+Spike: czy prostokąty bramek (pojedyncze, stosy, złożone układy z kolumnami, elementy bierne)
+da się wykryć klasycznym CV z geometrii ramek, czy potrzebny jest detektor uczony (YOLO).
+Hipoteza: recall bramek ≥ 97 % na stronach wzorca i działanie na innych pakietach. Skrypt
+`scripts/cv-gates.py`, testy `scripts/test_cv_gates.py`. Tryb (b) `cv-wires.py` woła teraz
+ten detektor zamiast własnego szukania grubych czworoboków.
+
+**Werdykt (na ślepych liczbach).** Hipoteza **nie jest spełniona w całości.**
+
+- Wzorzec P-R3-2: ślepy v1 na held-out 2-60/2-61 ma recall 1,00. Na 2-63 ma recall 0,83
+  i precyzję 0,56.
+- Strony bez wzorca, ślepe dla wersji końcowej (7 stron w 5 pakietach):
+  - recall 65/89 = 0,73 przy precyzji 1,00;
+  - bez SPP-32-16 recall 59/65 = 0,91.
+  Szczegóły w tabeli niżej.
+- Fałszywych ramek nie ma: precyzja ślepa = 1,00. Ten sposób jest więc bezpieczny jako
+  pierwszy etap, ale na części pakietów nie wystarcza.
+- Wszystkie braki mają jedną z dwóch przyczyn:
+  - blada albo przerwana ramka (SPP-32-16: falujące ramki 1 px, PPS-32: przerwana górna
+    krawędź nad wąską kolumną);
+  - pin albo kółko w samym narożniku (P-D3-2).
+- YOLO nie jest potrzebne do lokalizacji tam, gdzie ramki są wyraźne. Na pakietach typu SPP
+  detektor uczony (albo wspólna maska tabliczki z `SIDE_WOBBLE`) jest realnym kandydatem;
+  szacunek niżej.
+
+Kontrola wzrokowa opiekuna (overlaye wersji końcowej):
+
+- SM-POSET-1 2-97: 22/22 bramki, 0 fałszywych ramek, stosy podzielone poprawnie;
+- P-X3-2 2-1: 21/21 bramek i 1 rezystor, M3 znaleziona, 0 fałszywych.
+
+### Metoda
+
+Szczegóły są w docstringu. Najważniejsze decyzje:
+
+- **Grubość ramki nie jest kryterium.** Na SM-POSET-1 ramka ma ~1,6 px, tyle co drut;
+  stary tryb (b) przez to gubił układy. Liczy się topologia:
+  - prostokąt z czterech długich linii (tekst znika z map linii, bo znak jest krótszy
+    od `LINE_L` = 25 px);
+  - co najmniej 3 z 4 narożników „czyste”: linia ramki nie biegnie za narożnik. Sonda
+    leży na samej linii ściany. Prostokąty z drutów i kratka tabliczki mają w narożnikach
+    T i skrzyżowania;
+  - piny (druty prostopadłe do boków) z co najmniej dwóch stron. Ramka numeru arkusza i
+    opisy pinów nie mają.
+- **Najpierw kandydat z pary odcinków**, potem sprawdzenie pozostałych boków. Najpierw
+  próbowałem komórek tła (białe obszary zamknięte liniami), scalanych w prostokątne bloki.
+  Odrzuciłem to: kółka negacji i podpisy przy ścianach rozbijały komórki, a kolejność
+  scalania dawała różne bloki (2-59 M56/M57).
+- **Kółka negacji wypełnione** przed mapami linii. Kółko w narożniku (2-58 M54, wyjście 10)
+  albo na boku (2-59 M56: ER/EN) przerywa ramkę.
+- **Skos skanu.** Końce pary odcinków mogą się różnić o `END_TOL` + 1,2 % odległości
+  (2-63 M31…M42: 9 px na 960 px). Pas boku idzie liniowo od końca do końca.
+- **Podział stosu.** Cięcie następuje, gdy linie pokrywają ≥ 60 % szerokości wnętrza.
+  Stos 7404 ma tu 100 %, stos 74170 M56/M57 ~80 % (prawa kolumna jest ciągła).
+  Przegródki kolumny etykiet albo A/B/C/D 74175 mają 20–50 %. Kawałek bez pinu albo za
+  niski traci słabsze cięcie: podpis „M65” przyklejony do ściany daje 0,6 tuż nad
+  przegródką 1,0.
+- **Złożony układ = jedna bramka**, zgodnie ze wzorcem. 74170 M47/M48/M56/M57 i 74175
+  M30/M31/M42 to we wzorcu po jednej bramce A z 14 pinami.
+- **Klasy:**
+  - `composite`: ≥ 2 wewnętrzne pionowe ściany albo wysokość ≥ 200 px, więc wysoka 7430
+    (SM-POSET H4/J4) też dostaje tę klasę;
+  - `passive`: mały płaski prostokąt z jednym wyprowadzeniem na każdym krótkim boku
+    (rezystory); kondensatorów nie wykrywam;
+  - `gate`: pozostałe.
+- **Piny** mają osobne mapy linii: z poszerzeniem w poprzek o 3 px i domknięciem 3 px,
+  bo na I-SK1-1 2-87 drut ma 1 px z przerwami (szarość 168–206). Tych map **nie** używam
+  do ramek: na P-M3-2 sklejały pionowe kreski tekstu w fałszywe ściany, a na 2-58/2-59
+  podpisy w fałszywe cięcia.
+- **Wynik:**
+  - `gates: [{ref: "?", gate: null, x, y, w, h, rotation: 0, pins: [], verified: false,
+    cv_class, cv_pins}]`;
+  - `cv_pins` (side/px/py) to kandydaci pinów. Są poza `pins`, bo nie mają numerów, a
+    eval liczyłby je jako błędne;
+  - elementy bierne też trafiają do `gates` (`gate: null`, jak w modelu danych).
+- **Czas:** 0,08–0,24 s na stronę.
+
+### Wersje i ślepy wynik
+
+- **v1** (sha256 `6c0d4ccb…`) zamrożona po strojeniu na 2-58/2-59 i oglądzie P-X3-2 2-1,
+  przed pierwszym uruchomieniem na 2-60/2-61/2-63 i na stronach spoza P-R3-2. To jedyny
+  ślepy wynik. JPP 2-115 i SM-POSET 2-97 znałem wcześniej z miniatur skanów (opis zadania),
+  ale nie z wyników detektora.
+- **końcowa** (sha256 `d2a60bde…`) powstała po obejrzeniu wyników v1 na 2-63 i 4 stronach
+  bez wzorca. Zmiany:
+  - sonda narożnika na linii ściany zamiast ±1 px od osi z końca odcinka (2-63: prostokąty
+    z drutów oparte o ścianę M30);
+  - `SIDE_GAP` 6 → 16 (2-63 M18: 14 px bladej przerwy w boku);
+  - tolerancja skosu i pas boku za skosem;
+  - pas pinów 6–20 px zamiast 14–28 (JPP M18: wyjście W to kółko + 20 px drutu);
+  - osobne mapy pinów;
+  - piny długich boków elementu biernego liczone bez domknięcia;
+  - odrzucanie nakładających się ramek.
+- **Ślepy test wersji końcowej:**
+  - P-D3-2 2-31 i SPP-32-16 2-142 (moje; pakiety wcześniej nieoglądane, strona =
+    największy plik pakietu). Po ich obejrzeniu zmieniłem tylko położenie sondy narożnika
+    (bez wpływu na wynik którejkolwiek strony) i dodałem wyłączony przełącznik
+    `SIDE_WOBBLE`;
+  - P-A3-2 2-72, P-P3-2 2-46 i PPS-32 2-150 (recenzja).
+- **v3** (sha256 `5b039716…`, poprawki po recenzji) nie jest już ślepa dla żadnej z tych
+  stron. Zmiany:
+  - pełna przegródka (cięcie ≥ `CUT_KEEP` = 0,95) nie jest usuwana, gdy kawałek nie ma pinu;
+    usuwa ją tylko za niski kawałek. Wcześniej środkowa bramka z bladymi pinami zlewała się
+    z sąsiadem;
+  - pin to także tusz dotykający ściany, który ≥ `PIN_NEAR` px dalej łączy się
+    z jakąkolwiek linią H/V: drut skręcający 12 px za ścianą albo kropka na magistrali
+    13 px dalej. Pas boku liczony jest za skosem;
+  - pokrycie boku liczone bez najdłuższej przerwy (≤ `SIDE_GAP`). P-P3-2 M49 ma 9 px
+    przerwy w 80-px boku, co dawało pokrycie 0,87 < 0,9;
+  - składowa mapy linii grubsza niż 1,5 sw + 2 jest dodatkowo dzielona na wiersze-linie.
+    P-A3-2: napis „0,25” zlewa obie ściany R9, a podpis „R14-1k” zlewa się z górną ścianą;
+  - element bierny sprawdzany przed bramką (pionowy rezystor 30–39 px szeroki).
+    Wyprowadzenie na długim boku musi dochodzić do końca pasa i nie może leżeć w gęstym
+    tekście (`PIN_TEXT_DENS`). Pogrubiony podpis „R8-1k” dotyka korpusu i drutu nad nim;
+  - usunięte zbędne sprawdzenie `inside`: zawarcie to `overlap` = 1.
+
+### Liczby na wzorcu (`eval-digitize`, IoU ≥ 0,5)
+
+gateP / gateR / gateF1:
+
+| strona | rola | v1 (ślepy poza 2-58/59) | końcowa |
+|---|---|---|---|
+| 2-58 | strojenie | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 |
+| 2-59 | strojenie | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 |
+| 2-60 | held-out | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 |
+| 2-61 | held-out | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 |
+| 2-63 | held-out | 0,556 / 0,833 / 0,667 | 0,947 / 1,000 / 0,973 |
+| TOTAL | | 0,855 / 0,959 / 0,904 | 0,987 / 1,000 / 0,993 |
+
+Średnie IoU dopasowanych bramek: 0,895–0,921. Krawędzie leżą 1–4 px od wzorca.
+
+- **2-63 v1:** 11 fałszywych „układów” to prostokąty z drutów oparte o ścianę M30/M42 i stosu
+  M29/M41. Sonda narożnika trafiała w koniec drutu, nie w ścianę. Do tego zgubiony stos
+  M18/M8/M19 (14 px przerwy w prawym boku).
+- **2-63 końcowa:** jedyny „FP” to prawdziwy rezystor R4-1k (1700, 1061, 1723, 1120), którego
+  wzorzec nie zawiera. Same bramki bez klasy `passive`: 1,000 / 1,000.
+
+### Strony bez wzorca (ogląd overlayu, liczba prawdziwych bramek policzona przeze mnie)
+
+| strona | bramki (prawdziwe) | v1: trafione / FP | końcowa: trafione / FP | rezystory v1 / końc. |
+|---|---|---|---|---|
+| P-X3-2 2-1 (ogląd przy strojeniu) | 21 | 21 / 0 | 21 / 0 | 1/1 / 1/1 |
+| JPP-16-18 2-115 | 4 (K565) | 3 / 2 | 4 / 0 | – |
+| SM-POSET-1 2-97 | 22 | 22 / 1 | 22 / 0 | – |
+| P-M3-2 2-13 | 23 | 21 / 4 | 22 / 0 | 1/5 / 3/5 |
+| I-SK1-1 2-87 | 56 | 33 / 34 | 54 / 0 | 3/14 / 13/14 |
+| razem 4 strony powyżej: ślepe dla v1, **strojenie** dla końcowej | 105 | 79 / 41 (R 0,75, P 0,66) | 102 / 0 (R 0,97, P 1,00) — nie ślepe | |
+
+Ślepe dla wersji końcowej:
+
+| strona | bramki (prawdziwe) | końcowa: trafione / FP | rezystory | kto liczył |
+|---|---|---|---|---|
+| P-D3-2 2-31 | 13 | 10 / 0 | – | ja |
+| SPP-32-16 2-142 | 24 | 6 / 0 | 1/1 | ja |
+| P-A3-2 2-72 | 16 | 16 / 0 | 0/4 | recenzja |
+| P-P3-2 2-46 | 28 | 27 / 0 (brak M49 (786, 372, 842, 451)) | 2/2 | recenzja |
+| PPS-32 2-150 | 8 | 6 / 0 (brak C2, E2) | 1/1 (R9) | recenzja |
+| **razem ślepe** | 89 | **65 / 0 (R 0,73, P 1,00)**; bez SPP 59/65 = 0,91 | | |
+
+v3 (po recenzji, **nie ślepa**, ponowne uruchomienie wszystkich 15 stron):
+
+| strona | końcowa | v3 |
+|---|---|---|
+| P-R3-2 2-58…2-63, P-X3-2, JPP, SM-POSET, I-SK1-1 | jak wyżej | bez zmian (te same ramki) |
+| P-M3-2 2-13 | 22/23, rez. 3/5 | 22/23, rez. **5/5** (R24, R3) |
+| P-D3-2 2-31 | 10/13 | **11/13** (M95 (1883, 216, 1940, 297)) |
+| SPP-32-16 2-142 | 6/24 | **14/24** (stosy A7 (769, 308, 826, 624) i T7 (694, 1016, 748, 1333)) |
+| P-A3-2 2-72 | 16/16, rez. 0/4 | 16/16, rez. **4/4** |
+| P-P3-2 2-46 | 27/28 | **28/28**, rez. 2/2 |
+| PPS-32 2-150 | 6/8 | 6/8, R9 |
+
+Żadna ramka z wersji końcowej nie znikła w v3 (porównanie 1:1 przy IoU ≥ 0,5 na
+15 stronach). Wzorzec bez zmian: TOTAL 0,987 / 1,000 / 0,993.
+
+**PPS-32 2-150, C2 i E2** — dlaczego nie są kandydatami (zmierzone):
+
+- **C2 (7485, ≈ 970–1078, 297–640):** górna krawędź nad kolumną etykiet (x 972–998) jest
+  przerwana. Szarość w przerwach dochodzi do 251, a odcinek górny zaczyna się dopiero
+  przy x 998. Para góra/dół ma więc końce rozjechane o 27 px, a para lewy/prawy ma 18 px
+  przerwy w górnym boku (> `SIDE_GAP` = 16). `SIDE_WOBBLE=True` albo `SIDE_GAP=30`
+  znajduje C2.
+- **E2 (≈ 1433–1542, 190–506):** górna ściana kończy się przy x 1512, 27 px przed prawym
+  narożnikiem nad kolumną A. Prawa ściana jest przerwana przy y 216–223 przez wyjście 2.
+  Żadna para nie ma zgodnych końców. Tych samych przełączników to nie ratuje.
+- To ta sama klasa co SPP (blada albo przerwana ramka nad wąską kolumną). Poza zakresem;
+  nowy bead razem z maską tabliczki kr-9p8.13 i `SIDE_WOBBLE`.
+
+Konkretne błędy (współrzędne skanu x0, y0, x1, y1):
+
+- **v1:**
+  - JPP: FP w kolumnie dat tabliczki (1749, 1257, 1827, 1466) i (1749, 1466, 1827, 1524);
+    zgubiony M18 (1508, 314, 1611, 788): wyjście W to kółko + 20 px drutu, a pas pinów
+    14–28 px go nie widział;
+  - SM-POSET: FP (1362, 683, 1398, 997) — prostokąt z drutów przy J2/J6;
+  - P-M3-2: FP (382, 767, 499, 900), (831, 692, 890, 799), (831, 799, 890, 849),
+    (831, 849, 890, 933) — prostokąty z drutów przy M91 i przy stosie M16…M17; zgubione
+    M1 (1679, 284, 1738, 366) i M30 w lewym górnym rogu;
+  - I-SK1-1: 34 FP to kolumny prostokątów z drutów (x 514–572 i 1577–1636), częściowo
+    zdublowane. Zgubione: 14 z 16 bramek lewego stosu 7438 (568–622, 371–1445) i bramki
+    z bladymi drutami pinów.
+- **końcowa:**
+  - P-M3-2: M30 (≈ 300–392, 316–392) przekreślona/dopisana odręcznie; rezystory R24
+    (282, 445, 343, 470) i R3 (≈ 292–358, 1063–1087) odrzucone przez `leads`;
+  - I-SK1-1: K1 (≈ 1475–1530, 650–720) i G2 (≈ 720–775, 975–1050) — blada, nieciągła
+    górna ściana, brak kandydata; R24 (≈ 290–350, 1200–1225);
+  - P-D3-2: M81 DMx 154 (≈ 567–675, 183–633), M95 (≈ 1863–1933, 217–300) i M82
+    (≈ 1880–1958, 375–455). W M95 i M82 drut wejścia biegnie na wysokości górnej ściany,
+    a kółko wyjścia siedzi w narożniku, więc zostają ≤ 2 czyste narożniki. W M81 kółka
+    wejść 18/19 leżą w narożniku;
+  - SPP-32-16: zgubione A6 (175), A8 (85) i wszystkie 16 bramek 7400 w stosach A7
+    (768, 308, 826, 624), B7, S7 i T7. Ściany są blade, mają 1 px i falują między wierszami
+    (górna ściana A7: minimum szarości kolumn 25–160, ale żaden wiersz nie ma ciągłego
+    biegu 25 px). Znalezione: B6, B8, S6, S8, T6, T8 i R101.
+
+Przełącznik `SIDE_WOBBLE=True` sprawdza boki na mapach pinów. Na SPP znajduje stosy A7 i T7
+(+8 bramek), ale daje po 1 FP w dużym tekście numeru arkusza na 2-61 (1913, 1413, 1969,
+1453), P-X3-2 (1919, 1478, 1964, 1520) i JPP (1901, 1463, 2014, 1499). Dlatego jest
+wyłączony. Włączyć go można dopiero razem z maską tabliczki i numeru arkusza (bead o ramce
+strony z kr-9p8.2).
+
+### Wpływ na `cv-wires.py` tryb (b)
+
+- Na P-R3-2 2-58…2-61 wireP/R/F1/wF1geom/juncP/juncR są identyczne z tabelą v4 (b).
+- Na stronach spoza P-R3-2 maskowane są teraz złożone układy:
+
+  | strona | maski | nety / odcinki / kropki | v4 | największy net |
+  |---|---|---|---|---|
+  | JPP 2-115 | 4 | 158 / 245 / 17 | 163 / 262 / 22 | 3608 px |
+  | SM-POSET 2-97 | 6 | 80 / 168 / 20 | 90 / 184 / 25 | 3138 px |
+  | P-X3-2 2-1 | 11 | 66 / 168 / 36 | 70 / 176 / 37 | 3383 px |
+
+  Na overlayu JPP korpusy M16…M19 nie mają już drutów. Kolumny etykiet „A15 12…” przed
+  układami dalej dają pionowe fałszywe druty; to tekst, czyli osobny bead.
+- `cv-wires` maskuje bloki w całości (stos, nie pojedyncze bramki).
+- Ustawia `GATES_P = {PIN_SIDES_MIN: 1}`: do maski wystarczą druty z jednej strony, bo
+  domknięta ramka o czystych narożnikach nie jest drutem. Wymaga tego test
+  `mode_b_stack_with_thin_top_frame`.
+- Stare `detect_gate_boxes` / `_extend_stack` / `_thick_segments` i parametry `BOX_L`,
+  `BOX_SIDE_GAP`, `BOX_WMAX` itd. zostały usunięte. Wiersze tabeli mutacji kr-9p8.2 o tych
+  nazwach są nieaktualne; testy trybu (b) przechodzą na nowym detektorze.
+
+### Testy i mutacje
+
+35 testów syntetycznych (v3). Każdy przypadek z oczekiwanym wynikiem:
+
+- pojedyncza bramka z tekstem → 1 bramka, ramka ±3 px, piny po obu stronach;
+- stos 3 bramek z podpisem dotykającym przegródki → 3 bramki, cięcia na przegródkach,
+  kandydaci pinów przy własnej bramce;
+- stos 3 bramek, środkowa bez widocznych pinów → nadal 3 bramki;
+- bramka z jedną wewnętrzną kolumną (2-58 M52) → `gate`, nie `composite`;
+- 74175 z kolumnami → 1 `composite` (przegródka D na wysokości sekcji C/R daje ~50 %,
+  bez cięcia);
+- K565 → `composite`;
+- stos dwóch 74170 z ciągłą prawą kolumną → 2 `composite`;
+- kółko w narożniku → 1 bramka; kółka na boku wejść → 1 bramka;
+- cienka ramka 2 px → 1 bramka;
+- piny 8 px od narożników → 1 bramka;
+- wysoki stos ze skosem 10 px i przerwą w boku → 10 bramek;
+- blady przerywany drut wyjścia i drut skaczący między wierszami → pin, bramka przyjęta;
+- krótkie wyjście za kółkiem (JPP M18) → pin;
+- wyjście skręcające 12 px za ścianą i wyjście kropką do magistrali 13 px dalej → piny;
+- przerwa 9 px w boku bramki 80 px → bramka (przerwa liczona raz);
+- rezystor → `passive`;
+- rezystor z pogrubionym podpisem dotykającym korpusu i drutu nad nim → `passive`;
+- rezystor z napisem zlewającym obie ściany → `passive`;
+- pionowy rezystor 30 × 70 → `passive`;
+- mała ramka z dwoma drutami na jednym krótkim boku → nie `passive`;
+- ramka strony → nie bramka, a bramka w środku zostaje;
+- kratka tabliczki → 0;
+- ramka numeru arkusza z dużym tekstem → 0;
+- blok tekstu → 0;
+- kratka drutów → 0;
+- pętla drutów przy boku bramki → nie zmienia bramki;
+- dwie belki bez boków → 0;
+- ramka z drutami z jednej strony → 0;
+- za wysoka i za szeroka ramka → 0;
+- nakładające się ramki → 1;
+- wpis YAML.
+
+Mutacje (`CVG_MUTATE` / `CVG_SCRIPT`). Każda wywala co najmniej jeden test:
+
+| mutacja | test, który pada |
+|---|---|
+| `CORNERS_MIN=0`, `CORNER_FRAC=1.01`, bez sondy narożnika | title_block_grid |
+| `PINS_MIN=0,PIN_SIDES_MIN=0` | page_number_frame, wires_on_one_side |
+| `PIN_SIDES_MIN=1` | wires_on_one_side |
+| `CUT_FRAC=1.01` | stack_of_three, two_composites |
+| `CUT_FRAC=0.3` | composite_with_internal_columns |
+| `SIDE_COV=0,SIDE_GAP=1000` (razem; osobno się dublują) | two_bars_without_sides |
+| `SIDE_GAP=6`, `SKEW=0`, bez pasa za skosem | skewed_tall_stack |
+| `END_TOL=1000` | page_border |
+| `GATE_WMAX=1e5` / `GATE_HMAX=1e5` | oversized / too_tall |
+| `BUB_AMAX=0`, bez wypełniania kółek | bubbles_on_input_side (+ short_output) |
+| `PIN_GAP=0` / `PIN_WOBBLE=1` | pale_dashed_output / pale_wire_wobbling |
+| `PIN_NEAR=14,PIN_FAR=28` | short_output_after_bubble |
+| `COMP_H=1e5` | tall_ic_with_label_column |
+| `OVERLAP_MAX=1.0` | overlapping_frames |
+| cięcie usuwane po stronie dolnej zamiast słabszej | stack_of_three |
+| sonda narożnika w pasie `WALL_BAND` | pins_close_to_corners |
+| `CUT_KEEP=1.01`, stara reguła cięć (usuwa też pełną przegródkę) | stack_gate_with_invisible_pins |
+| bez pinu „tusz przy ścianie + dowolna linia” | output_turning_down, output_joining_vertical_bus |
+| pokrycie boku z przerwą (`prof.mean()`) | side_gap_counts_once |
+| `SEG_SPLIT=100` | passive_with_text_touching_both_walls (+ label_touching) |
+| `PIN_TEXT_DENS=1.0` | passive_with_label_touching_body |
+| bramka przed elementem biernym | vertical_resistor_30px_wide |
+| `gp = list(pins)` (piny całego bloku w każdej bramce) | stack_of_three |
+| `nv >= 1` zamiast `>= 2` | gate_with_single_internal_column |
+| `_passive_leads`: `count(b) >= 1` bez długości | small_box_with_two_leads_on_one_short_side |
+
+### YOLO — szacunek (bez treningu)
+
+Nie trenowałem. Ślepo CV ma precyzję 1,00 i recall 0,91 bez SPP (0,73 z SPP). Braki to
+blade albo przerwane ramki i piny w narożnikach, więc detektor uczony miałby sens jako
+uzupełnienie dla takich pakietów (ASSUMED):
+
+- **Etykiety:** prostokąty bloków (stos / układ / bramka / rezystor). Wstępnie z
+  `cv-gates.py`, poprawiane w viewerze. 30–50 stron z różnych pakietów, w tym 5–10 z SPP,
+  PPS i P-D3-2, to ~800–1500 ramek.
+- **Koszt etykiet:** z gotowymi kandydatami 2–4 min na stronę, czyli 1,5–3 h człowieka.
+- **Trening:** YOLOv8n/11n na kafelkach 1024–1280 px z augmentacją bladości i skosu,
+  ~100 epok na MPS (M5 Pro), około 20–40 min.
+- **Korzyść:** odporność na blade, falujące ramki i piny w narożnikach. Podział stosu na
+  bramki, cięcia kolumn i piny zostają w CV, bo YOLO podaje tylko prostokąt bloku i klasę.
+- **Tańsza alternatywa:** najpierw maska tabliczki i numeru arkusza (osobny bead), potem
+  `SIDE_WOBBLE=True` i ponowny pomiar na SPP i P-D3-2.
+
+### Uruchomienie
+
+```bash
+uv run scripts/cv-gates.py --scan data/MJC-400/P-X3-2/scans/2-1.jpg \
+    --out <kat>/P-X3-2/2-1.sch.yaml --overlay 2-1-gates.png [--set SIDE_WOBBLE=True]
+uv run scripts/eval-digitize.py --gold data/gold --candidate <kat>
+PYTHONDONTWRITEBYTECODE=1 uv run --with pytest --with pyyaml --with numpy \
+    --with opencv-python-headless pytest -p no:cacheprovider scripts/test_cv_gates.py
+CVG_MUTATE="CORNERS_MIN=0" PYTHONDONTWRITEBYTECODE=1 uv run --with pytest --with pyyaml \
+    --with numpy --with opencv-python-headless pytest -p no:cacheprovider scripts/test_cv_gates.py
+```
+
+Overlay: cały skan w pełnej rozdzielczości, jasnoszary. Kolory ramek:
+
+- zielona = `gate`, niebieska = `composite`, fioletowa = `passive`, z numerem;
+- jasnoturkusowa = blok (stos albo układ w całości);
+- pomarańczowa przerywana = kandydat odrzucony, z kodem powodu (`corner2`, `pins1`,
+  `leads`…).
+
+Niebieskie kropki to kandydaci pinów.
