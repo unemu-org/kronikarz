@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Stage, Layer, Rect, Group, Text, Line } from 'react-konva';
 import type Konva from 'konva';
-import { useDocStore, type VisionZone, type ZoneRole } from './store.ts';
+import { useDocStore, runRewrite, postRewrite, pageFilePath, type VisionZone, type ZoneRole } from './store.ts';
 import { apiWrite } from './api.ts';
 import { ImageLayer } from './layers/ImageLayer.tsx';
 import { GateLayer } from './layers/GateLayer.tsx';
@@ -961,22 +961,22 @@ export function Canvas(): JSX.Element {
     if (!page || !route.pkg || zones.length === 0) return;
     if (!confirm(`Vision-digitize z ${zones.length} strefami? Plik nadpisany (auto .bak).`)) return;
     setVisionBusy(true);
+    const pkgId = route.pkg;
+    const pageId = page.page;
     try {
-      const r = await apiWrite('/vision-page-zones', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ package: route.pkg, page: page.page, zones }),
+      // Rewrites the page server-side: flush, fence the page, POST, reload.
+      await runRewrite(pageFilePath(pkgId, pageId), 'Vision', async () => {
+        const { outcome, data: d } = await postRewrite('/vision-page-zones', { package: pkgId, page: pageId, zones });
+        if (outcome !== 'ok') {
+          alert('vision failed: ' + (d?.error ?? outcome) + (d?.stderr ? '\n\nstderr:\n' + String(d.stderr).slice(0, 1000) : ''));
+          return outcome;
+        }
+        alert(
+          `Wykryto:\n  ${d!.gates ?? 0} bramek\n  ${d!.ports ?? 0} portów\n  ${d!.cross_refs ?? 0} cross-refów\n\nBackup: <page>.sch.yaml.bak`
+        );
+        setZones([]);
+        return outcome;
       });
-      const d = await r.json();
-      if (!r.ok) {
-        alert('vision failed: ' + (d.error ?? r.statusText) + (d.stderr ? '\n\nstderr:\n' + d.stderr.slice(0, 1000) : ''));
-        return;
-      }
-      alert(
-        `Wykryto:\n  ${d.gates ?? 0} bramek\n  ${d.ports ?? 0} portów\n  ${d.cross_refs ?? 0} cross-refów\n\nBackup: <page>.sch.yaml.bak`
-      );
-      setZones([]);
-      window.location.reload();
     } finally {
       setVisionBusy(false);
     }

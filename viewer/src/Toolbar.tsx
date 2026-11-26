@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useDocStore } from './store.ts';
+import { useDocStore, flushSavesOrAlert, runRewrite, postRewrite, pageFilePath } from './store.ts';
 import { navigate } from './router.ts';
 import { apiWrite } from './api.ts';
 
@@ -29,26 +29,26 @@ export function Toolbar(): JSX.Element {
       `Plik zostanie nadpisany (auto .bak przed). Trwa ~30-60s.`
     )) return;
     setVisionBusy(true);
+    const pkgId = route.pkg;
+    const pageId = page.page;
     try {
-      const r = await apiWrite('/vision-page', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ package: route.pkg, page: page.page }),
+      // Rewrites the page server-side: flush, fence the page, POST, reload.
+      await runRewrite(pageFilePath(pkgId, pageId), 'Vision', async () => {
+        const { outcome, data: d } = await postRewrite('/vision-page', { package: pkgId, page: pageId });
+        if (outcome !== 'ok') {
+          alert('vision failed: ' + (d?.error ?? outcome) + (d?.stderr ? '\n\nstderr:\n' + String(d.stderr).slice(0, 1000) : ''));
+          return outcome;
+        }
+        alert(
+          `Wykryto:\n` +
+          `  ${d!.gates} bramek\n` +
+          `  ${d!.ports} portów\n` +
+          `  ${d!.cross_refs} cross-refów\n` +
+          `  ${d!.power} symboli zasilania\n\n` +
+          `Backup: <page>.sch.yaml.bak · Restore: "↶ restore .bak"`
+        );
+        return outcome;
       });
-      const d = await r.json();
-      if (!r.ok) {
-        alert('vision failed: ' + (d.error ?? r.statusText) + (d.stderr ? '\n\nstderr:\n' + d.stderr.slice(0, 1000) : ''));
-        return;
-      }
-      alert(
-        `Wykryto:\n` +
-        `  ${d.gates} bramek\n` +
-        `  ${d.ports} portów\n` +
-        `  ${d.cross_refs} cross-refów\n` +
-        `  ${d.power} symboli zasilania\n\n` +
-        `Backup: <page>.sch.yaml.bak · Restore: "↶ restore .bak"`
-      );
-      window.location.reload();
     } finally {
       setVisionBusy(false);
     }
@@ -56,6 +56,8 @@ export function Toolbar(): JSX.Element {
 
   async function makeBak() {
     if (!page || !route.pkg) return;
+    // .bak must contain the latest edits.
+    if (!(await flushSavesOrAlert('Backup'))) return;
     const r = await apiWrite('/make-bak', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -69,14 +71,15 @@ export function Toolbar(): JSX.Element {
   async function restoreBak() {
     if (!page || !route.pkg) return;
     if (!confirm('Przywrócić ostatni .bak? Aktualne zmiany zostaną nadpisane.')) return;
-    const r = await apiWrite('/restore-bak', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ package: route.pkg, page: page.page }),
+    const pkgId = route.pkg;
+    const pageId = page.page;
+    // Flush, then fence the page: no auto-save PUT may land after /restore-bak
+    // (it would silently undo the restore). Reloads on success.
+    await runRewrite(pageFilePath(pkgId, pageId), 'Przywracanie .bak', async () => {
+      const { outcome, data: d } = await postRewrite('/restore-bak', { package: pkgId, page: pageId });
+      if (outcome !== 'ok') alert('restore failed: ' + (d?.error ?? outcome));
+      return outcome;
     });
-    const d = await r.json();
-    if (!r.ok) { alert('restore failed: ' + (d.error ?? r.statusText)); return; }
-    window.location.reload();
   }
   const [yoloTotal, setYoloTotal] = useState<number | null>(null);
 
@@ -397,6 +400,8 @@ export function Toolbar(): JSX.Element {
           <button
             onClick={async () => {
               if (!confirm('Regenerate YOLO dataset z YAMLi? Nadpisuje samples.')) return;
+              // Export reads the YAMLs from disk — they must be up to date.
+              if (!(await flushSavesOrAlert('Eksport YOLO'))) return;
               const r = await apiWrite('/yolo-export', { method: 'POST' });
               const d = await r.json();
               if (!r.ok) { alert('export failed: ' + (d.error ?? r.statusText)); return; }

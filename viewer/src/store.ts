@@ -2,6 +2,13 @@ import { create } from 'zustand';
 import type { Project, Package, Page, IcMap, Issue } from '@kronikarz/shared';
 import { serializePage, serializePackage } from '@kronikarz/shared';
 import { apiWrite } from './api.ts';
+import {
+  createSaveQueue,
+  rewriteOutcomeFor,
+  type RewriteOutcome,
+  type RewriteResult,
+  type SaveQueue,
+} from './saveQueue.ts';
 
 export type Mode = 'module' | 'package' | 'page' | 'empty';
 export type Tool = 'select' | 'edit' | 'roi' | 'wire' | 'zones';
@@ -87,32 +94,113 @@ function clone<T>(o: T): T {
   return JSON.parse(JSON.stringify(o));
 }
 
-// Schedule debounced PUTs to the file server. Per-path timers.
-const pendingTimers = new Map<string, ReturnType<typeof setTimeout>>();
+// Debounced auto-save (per-path, 500 ms) — logic in saveQueue.ts. Every PUT
+// goes through apiWrite (X-Kronikarz header). Status mirrors into the store
+// (saveStatus/saveError → SaveToast).
 const DEBOUNCE_MS = 500;
+// Browsers cap the total body of in-flight keepalive requests at 64 KiB; past
+// that fetch() rejects, so larger bodies go as a plain PUT.
+const KEEPALIVE_MAX_BYTES = 60 * 1024;
 
-function schedulePut(path: string, body: string, store: { setSaveStatus: DocState['setSaveStatus'] }): void {
-  store.setSaveStatus('pending');
-  const existing = pendingTimers.get(path);
-  if (existing) clearTimeout(existing);
-  pendingTimers.set(
-    path,
-    setTimeout(async () => {
-      pendingTimers.delete(path);
-      store.setSaveStatus('saving');
-      try {
-        const r = await apiWrite(`/files/${path}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'text/yaml' },
-          body,
-        });
-        if (!r.ok) throw new Error(`PUT ${path} → ${r.status}`);
-        store.setSaveStatus('idle');
-      } catch (err) {
-        store.setSaveStatus('error', err instanceof Error ? err.message : String(err));
-      }
-    }, DEBOUNCE_MS),
-  );
+const saveQueue: SaveQueue = createSaveQueue({
+  async send(path, body, opts) {
+    const keepalive = opts.keepalive === true && new Blob([body]).size <= KEEPALIVE_MAX_BYTES;
+    const r = await apiWrite(`/files/${path}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'text/yaml' },
+      body,
+      keepalive,
+    });
+    if (!r.ok) throw new Error(`PUT ${path} → ${r.status}`);
+  },
+  setTimer: (fn, ms) => setTimeout(fn, ms),
+  clearTimer: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
+  delayMs: DEBOUNCE_MS,
+  onStatus: (status, error) => useDocStore.getState().setSaveStatus(status, error),
+});
+
+function schedulePut(path: string, body: string): void {
+  saveQueue.schedule(path, body);
+}
+
+/**
+ * Send all queued auto-saves now and wait for every PUT (queued and in flight)
+ * to settle. Rejects if anything stayed unsaved — the error is already shown
+ * in SaveToast; callers must abort (no rewrite POST, no reload).
+ */
+export function flushSaves(): Promise<void> {
+  return saveQueue.flush();
+}
+
+/**
+ * flushSaves() for UI handlers: on failure alert that `what` was not started
+ * (SaveToast also shows the error) and return false.
+ */
+export async function flushSavesOrAlert(what: string): Promise<boolean> {
+  try {
+    await saveQueue.flush();
+    return true;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    window.alert(`${what}: operacja nie została uruchomiona — nie udało się zapisać bieżących zmian (${msg}).`);
+    return false;
+  }
+}
+
+/**
+ * Run a server action that rewrites the data file `path` (e.g. /restore-bak):
+ * flush, fence `path` (no auto-save PUT for it from now on), run `action`,
+ * then reload — see SaveQueue.runRewrite for the failure branches.
+ */
+export function runRewrite(
+  path: string,
+  name: string,
+  action: () => Promise<RewriteOutcome>,
+): Promise<RewriteResult> {
+  return saveQueue.runRewrite(path, {
+    name,
+    action,
+    reload: () => window.location.reload(),
+    alert: (m) => window.alert(m),
+    confirm: (m) => window.confirm(m),
+  });
+}
+
+/** JSON reply of a kronikarz-server action endpoint. */
+export type RewriteReply = { error?: string; stderr?: string } & Record<string, unknown>;
+
+/** POST JSON for a rewrite action; `data` is null when the reply is not JSON. */
+export async function postRewrite(
+  url: string,
+  body: unknown,
+): Promise<{ outcome: RewriteOutcome; status: number; data: RewriteReply | null }> {
+  const r = await apiWrite(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  let data: RewriteReply | null = null;
+  try {
+    data = (await r.json()) as RewriteReply;
+  } catch {
+    /* non-JSON reply → ambiguous */
+  }
+  return { outcome: rewriteOutcomeFor(r.status, data !== null), status: r.status, data };
+}
+
+/** True while some edit is not yet confirmed saved (pending, in flight, failed, fenced). */
+export function hasUnsavedChanges(): boolean {
+  return saveQueue.isDirty();
+}
+
+/** beforeunload: fire queued PUTs now with fetch keepalive (best effort). */
+export function flushSavesOnUnload(): void {
+  saveQueue.flushNow({ keepalive: true });
+}
+
+/** Data path of a page yaml, as used by auto-save. */
+export function pageFilePath(pkg: string, pageId: string): string {
+  return `MJC-400/${pkg}/pages/${pageId}.sch.yaml`;
 }
 
 export const useDocStore = create<DocState>((set, get) => ({
@@ -173,8 +261,7 @@ export const useDocStore = create<DocState>((set, get) => ({
     mutator(draft);
     const past = [...state.past, state.page].slice(-HISTORY_LIMIT);
     set({ page: draft, past, future: [] });
-    const path = `MJC-400/${state.route.pkg}/pages/${draft.page}.sch.yaml`;
-    schedulePut(path, serializePage(draft), { setSaveStatus: state.setSaveStatus });
+    schedulePut(pageFilePath(state.route.pkg, draft.page), serializePage(draft));
   },
 
   editPackage: (mutator) => {
@@ -184,7 +271,7 @@ export const useDocStore = create<DocState>((set, get) => ({
     mutator(draft);
     set({ pkg: draft });
     const path = `MJC-400/${state.route.pkg}/package.yaml`;
-    schedulePut(path, serializePackage(draft), { setSaveStatus: state.setSaveStatus });
+    schedulePut(path, serializePackage(draft));
   },
 
   undo: () => {
@@ -197,11 +284,7 @@ export const useDocStore = create<DocState>((set, get) => ({
       future: [state.page, ...state.future].slice(0, HISTORY_LIMIT),
     });
     if (state.route.pkg) {
-      schedulePut(
-        `MJC-400/${state.route.pkg}/pages/${prev.page}.sch.yaml`,
-        serializePage(prev),
-        { setSaveStatus: state.setSaveStatus },
-      );
+      schedulePut(pageFilePath(state.route.pkg, prev.page), serializePage(prev));
     }
   },
 
@@ -215,11 +298,7 @@ export const useDocStore = create<DocState>((set, get) => ({
       future: state.future.slice(1),
     });
     if (state.route.pkg) {
-      schedulePut(
-        `MJC-400/${state.route.pkg}/pages/${next.page}.sch.yaml`,
-        serializePage(next),
-        { setSaveStatus: state.setSaveStatus },
-      );
+      schedulePut(pageFilePath(state.route.pkg, next.page), serializePage(next));
     }
   },
 }));

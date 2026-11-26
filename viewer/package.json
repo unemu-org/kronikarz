@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit -p tsconfig.test.json && tsc --noEmit",
+    "test": "node --test --experimental-strip-types src/*.test.ts"
   },
   "dependencies": {
     "react": "^18.0.0",
