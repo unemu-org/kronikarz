@@ -8,6 +8,18 @@ Kronikarz — narzędzie do digitalizacji schematów elektronicznych MERA-400 (P
 
 Spec docs: `specyfikacje-kronikarza/` (`format-spec.md`, `vision-prompt.md`, `cross-refs-ulepszenia.md`).
 
+## Praca z zadaniami (beads)
+
+| Co | Gdzie | Kiedy |
+|----|-------|-------|
+| **Lista zadań (źródło prawdy)** | beads — `bd ready --exclude-type epic`, `bd list --type epic`, `bd show <id>` | Zawsze. **Nie czytaj roadmapy z markdown** (`docs/archive/plan.md` to tylko historia). |
+| **Wspólne zasady: role, droga beada do main, briefy workerów, dane** | bd memories — `bd memories`, `bd recall <klucz>` | **Na starcie sesji, przed jakąkolwiek pracą nad zadaniem** |
+| Statusy, epiki, Definition of Done, git flow | [`docs/praca-z-zadaniami.md`](docs/praca-z-zadaniami.md) | Przed claimem pierwszego beada |
+
+Role, droga od beada do `main`, zasady dla workerów i ochrona danych to bd memories — czytaj je przez `bd memories` (`bd recall <klucz>` dla jednej; `bd prime` też je drukuje). Statusy (`open` / `in_progress` / `closed`), epiki, Definition of Done i git flow opisuje `docs/praca-z-zadaniami.md`. Supervisor wybiera pracę przez `bd ready --exclude-type epic`, claimuje ją `bd update <id> --claim` **zanim** powstanie kod, i zamyka dopiero po wylądowaniu na `main`, z reason podającym commit. Workerzy nie claimują i nie zamykają beadów; raportują do supervisora. Notatki dopisuj przez `--append-notes` — nigdy `--notes` na istniejącym beadzie (zastępuje pole). Treść beadów po polsku. Tam gdzie ogólne rady `bd prime` różnią się od tych dokumentów i memories, wygrywają dokumenty i memories.
+
+Start sesji: `bd memories`, potem `bd list --status in_progress` i `bd show <id>`. Pauza: `bd update <id> --append-notes "Pauza sesji $(date -I). Zrobione: <X>. Dalej: <Y>. Blocker: <Z|brak>."`.
+
 ## Środowisko
 
 Nix flake + direnv. DevShell ma Node.js 22, python3, uv, prettier, eslint, yq-go, just, watchexec, git-lfs.
