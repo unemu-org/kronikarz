@@ -1,1 +1,36 @@
-zones: []
+zones:
+  - {role: ports_left, x: 140, 'y': 159, w: 234, h: 269}
+  - {role: ports_left, x: 146, 'y': 487, w: 272, h: 84}
+  - {role: cross_refs_left, x: 273, 'y': 526, w: 153, h: 54}
+  - {role: cross_refs_left, x: 248, 'y': 433, w: 193, h: 52}
+  - {role: gates, x: 449, 'y': 482, w: 116, h: 115}
+  - {role: gates, x: 588, 'y': 397, w: 203, h: 175}
+  - {role: gates, x: 593, 'y': 598, w: 197, h: 184}
+  - {role: gates, x: 452, 'y': 684, w: 125, h: 138}
+  - {role: gates, x: 823, 'y': 653, w: 153, h: 140}
+  - {role: gates, x: 834, 'y': 420, w: 115, h: 140}
+  - {role: gates, x: 885, 'y': 165, w: 118, h: 311}
+  - {role: gates, x: 1004, 'y': 211, w: 114, h: 171}
+  - {role: gates, x: 733, 'y': 108, w: 161, h: 118}
+  - {role: ports_left, x: 130, 'y': 691, w: 258, h: 122}
+  - {role: cross_refs_left, x: 240, 'y': 641, w: 155, h: 63}
+  - {role: cross_refs_left, x: 231, 'y': 799, w: 155, h: 61}
+  - {role: ports_left, x: 152, 'y': 852, w: 242, h: 95}
+  - {role: cross_refs_left, x: 239, 'y': 1087, w: 189, h: 339}
+  - {role: ports_left, x: 114, 'y': 1434, w: 338, h: 108}
+  - {role: gates, x: 578, 'y': 853, w: 121, h: 229}
+  - {role: gates, x: 576, 'y': 1081, w: 137, h: 242}
+  - {role: gates, x: 567, 'y': 1320, w: 159, h: 109}
+  - {role: gates, x: 775, 'y': 1398, w: 200, h: 152}
+  - {role: gates, x: 777, 'y': 1104, w: 166, h: 233}
+  - {role: gates, x: 761, 'y': 834, w: 152, h: 272}
+  - {role: cross_refs_right, x: 1070, 'y': 862, w: 244, h: 414}
+  - {role: cross_refs_right, x: 1108, 'y': 1392, w: 186, h: 118}
+  - {role: ports_right, x: 1177, 'y': 667, w: 211, h: 156}
+  - {role: cross_refs_right, x: 1106, 'y': 505, w: 267, h: 165}
+  - {role: cross_refs_right, x: 1113, 'y': 753, w: 160, h: 105}
+  - {role: ports_right, x: 1119, 'y': 159, w: 275, h: 342}
+  - {role: gates, x: 1661, 'y': 149, w: 201, h: 292}
+  - {role: gates, x: 1930, 'y': 173, w: 192, h: 324}
+  - {role: cross_refs_right, x: 2151, 'y': 296, w: 121, h: 79}
+  - {role: cross_refs_right, x: 2141, 'y': 183, w: 113, h: 78}

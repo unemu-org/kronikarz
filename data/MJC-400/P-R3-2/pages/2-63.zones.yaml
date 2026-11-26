@@ -1,1 +1,27 @@
-zones: []
+zones:
+  - {role: cross_refs_left, x: 188, 'y': 189, w: 152, h: 198}
+  - {role: ports_left, x: 84, 'y': 364, w: 257, h: 106}
+  - {role: cross_refs_left, x: 151, 'y': 698, w: 204, h: 145}
+  - {role: cross_refs_left, x: 148, 'y': 1115, w: 161, h: 416}
+  - {role: gates, x: 514, 'y': 483, w: 185, h: 339}
+  - {role: gates, x: 516, 'y': 814, w: 189, h: 333}
+  - {role: gates, x: 484, 'y': 1139, w: 231, h: 338}
+  - {role: gates, x: 778, 'y': 910, w: 185, h: 177}
+  - {role: gates, x: 773, 'y': 1088, w: 192, h: 157}
+  - {role: gates, x: 773, 'y': 1245, w: 201, h: 167}
+  - {role: gates, x: 771, 'y': 1413, w: 206, h: 87}
+  - {role: cross_refs_right, x: 973, 'y': 909, w: 148, h: 563}
+  - {role: cross_refs_right, x: 946, 'y': 812, w: 140, h: 97}
+  - {role: ports_right, x: 1015, 'y': 416, w: 205, h: 437}
+  - {role: cross_refs_right, x: 960, 'y': 366, w: 143, h: 60}
+  - {role: gates, x: 799, 'y': 481, w: 156, h: 184}
+  - {role: gates, x: 795, 'y': 658, w: 138, h: 165}
+  - {role: ports_left, x: 1253, 'y': 353, w: 248, h: 487}
+  - {role: ports_left, x: 1251, 'y': 903, w: 258, h: 341}
+  - {role: gates, x: 1700, 'y': 166, w: 242, h: 319}
+  - {role: gates, x: 1720, 'y': 478, w: 221, h: 329}
+  - {role: gates, x: 1724, 'y': 802, w: 244, h: 293}
+  - {role: cross_refs_right, x: 2001, 'y': 195, w: 194, h: 217}
+  - {role: cross_refs_right, x: 1985, 'y': 444, w: 226, h: 334}
+  - {role: cross_refs_right, x: 2004, 'y': 788, w: 190, h: 228}
+  - {role: gates, x: 524, 'y': 374, w: 153, h: 108}

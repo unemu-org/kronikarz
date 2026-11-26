@@ -2,7 +2,103 @@ kronikarz: "1"
 page: 2-68
 package: P-R3-2
 scan_size: [2340, 1654]
-gates: []
+gates:
+- ref: M21
+  gate: null
+  x: 730
+  y: 537
+  rotation: 0
+  pins:
+  - {num: 6, side: left, net: '', px: 695, py: 322}
+  - {num: 5, side: left, net: '', px: 695, py: 347}
+  - {num: 4, side: left, net: '', px: 695, py: 372}
+  - {num: 3, side: left, net: '', px: 695, py: 397}
+  - {num: 1, side: left, net: '', px: 695, py: 447}
+  - {num: 14, side: left, net: '', px: 695, py: 502}
+  - {num: 2, side: left, net: '', px: 695, py: 557}
+  - {num: 10, side: left, net: '', px: 695, py: 617}
+  - {num: 11, side: left, net: '', px: 695, py: 642}
+  - {num: 12, side: left, net: '', px: 695, py: 667}
+  - {num: 13, side: left, net: '', px: 695, py: 692}
+  - {num: 15, side: left, net: '', px: 695, py: 742}
+  - {num: 7, side: right, net: '', px: 770, py: 322}
+  - {num: 9, side: right, net: '', px: 770, py: 642}
+  label_left: null
+  label_right: null
+  verified: false
+  note: M21 multiplexer Mx153 with W1/W2 outputs, S strobes
+- ref: M45
+  gate: null
+  x: 758
+  y: 1043
+  rotation: 0
+  pins:
+  - {num: 6, side: left, net: '', px: 638, py: 818}
+  - {num: 5, side: left, net: '', px: 638, py: 836}
+  - {num: 4, side: left, net: '', px: 638, py: 853}
+  - {num: 3, side: left, net: '', px: 638, py: 870}
+  - {num: 1, side: left, net: '', px: 713, py: 925}
+  - {num: 14, side: left, net: '', px: 713, py: 981}
+  - {num: 2, side: left, net: '', px: 713, py: 1025}
+  - {num: 10, side: left, net: '', px: 638, py: 1088}
+  - {num: 11, side: left, net: '', px: 638, py: 1106}
+  - {num: 12, side: left, net: '', px: 638, py: 1123}
+  - {num: 13, side: left, net: '', px: 638, py: 1141}
+  - {num: 15, side: left, net: '', px: 713, py: 1215}
+  - {num: 7, side: right, net: w1, px: 818, py: 818}
+  - {num: 9, side: right, net: w2, px: 818, py: 1103}
+  label_left: null
+  label_right: null
+  verified: false
+  note: Multiplexer Mx 153
+- ref: M33
+  gate: null
+  x: 1882
+  y: 409
+  rotation: 0
+  pins:
+  - {num: 6, side: left, net: '', px: 1802, py: 164}
+  - {num: 5, side: left, net: '', px: 1802, py: 194}
+  - {num: 4, side: left, net: '', px: 1802, py: 219}
+  - {num: 3, side: left, net: '', px: 1802, py: 244}
+  - {num: 1, side: left, net: '', px: 1802, py: 294}
+  - {num: 14, side: left, net: '', px: 1802, py: 359}
+  - {num: 2, side: left, net: '', px: 1802, py: 409}
+  - {num: 10, side: left, net: '', px: 1802, py: 469}
+  - {num: 11, side: left, net: '', px: 1802, py: 499}
+  - {num: 12, side: left, net: '', px: 1802, py: 524}
+  - {num: 13, side: left, net: '', px: 1802, py: 549}
+  - {num: 15, side: left, net: '', px: 1802, py: 599}
+  - {num: 7, side: right, net: '', px: 1962, py: 164}
+  - {num: 9, side: right, net: '', px: 1962, py: 484}
+  label_left: null
+  label_right: null
+  verified: false
+  note: Mx 153 multiplexer, M33
+- ref: M44
+  gate: null
+  x: 1871
+  y: 884
+  rotation: 0
+  pins:
+  - {num: 6, side: left, net: '', px: 1776, py: 662}
+  - {num: 5, side: left, net: '', px: 1776, py: 686}
+  - {num: 4, side: left, net: '', px: 1776, py: 710}
+  - {num: 3, side: left, net: '', px: 1776, py: 734}
+  - {num: 1, side: left, net: '', px: 1776, py: 774}
+  - {num: 14, side: left, net: '', px: 1776, py: 806}
+  - {num: 2, side: left, net: '', px: 1776, py: 864}
+  - {num: 10, side: left, net: '', px: 1776, py: 924}
+  - {num: 11, side: left, net: '', px: 1776, py: 948}
+  - {num: 12, side: left, net: '', px: 1776, py: 972}
+  - {num: 13, side: left, net: '', px: 1776, py: 996}
+  - {num: 15, side: left, net: '', px: 1776, py: 1040}
+  - {num: 7, side: right, net: '', px: 1966, py: 662}
+  - {num: 9, side: right, net: '', px: 1966, py: 912}
+  label_left: null
+  label_right: null
+  verified: false
+  note: Mx153 multiplexer / M44
 power: []
 nets: {}
 annotations:
@@ -20,3 +116,52 @@ decorations:
 - {kind: line, x1: 1591, y1: 1416, x2: 1591, y2: 1511}
 - {kind: line, x1: 1590, y1: 1512, x2: 1773, y2: 1512}
 - {kind: line, x1: 1724, y1: 1418, x2: 1724, y2: 1512}
+ports:
+- {connector: A, pin: 80, label: +RZ9, net: '', x: 240, y: 606, side: left}
+- {connector: A, pin: 81, label: +RS9, net: '', x: 240, y: 646, side: left}
+- {connector: A, pin: 81, label: +RB9, net: '', x: 260, y: 681, side: left}
+- {connector: A, pin: 82, label: +ZD9, net: '', x: 260, y: 706, side: left}
+- {connector: A, pin: 84, label: +RZ11, net: '', x: 240, y: 811, side: left}
+- {connector: A, pin: 84, label: +BS, net: '', x: 260, y: 851, side: left}
+- {connector: A, pin: 85, label: +RB11, net: '', x: 260, y: 886, side: left}
+- {connector: A, pin: 85, label: +ZD11, net: '', x: 260, y: 911, side: left}
+- {connector: B, pin: 80, label: +RZ, net: '', x: 265, y: 326, side: left}
+- {connector: B, pin: 79, label: +RS, net: '', x: 275, y: 371, side: left}
+- {connector: B, pin: 78, label: +R/ZP, net: '', x: 285, y: 416, side: left}
+- {connector: A, pin: 79, label: +KI9, net: '', x: 1024, y: 627, side: right}
+- {connector: B, pin: 73, label: +KI11, net: '', x: 1075, y: 812, side: right}
+- {connector: A, pin: 73, label: +KI10, net: '', x: 1119, y: 1113, side: right}
+- {connector: B, pin: 57, label: +RZ31, net: '', x: 1385, y: 931, side: left}
+- {connector: B, pin: 57, label: +NB3, net: '', x: 1385, y: 959, side: left}
+- {connector: A, pin: 54, label: +RB15, net: '', x: 1385, y: 986, side: left}
+- {connector: A, pin: 54, label: +ZD15, net: '', x: 1385, y: 1014, side: left}
+- {connector: A, pin: 71, label: +RZ30, net: '', x: 1370, y: 641, side: left}
+- {connector: A, pin: 71, label: +NB2, net: '', x: 1370, y: 676, side: left}
+- {connector: A, pin: 70, label: +RB14, net: '', x: 1370, y: 706, side: left}
+- {connector: A, pin: 70, label: +ZP14, net: '', x: 1370, y: 736, side: left}
+- {connector: A, pin: 77, label: +RZ12, net: '', x: 1337, y: 463, side: left}
+- {connector: A, pin: 77, label: +NB0, net: '', x: 1337, y: 492, side: left}
+- {connector: A, pin: 78, label: +RB12, net: '', x: 1337, y: 521, side: left}
+- {connector: A, pin: 78, label: +ZD12, net: '', x: 1337, y: 545, side: left}
+- {connector: B, pin: 74, label: +AZ13, net: '', x: 1373, y: 147, side: left}
+- {connector: B, pin: 74, label: +NB1, net: '', x: 1373, y: 177, side: left}
+- {connector: A, pin: 83, label: +RB13, net: '', x: 1373, y: 207, side: left}
+- {connector: A, pin: 83, label: +ZP13, net: '', x: 1373, y: 237, side: left}
+- {connector: B, pin: 58, label: +KI15, net: '', x: 2124, y: 916, side: right}
+- {connector: A, pin: 72, label: +KI14, net: '', x: 2129, y: 634, side: right}
+- {connector: A, pin: 76, label: +KI12, net: '', x: 2140, y: 469, side: right}
+- {connector: A, pin: 74, label: +RZ10, net: '', x: 199, y: 1079, side: left}
+- {connector: A, pin: 75, label: +ZP10, net: '', x: 199, y: 1194, side: left}
+cross_refs:
+- net: +K1A
+  label: +K1A
+  pages: ['10']
+  x: 261
+  y: 194
+  side: left
+- net: +K1B
+  label: +K1B
+  pages: ['10']
+  x: 261
+  y: 239
+  side: left

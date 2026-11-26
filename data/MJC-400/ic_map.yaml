@@ -223,7 +223,7 @@
   gates: 2
   gate_pins:
     A: { in: [2, 3, 4, 5], out: [6] }
-    B: { in: [9, 10, 11, 12], out: [8] }
+    B: { in: [1, 13, 10, 9], out: [8] }
   power: { VCC: 14, GND: 7 }
 '74':
   name: SN7474N
@@ -249,6 +249,19 @@
     C: { in: [9, 10], out: [8] }
     D: { in: [12, 13], out: [11] }
   power: { VCC: 14, GND: 7 }
+'H106':
+  name: SN74H106N
+  desc: Dual J-K Master-Slave FF w/ PR/CLR
+  kicad_symbol: 74xx:SN74H106
+  kicad_footprint: Package_DIP:DIP-16_W7.62mm
+  pins: 16
+  gates: 2
+  gate_pins:
+    # Pinout z DTR MERA-400 (M39, P-R3-2) — niestandardowe vs TI SN74H106
+    A: { j: [4], k: [16], clk: [1], pre: [2], clr: [3], q: [15], nq: [14] }
+    B: { j: [9], k: [12], clk: [6], pre: [7], clr: [8], q: [11], nq: [10] }
+  # Pozostają wolne piny 5 i 13 — pewnie VCC/GND. TODO zweryfikuj w DTR.
+  power: { VCC: 5, GND: 13 }
 '109':
   name: SN74109N
   desc: Dual J-K FF

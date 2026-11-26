@@ -1,1 +1,36 @@
-zones: []
+zones:
+  - {role: cross_refs_left, x: 229, 'y': 185, w: 248, h: 107}
+  - {role: ports_left, x: 162, 'y': 294, w: 308, h: 78}
+  - {role: ports_left, x: 149, 'y': 556, w: 291, h: 85}
+  - {role: ports_left, x: 152, 'y': 743, w: 306, h: 157}
+  - {role: ports_left, x: 146, 'y': 1023, w: 248, h: 84}
+  - {role: ports_right, x: 1411, 'y': 285, w: 286, h: 101}
+  - {role: ports_right, x: 1409, 'y': 532, w: 245, h: 132}
+  - {role: ports_right, x: 1406, 'y': 800, w: 245, h: 110}
+  - {role: ports_right, x: 1423, 'y': 968, w: 257, h: 104}
+  - {role: cross_refs_right, x: 1373, 'y': 385, w: 210, h: 76}
+  - {role: cross_refs_right, x: 1383, 'y': 641, w: 232, h: 84}
+  - {role: cross_refs_right, x: 1358, 'y': 905, w: 248, h: 59}
+  - {role: cross_refs_right, x: 1401, 'y': 1063, w: 184, h: 71}
+  - {role: cross_refs_left, x: 232, 'y': 448, w: 197, h: 110}
+  - {role: cross_refs_left, x: 228, 'y': 898, w: 198, h: 79}
+  - {role: cross_refs_left, x: 228, 'y': 1242, w: 160, h: 198}
+  - {role: cross_refs_left, x: 260, 'y': 1083, w: 190, h: 162}
+  - {role: cross_refs_right, x: 1073, 'y': 1410, w: 252, h: 138}
+  - {role: gates, x: 581, 'y': 152, w: 154, h: 257}
+  - {role: gates, x: 554, 'y': 410, w: 188, h: 252}
+  - {role: gates, x: 798, 'y': 306, w: 170, h: 190}
+  - {role: gates, x: 956, 'y': 198, w: 200, h: 184}
+  - {role: gates, x: 1193, 'y': 267, w: 173, h: 144}
+  - {role: gates, x: 1224, 'y': 542, w: 150, h: 136}
+  - {role: gates, x: 977, 'y': 472, w: 202, h: 188}
+  - {role: gates, x: 760, 'y': 558, w: 192, h: 204}
+  - {role: gates, x: 960, 'y': 693, w: 196, h: 248}
+  - {role: gates, x: 1206, 'y': 771, w: 146, h: 178}
+  - {role: gates, x: 1222, 'y': 972, w: 148, h: 132}
+  - {role: gates, x: 968, 'y': 1053, w: 202, h: 249}
+  - {role: gates, x: 763, 'y': 852, w: 178, h: 196}
+  - {role: gates, x: 566, 'y': 711, w: 189, h: 281}
+  - {role: gates, x: 547, 'y': 1001, w: 192, h: 365}
+  - {role: gates, x: 776, 'y': 1243, w: 226, h: 285}
+  - {role: gates, x: 393, 'y': 1319, w: 130, h: 165}

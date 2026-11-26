@@ -1,22 +1,1349 @@
 kronikarz: "1"
 page: 2-64
 package: P-R3-2
-scan_size: [2340, 1654]
-gates: []
-power: []
-nets: {}
+scan_size:
+  - 2340
+  - 1654
+gates:
+  - ref: M9
+    gate: B
+    x: 505
+    "y": 539
+    rotation: 0
+    pins:
+      - num: 4
+        side: left
+        net: ""
+        px: 479
+        py: 551
+      - num: 5
+        side: left
+        net: ""
+        px: 479
+        py: 521
+      - num: 6
+        side: right
+        net: ""
+        px: 531
+        py: 523
+    label_left: 5/4
+    label_right: "6"
+    verified: false
+    note: 00 gate (NAND)
+    w: 52
+    h: 86
+  - ref: M43
+    gate: A
+    x: 697.4128503747222
+    "y": 480.3119404802372
+    rotation: 0
+    pins:
+      - num: 2
+        side: left
+        net: ""
+        px: 656.6685543836716
+        py: 469.32286952789286
+      - num: 5
+        side: right
+        net: ""
+        px: 738.6685543836716
+        py: 441.32286952789286
+      - num: 6
+        side: right
+        net: ""
+        px: 738.6685543836716
+        py: 521.3228695278929
+      - num: 1
+        side: left
+        net: ""
+        px: 656.4128503747222
+        py: 522.3119404802371
+      - num: 3
+        side: left
+        net: ""
+        px: 656.4128503747222
+        py: 495.3119404802372
+      - num: 4
+        side: left
+        net: ""
+        px: 656.6685543836716
+        py: 443.32286952789286
+    label_left: S D C R
+    label_right: T 74
+    verified: false
+    note: Flip-flop 7474, single IC block
+    w: 82
+    h: 138
+  - ref: M43
+    gate: B
+    x: 700.2886477464622
+    "y": 697.5053443718389
+    rotation: 0
+    pins:
+      - num: 12
+        side: left
+        net: ""
+        px: 660.2886477464622
+        py: 684.5053443718389
+      - num: 8
+        side: right
+        net: ""
+        px: 741.2886477464622
+        py: 736.5053443718389
+      - num: 9
+        side: right
+        net: ""
+        px: 741.2886477464622
+        py: 657.5053443718389
+      - num: 10
+        side: left
+        net: ""
+        px: 660.2886477464622
+        py: 656.5053443718389
+      - num: 11
+        side: left
+        net: ""
+        px: 660.2886477464622
+        py: 709.5053443718389
+      - num: 13
+        side: left
+        net: ""
+        px: 660.2886477464622
+        py: 736.5053443718389
+    label_left: S D C R
+    label_right: T 74
+    verified: false
+    note: 7474 flip-flop
+    w: 81
+    h: 134
+  - ref: M46
+    gate: D
+    x: 505
+    "y": 751
+    rotation: 0
+    pins:
+      - num: 12
+        side: left
+        net: ""
+        px: 477
+        py: 764
+      - num: 13
+        side: left
+        net: ""
+        px: 477
+        py: 735
+      - num: 11
+        side: right
+        net: ""
+        px: 533
+        py: 737
+    label_left: 8
+    label_right: ""
+    verified: false
+    note: null
+    w: 56
+    h: 78
+  - ref: M54
+    gate: A
+    x: 913
+    "y": 728
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: ""
+        px: 863
+        py: 713
+      - num: 2
+        side: right
+        net: ""
+        px: 963
+        py: 713
+    label_left: "1"
+    label_right: "2"
+    verified: false
+    note: 04 inverter
+  - ref: M23
+    gate: B
+    x: 899
+    "y": 482
+    rotation: 0
+    pins:
+      - num: 4
+        side: left
+        net: ""
+        px: 872
+        py: 469
+      - num: 5
+        side: left
+        net: ""
+        px: 872
+        py: 493
+      - num: 6
+        side: right
+        net: ""
+        px: 927
+        py: 469
+    label_left: 4,5
+    label_right: "6"
+    verified: false
+    note: NAND gate (& with inverter bubble on output)
+    w: 55
+    h: 82
+  - ref: M35
+    gate: D
+    x: 950
+    "y": 220
+    rotation: 0
+    pins:
+      - num: 12
+        side: left
+        net: NET_R28_2
+        px: 924
+        py: 237
+      - num: 13
+        side: left
+        net: NET_M35_D_13
+        px: 924
+        py: 209
+      - num: 11
+        side: right
+        net: ""
+        px: 977
+        py: 209
+    label_left: 13,12
+    label_right: "11"
+    verified: false
+    note: "-1/86"
+    w: 53
+    h: 80
+  - ref: M35
+    gate: C
+    x: 950
+    "y": 295
+    rotation: 0
+    pins:
+      - num: 9
+        side: left
+        net: ""
+        px: 924
+        py: 316
+      - num: 10
+        side: left
+        net: ""
+        px: 924
+        py: 288
+      - num: 8
+        side: right
+        net: ""
+        px: 977
+        py: 289
+    label_left: 10,9
+    label_right: "8"
+    verified: false
+    note: "-1/86"
+    w: 53
+    h: 69
+  - ref: M23
+    gate: D
+    x: 950
+    "y": 380
+    rotation: 0
+    pins:
+      - num: 12
+        side: left
+        net: ""
+        px: 924
+        py: 380
+      - num: 13
+        side: left
+        net: ""
+        px: 924
+        py: 396
+      - num: 11
+        side: right
+        net: ""
+        px: 977
+        py: 382
+    label_left: 12,13
+    label_right: "11"
+    verified: false
+    note: "&/03"
+    w: 53
+    h: 73
+  - ref: M23
+    gate: C
+    x: 1057
+    "y": 299
+    rotation: 0
+    pins:
+      - num: 9
+        side: left
+        net: ""
+        px: 1031
+        py: 286
+      - num: 10
+        side: left
+        net: ""
+        px: 1031
+        py: 314
+      - num: 8
+        side: right
+        net: ""
+        px: 1084
+        py: 290
+    label_left: 9,10
+    label_right: "8"
+    verified: false
+    note: "Top label: 2/03 (likely IC type)"
+    w: 53
+    h: 81
+  - ref: M22
+    gate: C
+    x: 819
+    "y": 170
+    rotation: 0
+    pins:
+      - num: 5
+        side: left
+        net: NET_B85
+        px: 792
+        py: 159
+      - num: 6
+        side: right
+        net: NET_M35_D_13
+        px: 847
+        py: 156
+    label_left: "5"
+    label_right: "6"
+    verified: false
+    note: 04 (inverter)
+    w: 55
+    h: 80
+  - ref: M50
+    gate: A
+    x: 637
+    "y": 906
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: ""
+        px: 608
+        py: 921
+      - num: 2
+        side: left
+        net: NET_A11
+        px: 608
+        py: 896
+      - num: 3
+        side: right
+        net: ""
+        px: 666
+        py: 895
+    label_left: 2,1
+    label_right: "3"
+    verified: false
+    note: "& 00"
+    w: 58
+    h: 87
+  - ref: M62
+    gate: A
+    x: 637.3676633615348
+    "y": 1016.8903488474439
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: ""
+        px: 608.3676633615348
+        py: 977.8903488474439
+      - num: 2
+        side: left
+        net: ""
+        px: 608.3676633615348
+        py: 1003.8903488474439
+      - num: 4
+        side: left
+        net: ""
+        px: 608.3676633615348
+        py: 1029.8903488474439
+      - num: 5
+        side: left
+        net: ""
+        px: 608.3676633615348
+        py: 1056.8903488474439
+      - num: 6
+        side: right
+        net: ""
+        px: 666.3676633615348
+        py: 976.5382921571806
+    label_left: 1,2,4,5
+    label_right: "6"
+    verified: false
+    note: "& 20"
+    w: 58
+    h: 132
+  - ref: M62
+    gate: B
+    x: 637
+    "y": 1148
+    rotation: 0
+    pins:
+      - num: 9
+        side: left
+        net: ""
+        px: 608
+        py: 1109
+      - num: 10
+        side: left
+        net: ""
+        px: 608
+        py: 1136
+      - num: 12
+        side: left
+        net: ""
+        px: 608
+        py: 1166
+      - num: 13
+        side: left
+        net: ""
+        px: 608
+        py: 1190
+      - num: 8
+        side: right
+        net: ""
+        px: 666
+        py: 1113
+    label_left: 9,10,12,13
+    label_right: "8"
+    verified: false
+    note: top gate, type 20
+    w: 58
+    h: 132
+  - ref: M61
+    gate: A
+    x: 637.7353267230694
+    "y": 1268.8179025641027
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: ""
+        px: 609
+        py: 1274
+      - num: 2
+        side: left
+        net: ""
+        px: 609
+        py: 1244
+      - num: 13
+        side: left
+        net: ""
+        px: 609
+        py: 1297
+      - num: 12
+        side: right
+        net: ""
+        px: 664.7353267230694
+        py: 1241.8179025641027
+    label_left: 2,1,13
+    label_right: "12"
+    verified: false
+    note: bottom gate, type 10
+    w: 58
+    h: 107
+  - ref: M61
+    gate: C
+    x: 637
+    "y": 1375
+    rotation: 0
+    pins:
+      - num: 9
+        side: left
+        net: ""
+        px: 608
+        py: 1349
+      - num: 10
+        side: left
+        net: ""
+        px: 608
+        py: 1377
+      - num: 11
+        side: left
+        net: ""
+        px: 608
+        py: 1405
+      - num: 8
+        side: right
+        net: ""
+        px: 666
+        py: 1352
+    label_left: 9,10,11
+    label_right: "8"
+    verified: false
+    note: AND gate, output 8 with bubble? appears as small circle
+    w: 58
+    h: 109
+  - ref: M6
+    gate: C
+    x: 851
+    "y": 1467
+    rotation: 0
+    pins:
+      - num: 9
+        side: left
+        net: ""
+        px: 824
+        py: 1456
+      - num: 10
+        side: left
+        net: ""
+        px: 824
+        py: 1485
+      - num: 8
+        side: right
+        net: ""
+        px: 879
+        py: 1455
+    label_left: 9/10
+    label_right: "8"
+    verified: false
+    note: NAND gate (00), output with bubble
+    w: 55
+    h: 86
+  - ref: M63
+    gate: B
+    x: 847
+    "y": 1159
+    rotation: 0
+    pins:
+      - num: 3
+        side: left
+        net: ""
+        px: 815
+        py: 1191
+      - num: 4
+        side: left
+        net: ""
+        px: 815
+        py: 1133
+      - num: 5
+        side: left
+        net: ""
+        px: 815
+        py: 1162
+      - num: 6
+        side: right
+        net: ""
+        px: 876
+        py: 1133
+    label_left: 4,5,3
+    label_right: "6"
+    verified: false
+    note: M11 - upper gate, M63 marking inside
+    w: 61
+    h: 107
+  - ref: M61
+    gate: B
+    x: 847
+    "y": 1268
+    rotation: 0
+    pins:
+      - num: 3
+        side: left
+        net: ""
+        px: 817
+        py: 1243
+      - num: 4
+        side: left
+        net: ""
+        px: 817
+        py: 1272
+      - num: 5
+        side: left
+        net: ""
+        px: 817
+        py: 1302
+      - num: 6
+        side: right
+        net: ""
+        px: 878
+        py: 1243
+    label_left: 3,4,5
+    label_right: "6"
+    verified: false
+    note: M61 - lower gate, 10 marking inside
+    w: 61
+    h: 111
+  - ref: M66
+    gate: A
+    x: 847
+    "y": 933.2878000964232
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: ""
+        px: 817
+        py: 895.2878000964232
+      - num: 2
+        side: left
+        net: ""
+        px: 817
+        py: 975.2878000964232
+      - num: 4
+        side: left
+        net: ""
+        px: 817
+        py: 923.2878000964232
+      - num: 5
+        side: left
+        net: ""
+        px: 817
+        py: 949.2878000964232
+      - num: 6
+        side: right
+        net: ""
+        px: 878
+        py: 892.2878000964232
+    label_left: "&20"
+    label_right: null
+    verified: false
+    note: null
+    w: 61
+    h: 137
+  - ref: M53
+    gate: C
+    x: 847
+    "y": 1054
+    rotation: 0
+    pins:
+      - num: 9
+        side: left
+        net: ""
+        px: 817
+        py: 1053
+      - num: 10
+        side: left
+        net: ""
+        px: 817
+        py: 1082
+      - num: 11
+        side: left
+        net: ""
+        px: 817
+        py: 1028
+      - num: 8
+        side: right
+        net: ""
+        px: 878
+        py: 1028
+    label_left: "&10"
+    label_right: null
+    verified: false
+    note: null
+    w: 61
+    h: 103
+  - ref: M54
+    gate: B
+    x: 1766
+    "y": 217
+    rotation: 0
+    pins:
+      - num: 3
+        side: left
+        net: ""
+        px: 1739
+        py: 208
+      - num: 4
+        side: right
+        net: ""
+        px: 1794
+        py: 206
+    label_left: "3"
+    label_right: "4"
+    verified: false
+    note: "04"
+    w: 55
+    h: 77
+  - ref: M7
+    gate: C
+    x: 1766
+    "y": 295
+    rotation: 0
+    pins:
+      - num: 8
+        side: left
+        net: ""
+        px: 1739
+        py: 283
+      - num: 9
+        side: left
+        net: ""
+        px: 1739
+        py: 311
+      - num: 10
+        side: right
+        net: ""
+        px: 1794
+        py: 284
+    label_left: 8/9
+    label_right: "10"
+    verified: false
+    note: "02"
+    w: 55
+    h: 79
+  - ref: M7
+    gate: D
+    x: 1766
+    "y": 374
+    rotation: 0
+    pins:
+      - num: 11
+        side: left
+        net: ""
+        px: 1739
+        py: 387
+      - num: 12
+        side: left
+        net: ""
+        px: 1739
+        py: 362
+      - num: 13
+        side: right
+        net: ""
+        px: 1794
+        py: 362
+    label_left: 12/11
+    label_right: "13"
+    verified: false
+    note: "02"
+    w: 55
+    h: 79
+  - ref: M17
+    gate: A
+    x: 2013
+    "y": 269
+    rotation: 0
+    pins:
+      - num: 2
+        side: left
+        net: ""
+        px: 1974
+        py: 256
+      - num: 3
+        side: left
+        net: ""
+        px: 1974
+        py: 232
+      - num: 4
+        side: left
+        net: ""
+        px: 1974
+        py: 311
+      - num: 5
+        side: left
+        net: ""
+        px: 1974
+        py: 284
+      - num: 6
+        side: right
+        net: ""
+        px: 2053
+        py: 233
+    label_left: null
+    label_right: "6"
+    verified: false
+    note: 51 oznaczenie wewnetrzne
+    w: 80
+    h: 130
+  - ref: M51
+    gate: B
+    x: 2013
+    "y": 399
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: ""
+        px: 1973
+        py: 408
+      - num: 9
+        side: left
+        net: ""
+        px: 1973
+        py: 361
+      - num: 10
+        side: left
+        net: ""
+        px: 1973
+        py: 387
+      - num: 13
+        side: left
+        net: ""
+        px: 1973
+        py: 438
+      - num: 8
+        side: right
+        net: ""
+        px: 2053
+        py: 362
+    label_left: null
+    label_right: "8"
+    verified: false
+    note: 51 oznaczenie wewnetrzne
+    w: 80
+    h: 130
+  - ref: R7
+    gate: null
+    x: 480.03227126615434
+    "y": 251.81906865209143
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: +5V
+        px: 440
+        py: 251
+      - num: 2
+        side: right
+        net: NET_B85
+        px: 528
+        py: 252
+    value: 1k
+    verified: false
+    note: null
+  - ref: R27
+    gate: null
+    x: 686.9589315495305
+    "y": 314.4439328855966
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: ""
+        px: 646.9589315495305
+        py: 314.4439328855966
+      - num: 2
+        side: right
+        net: ""
+        px: 726.9589315495305
+        py: 314.4439328855966
+    value: 1k
+    verified: false
+    note: null
+  - ref: R28
+    gate: null
+    x: 686.8682176537159
+    "y": 211.7569370504322
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: ""
+        px: 646.8682176537159
+        py: 211.7569370504322
+      - num: 2
+        side: right
+        net: NET_R28_2
+        px: 727
+        py: 212
+    value: 1k
+    verified: false
+    note: null
+  - ref: R15
+    gate: null
+    x: 554.5774074486256
+    "y": 443.0179725228665
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: ""
+        px: 514.5774074486256
+        py: 443.0179725228665
+      - num: 2
+        side: right
+        net: ""
+        px: 594.5774074486256
+        py: 443.0179725228665
+    value: 1k
+    verified: false
+    note: null
+  - ref: JP1
+    gate: null
+    x: 738.2974534294964
+    "y": 235.2854751116494
+    rotation: 0
+    pins:
+      - num: 1
+        side: bottom
+        net: NET_R28_2
+        px: 739
+        py: 237
+    verified: false
+    note: null
+  - ref: JP2
+    gate: null
+    x: 479.27852004474664
+    "y": 868.4660753722671
+    rotation: 0
+    pins:
+      - num: 1
+        side: bottom
+        net: +0V
+        px: 479
+        py: 868
+    verified: false
+    note: null
+power:
+  - type: +5V
+    x: 401
+    "y": 252
+    net: +5V
+  - type: +0V
+    x: 531
+    "y": 868
+    net: +0V
+    rotation: 270
+nets:
+  +5V:
+    pins: []
+    segments:
+      - - 440
+        - 251
+        - 401
+        - 251
+    junctions: null
+  NET_B85:
+    pins: []
+    segments:
+      - - 268
+        - 214
+        - 528
+        - 214
+      - - 528
+        - 214
+        - 529
+        - 159
+      - - 529
+        - 159
+        - 792
+        - 159
+      - - 528
+        - 214
+        - 528
+        - 252
+    junctions: null
+  NET_R28_2:
+    pins: []
+    segments:
+      - - 739
+        - 237
+        - 766
+        - 237
+      - - 766
+        - 237
+        - 924
+        - 237
+      - - 727
+        - 212
+        - 766
+        - 212
+      - - 766
+        - 212
+        - 766
+        - 237
+    junctions: null
+  NET_M35_D_13:
+    pins: []
+    segments:
+      - - 924
+        - 209
+        - 872
+        - 209
+      - - 872
+        - 209
+        - 872
+        - 156
+      - - 872
+        - 156
+        - 847
+        - 156
+    junctions: null
+  +0V:
+    pins: []
+    segments:
+      - - 479
+        - 868
+        - 531
+        - 868
+    junctions: null
+  NET_A11:
+    pins: []
+    segments:
+      - - 267
+        - 896
+        - 608
+        - 896
+    junctions: null
 annotations:
-- {text: 12-006368-01-8A, x: 1802, y: 1451, fontSize: 50}
-- {text: A-y, x: 1730, y: 1503, fontSize: 15, rotation: 270}
-- {text: Ark., x: 1730, y: 1460, fontSize: 15, rotation: 270}
-- {text: '7', x: 1746, y: 1429, fontSize: 30}
-- {text: '12', x: 1746, y: 1477, fontSize: 30}
-- {text: 2-64, x: 1604, y: 1448, fontSize: 40}
-- {text: 'Schemat ideowy
-
-    pakietu P-R3-2', x: 1818, y: 1310, fontSize: 40}
+  - text: 12-006368-01-8A
+    x: 1802
+    "y": 1451
+    fontSize: 50
+  - text: A-y
+    x: 1730
+    "y": 1503
+    fontSize: 15
+    rotation: 270
+  - text: Ark.
+    x: 1730
+    "y": 1460
+    fontSize: 15
+    rotation: 270
+  - text: "7"
+    x: 1746
+    "y": 1429
+    fontSize: 30
+  - text: "12"
+    x: 1746
+    "y": 1477
+    fontSize: 30
+  - text: 2-64
+    x: 1604
+    "y": 1448
+    fontSize: 40
+  - text: |-
+      Schemat ideowy
+      pakietu P-R3-2
+    x: 1818
+    "y": 1310
+    fontSize: 40
 decorations:
-- {kind: line, x1: 1774, y1: 1417, x2: 1592, y2: 1417}
-- {kind: line, x1: 1591, y1: 1416, x2: 1591, y2: 1511}
-- {kind: line, x1: 1590, y1: 1512, x2: 1773, y2: 1512}
-- {kind: line, x1: 1724, y1: 1418, x2: 1724, y2: 1512}
+  - kind: line
+    x1: 1774
+    y1: 1417
+    x2: 1592
+    y2: 1417
+  - kind: line
+    x1: 1591
+    y1: 1416
+    x2: 1591
+    y2: 1511
+  - kind: line
+    x1: 1590
+    y1: 1512
+    x2: 1773
+    y2: 1512
+  - kind: line
+    x1: 1724
+    y1: 1418
+    x2: 1724
+    y2: 1512
+ports:
+  - connector: B
+    pin: 85
+    label: "-RPN"
+    net: NET_B85
+    x: 192
+    "y": 214
+    side: left
+  - connector: B
+    pin: 86
+    label: +BP*NB
+    net: ""
+    x: 192
+    "y": 289
+    side: left
+  - connector: A
+    pin: 92
+    label: +PN*NB
+    net: ""
+    x: 189
+    "y": 342
+    side: left
+  - connector: B
+    pin: 90
+    label: +Q*NB
+    net: ""
+    x: 183
+    "y": 392
+    side: left
+  - connector: B
+    pin: 56
+    label: +W↑BAR
+    net: +W↑BAR
+    x: 189
+    "y": 525
+    side: left
+  - connector: A
+    pin: 89
+    label: "-ZER*FP"
+    net: ""
+    x: 189
+    "y": 737
+    side: left
+  - connector: B
+    pin: 93
+    label: "-CLM"
+    net: ""
+    x: 191
+    "y": 795
+    side: left
+  - connector: A
+    pin: 11
+    label: "-USTRO *FP"
+    net: NET_A11
+    x: 191
+    "y": 896
+    side: left
+  - connector: B
+    pin: 39
+    label: +UST*LEG
+    net: ""
+    x: 188
+    "y": 1488
+    side: left
+  - connector: A
+    pin: 53
+    label: +Q
+    net: ""
+    x: 1320
+    "y": 708
+    side: right
+  - connector: A
+    pin: 52
+    label: "-ZER"
+    net: ""
+    x: 1320
+    "y": 789
+    side: right
+  - connector: B
+    pin: 88
+    label: +ZGPN
+    net: ""
+    x: 1320
+    "y": 202
+    side: right
+  - connector: B
+    pin: 87
+    label: "-DPN"
+    net: ""
+    x: 1320
+    "y": 287
+    side: right
+  - connector: D
+    pin: 48
+    label: ""
+    net: ""
+    x: 1320
+    "y": 362
+    side: right
+  - connector: D
+    pin: 46
+    label: ""
+    net: ""
+    x: 1320
+    "y": 415
+    side: right
+  - connector: B
+    pin: 89
+    label: "-DQB"
+    net: ""
+    x: 1320
+    "y": 469
+    side: right
+  - connector: B
+    pin: 45
+    label: +ARYT
+    net: +ARYT
+    x: 1425
+    "y": 208
+    side: left
+  - connector: A
+    pin: 47
+    label: +ZS
+    net: +ZS
+    x: 1425
+    "y": 259
+    side: left
+  - connector: A
+    pin: 48
+    label: "-CARRY"
+    net: "-CARRY"
+    x: 1425
+    "y": 340
+    side: left
+  - connector: B
+    pin: 44
+    label: +S-1
+    net: +S-1
+    x: 1425
+    "y": 393
+    side: left
+cross_refs:
+  - net: +STROB1
+    label: +STROB1
+    pages:
+      - "1"
+    x: 326
+    "y": 553
+    side: left
+  - net: +W10
+    label: +W10
+    pages:
+      - "4"
+    x: 323
+    "y": 687
+    side: left
+  - net: +WRØ
+    label: +WRØ
+    pages:
+      - "1"
+    x: 322
+    "y": 1137
+    side: left
+  - net: +STROBB
+    label: +STROBB
+    pages:
+      - "1"
+    x: 325
+    "y": 1192
+    side: left
+  - net: +W↑R
+    label: +W↑R
+    pages:
+      - "1"
+    x: 326
+    "y": 1279
+    side: left
+  - net: +STROBA
+    label: +STROBA
+    pages:
+      - "1"
+    x: 324
+    "y": 1407
+    side: left
+  - net: +W1ZMVC
+    label: +W1ZMVC
+    pages:
+      - "8"
+    x: 1190
+    "y": 894
+    side: right
+  - net: +W↑LEGY
+    label: +W↑LEGY
+    pages:
+      - "9"
+    x: 1187
+    "y": 1027
+    side: right
+  - net: +ŁRP
+    label: +ŁRP
+    pages:
+      - "6"
+    x: 1189
+    "y": 1133
+    side: right
+  - net: +W8↑X
+    label: +W8↑X
+    pages:
+      - "9"
+    x: 1189
+    "y": 1241
+    side: right
+  - net: "-CLEG"
+    label: "-CLEG"
+    pages:
+      - "9"
+    x: 1189
+    "y": 1455
+    side: right
+  - net: +BS
+    label: +BS
+    pages:
+      - "11"
+    x: 1186
+    "y": 547
+    side: right
+  - net: "-CNBO-3"
+    label: "-CNBO-3"
+    pages:
+      - "6"
+    x: 1186
+    "y": 575
+    side: right
+  - net: "-CLM"
+    label: "-CLM"
+    pages:
+      - "6"
+    x: 1186
+    "y": 603
+    side: right
+  - net: +Q
+    label: +Q
+    pages:
+      - "11"
+    x: 1235
+    "y": 656
+    side: right
+  - net: "-ZER"
+    label: "-ZER"
+    pages:
+      - "8"
+      - "6"
+    x: 1186
+    "y": 837
+    side: right
+  - net: "-VL"
+    label: "-VL"
+    pages:
+      - "9"
+    x: 2178
+    "y": 360
+    side: right
+  - net: "-V6"
+    label: "-V6"
+    pages:
+      - "9"
+    x: 2178
+    "y": 230
+    side: right
+  - label: +ZS
+    net: +ZS
+    pages:
+      - "9"
+      - "8"
+    x: 1560
+    "y": 284
+    side: left
+  - label: "-CARRY"
+    net: "-CARRY"
+    pages:
+      - "8"
+    x: 1560
+    "y": 310
+    side: left
+  - label: +S-1
+    net: +S-1
+    pages:
+      - "8"
+    x: 1560
+    "y": 414
+    side: left
+  - label: +W11
+    net: +W11
+    pages:
+      - "4"
+    x: 325
+    "y": 472
+    side: left
+  - label: +ŁRØ
+    net: +ŁRØ
+    pages:
+      - "1"
+    x: 300
+    "y": 843
+    side: left
