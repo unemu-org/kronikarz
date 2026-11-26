@@ -1,0 +1,658 @@
+kronikarz: "1"
+package:
+  id: P-R3-2
+  name: P-R3-2
+  doc: 12-006368-01-8A
+  status: raw
+  pages:
+    - id: 2-58
+      file: pages/2-58.sch.yaml
+      scan: scans/2-58.jpg
+      title: Schemat ideowy pakietu P-R3-2
+      status: raw
+      sheet: 1
+    - id: 2-59
+      file: pages/2-59.sch.yaml
+      scan: scans/2-59.jpg
+      title: Schemat ideowy pakietu P-R3-2
+      status: raw
+      sheet: 2
+    - id: 2-60
+      file: pages/2-60.sch.yaml
+      scan: scans/2-60.jpg
+      title: Schemat ideowy pakietu P-R3-2
+      status: raw
+      sheet: 3
+    - id: 2-61
+      file: pages/2-61.sch.yaml
+      scan: scans/2-61.jpg
+      title: Schemat ideowy pakietu P-R3-2
+      status: raw
+      sheet: 4
+    - id: 2-62
+      file: pages/2-62.sch.yaml
+      scan: scans/2-62.jpg
+      title: Schemat ideowy pakietu P-R3-2
+      status: raw
+      sheet: 5
+    - id: 2-63
+      file: pages/2-63.sch.yaml
+      scan: scans/2-63.jpg
+      title: Schemat ideowy pakietu P-R3-2
+      status: raw
+      sheet: 6
+    - id: 2-64
+      file: pages/2-64.sch.yaml
+      scan: scans/2-64.jpg
+      title: Schemat ideowy pakietu P-R3-2
+      status: raw
+      sheet: 7
+    - id: 2-65
+      file: pages/2-65.sch.yaml
+      scan: scans/2-65.jpg
+      title: Schemat ideowy pakietu P-R3-2
+      status: raw
+      sheet: 8
+    - id: 2-66
+      file: pages/2-66.sch.yaml
+      scan: scans/2-66.jpg
+      title: Schemat ideowy pakietu P-R3-2
+      status: raw
+      sheet: 9
+    - id: 2-67
+      file: pages/2-67.sch.yaml
+      scan: scans/2-67.jpg
+      title: Schemat ideowy pakietu P-R3-2
+      status: raw
+      sheet: 10
+    - id: 2-68
+      file: pages/2-68.sch.yaml
+      scan: scans/2-68.jpg
+      title: Schemat ideowy pakietu P-R3-2
+      status: raw
+      sheet: 11
+    - id: 2-69
+      file: pages/2-69.sch.yaml
+      scan: scans/2-69.jpg
+      title: Schemat ideowy pakietu P-R3-2
+      status: raw
+      sheet: 12
+components:
+  M54:
+    ic: "04"
+    pages:
+      - 2-58
+    gates:
+      A:
+        page: 2-58
+      B:
+        page: 2-58
+      D:
+        page: 2-58
+      E:
+        page: 2-58
+      C:
+        page: 2-58
+      F:
+        page: 2-65
+  M64:
+    ic: 8
+    pages:
+      - 2-58
+    gates:
+      A:
+        page: 2-58
+      B:
+        page: 2-58
+      C:
+        page: 2-58
+      D:
+        page: 2-58
+      E:
+        page: 2-58
+  M60:
+    ic: "00"
+    pages:
+      - 2-58
+    gates:
+      A:
+        page: 2-58
+      B:
+        page: 2-58
+      D:
+        page: 2-58
+  M55:
+    ic: "170"
+    pages:
+      - 2-58
+    gates:
+      A:
+        page: 2-58
+      B:
+        page: 2-58
+      D:
+        page: 2-58
+      F:
+        page: 2-58
+      C:
+        page: 2-58
+      E:
+        page: 2-58
+  M65:
+    ic: "10"
+    pages:
+      - 2-58
+    gates:
+      A:
+        page: 2-58
+      B:
+        page: 2-58
+      C:
+        page: 2-58
+  M63:
+    ic: H11
+    pages:
+      - 2-58
+    gates:
+      A:
+        page: 2-58
+      B:
+        page: 2-58
+      C:
+        page: 2-58
+  M40:
+    ic: "04"
+    pages:
+      - 2-58
+    gates:
+      A:
+        page: 2-58
+      B:
+        page: 2-58
+      C:
+        page: 2-58
+      E:
+        page: 2-65
+      F:
+        page: 2-65
+      D:
+        page: 2-65
+  M28:
+    ic: "04"
+    pages:
+      - 2-58
+    gates:
+      A:
+        page: 2-58
+      B:
+        page: 2-58
+      C:
+        page: 2-58
+      D:
+        page: 2-58
+      F:
+        page: 2-66
+      E:
+        page: 2-66
+  M22:
+    ic: "04"
+    pages:
+      - 2-58
+    gates:
+      A:
+        page: 2-58
+      F:
+        page: 2-58
+      E:
+        page: 2-63
+      C:
+        page: 2-64
+  M53:
+    ic: "10"
+    pages:
+      - 2-58
+    gates:
+      A:
+        page: 2-58
+      B:
+        page: 2-58
+      C:
+        page: 2-64
+  M66:
+    ic: "20"
+    pages:
+      - 2-58
+    gates:
+      A:
+        page: 2-58
+      B:
+        page: 2-58
+  M52:
+    ic: "51"
+    pages:
+      - 2-58
+    gates:
+      A:
+        page: 2-58
+      B:
+        page: 2-58
+  M7:
+    ic: "02"
+    pages:
+      - 2-58
+    gates:
+      A:
+        page: 2-58
+      B:
+        page: 2-58
+      C:
+        page: 2-64
+      D:
+        page: 2-64
+  M2:
+    ic: "04"
+    pages:
+      - 2-58
+    gates:
+      A:
+        page: 2-58
+      F:
+        page: 2-58
+      B:
+        page: 2-58
+      D:
+        page: 2-61
+      E:
+        page: 2-62
+      C:
+        page: 2-62
+  M1:
+    ic: "04"
+    gates:
+      A:
+        page: 2-59
+      C:
+        page: 2-59
+      B:
+        page: 2-59
+      E:
+        page: 2-62
+      F:
+        page: 2-66
+      D:
+        page: 2-59
+  M57:
+    ic: "170"
+    gates:
+      A:
+        page: 2-59
+  M56:
+    ic: "170"
+    gates:
+      A:
+        page: 2-59
+  M58:
+    ic: "03"
+    gates:
+      A:
+        page: 2-59
+      B:
+        page: 2-59
+      C:
+        page: 2-59
+      D:
+        page: 2-59
+  M48:
+    ic: "170"
+    gates:
+      A:
+        page: 2-60
+  M47:
+    ic: "170"
+    gates:
+      A:
+        page: 2-60
+  M3:
+    ic: "04"
+    gates:
+      A:
+        page: 2-60
+      D:
+        page: 2-60
+      B:
+        page: 2-60
+      C:
+        page: 2-60
+      F:
+        page: 2-61
+      E:
+        page: 2-61
+  M49:
+    ic: "03"
+    gates:
+      A:
+        page: 2-60
+      B:
+        page: 2-60
+      C:
+        page: 2-60
+      D:
+        page: 2-60
+  M41:
+    ic: "03"
+    gates:
+      A:
+        page: 2-61
+      C:
+        page: 2-61
+      B:
+        page: 2-63
+      D:
+        page: 2-63
+  M38:
+    ic: "03"
+    gates:
+      A:
+        page: 2-61
+      C:
+        page: 2-61
+      D:
+        page: 2-61
+      B:
+        page: 2-61
+  M36:
+    ic: "170"
+    gates:
+      A:
+        page: 2-61
+  M37:
+    ic: "170"
+    gates:
+      A:
+        page: 2-61
+  M26:
+    ic: "03"
+    gates:
+      A:
+        page: 2-62
+      B:
+        page: 2-62
+      C:
+        page: 2-62
+      D:
+        page: 2-62
+  M24:
+    ic: "170"
+    gates:
+      A:
+        page: 2-62
+  M25:
+    ic: "170"
+    gates:
+      A:
+        page: 2-62
+  M42:
+    ic: "175"
+    gates:
+      A:
+        page: 2-63
+  M30:
+    ic: "175"
+    gates:
+      A:
+        page: 2-63
+  M31:
+    ic: "175"
+    gates:
+      A:
+        page: 2-63
+  M19:
+    ic: "174"
+    gates:
+      A:
+        page: 2-63
+  M8:
+    ic: "00"
+    gates:
+      A:
+        page: 2-63
+      B:
+        page: 2-66
+  M18:
+    ic: "74"
+    gates:
+      A:
+        page: 2-63
+      B:
+        page: 2-66
+  M34:
+    ic: "03"
+    gates:
+      A:
+        page: 2-63
+      C:
+        page: 2-63
+      B:
+        page: 2-63
+      D:
+        page: 2-63
+  M29:
+    ic: "03"
+    gates:
+      A:
+        page: 2-63
+      B:
+        page: 2-63
+      D:
+        page: 2-63
+      C:
+        page: 2-63
+  M51:
+    ic: "51"
+    gates:
+      A:
+        page: 2-64
+      B:
+        page: 2-64
+  M17:
+    ic: "51"
+    gates:
+      A:
+        page: 2-64
+      B:
+        page: 2-66
+  M23:
+    ic: "03"
+    gates:
+      A:
+        page: 2-64
+      D:
+        page: 2-64
+      C:
+        page: 2-64
+      B:
+        page: 2-64
+  M35:
+    ic: "86"
+    gates:
+      B:
+        page: 2-64
+      C:
+        page: 2-64
+      D:
+        page: 2-64
+      A:
+        page: 2-65
+  M43:
+    ic: "74"
+    gates:
+      A:
+        page: 2-64
+      B:
+        page: 2-64
+  M9:
+    ic: "00"
+    gates:
+      A:
+        page: 2-64
+      B:
+        page: 2-64
+      C:
+        page: 2-65
+  M46:
+    ic: "08"
+    gates:
+      A:
+        page: 2-64
+      D:
+        page: 2-64
+      C:
+        page: 2-65
+  M50:
+    ic: "74"
+    gates:
+      A:
+        page: 2-64
+      B:
+        page: 2-66
+  M62:
+    ic: "20"
+    gates:
+      A:
+        page: 2-64
+      B:
+        page: 2-64
+  M61:
+    ic: "10"
+    gates:
+      A:
+        page: 2-64
+      C:
+        page: 2-64
+      B:
+        page: 2-64
+  M6:
+    ic: "00"
+    gates:
+      A:
+        page: 2-64
+      C:
+        page: 2-64
+      D:
+        page: 2-66
+  R7:
+    ic: null
+    type: resistor
+    value: 1k
+    pages:
+      - 2-64
+  R27:
+    ic: null
+    type: resistor
+    value: 1k
+    pages:
+      - 2-64
+  R28:
+    ic: null
+    type: resistor
+    value: 1k
+    pages:
+      - 2-64
+  R15:
+    ic: null
+    type: resistor
+    value: 1k
+    pages:
+      - 2-64
+  JP1:
+    ic: null
+    type: jumper
+    positions:
+      - "9"
+    selected: "9"
+    pages:
+      - 2-64
+  JP2:
+    ic: null
+    type: jumper
+    positions:
+      - C
+    selected: null
+    pages:
+      - 2-64
+  M115:
+    ic: "51"
+    gates:
+      A:
+        page: 2-65
+  M39:
+    ic: H106
+    gates:
+      A:
+        page: 2-65
+      B:
+        page: 2-65
+  M59:
+    ic: "74"
+    gates:
+      A:
+        page: 2-65
+      B:
+        page: 2-65
+  M14:
+    ic: "51"
+    gates:
+      A:
+        page: 2-65
+      B:
+        page: 2-65
+  M15:
+    ic: "51"
+    gates:
+      A:
+        page: 2-65
+      B:
+        page: 2-65
+  M12:
+    ic: "00"
+    gates:
+      A:
+        page: 2-65
+      C:
+        page: 2-65
+      D:
+        page: 2-65
+      B:
+        page: 2-65
+  M13:
+    ic: "00"
+    gates:
+      A:
+        page: 2-66
+      B:
+        page: 2-66
+      C:
+        page: 2-66
+      D:
+        page: 2-66
+  M5:
+    ic: "51"
+    gates:
+      A:
+        page: 2-66
+      B:
+        page: 2-66
+  M4:
+    ic: "51"
+    gates:
+      A:
+        page: 2-66
+      B:
+        page: 2-66
+  M27:
+    ic: "74"
+    gates:
+      A:
+        page: 2-66
+      B:
+        page: 2-66

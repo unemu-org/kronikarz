@@ -1,0 +1,59 @@
+# Zestaw wzorcowy (gold) dla scripts/eval-digitize.py.
+#
+# Pliki w data/gold/ to zamrożone kopie stron zweryfikowanych ręcznie przez człowieka.
+# Żaden pipeline (CV, VLM, gen-stubs, vision-*) NIGDY ich nie edytuje ani nie nadpisuje.
+# Poprawka wzorca = świadoma, ręczna decyzja człowieka: nowa kopia ze źródła + nowe sha256
+# poniżej + osobny commit.
+#
+# scope:
+#   full       — bramki + piny + porty + cross_refy + druty/nety (wszystkie metryki)
+#   gates_only — bramki, piny, porty, cross_refy; bez drutów i spójności netów
+#
+# Układ: <pakiet>/<strona>.sch.yaml; <pakiet>/package.yaml to zamrożony rejestr komponentów
+# pakietu (kontekst, sprawdzany sha256 jak strony). Każdy plik z listy MUSI mieć sha256;
+# brak pliku = błąd (exit 3), brak sha256 lub niezgodność = błąd (exit 3), chyba że
+# --allow-modified. Kandydat ma układ <pakiet>/<strona>.sch.yaml albo <pakiet>/pages/<strona>.sch.yaml.
+#
+# Historia poprawek wzorca (każda po decyzji opiekuna, ponowne zamrożenie ze źródła):
+#   - 2-59: net "" (7 odcinków-śmieci na krawędziach prostokątów bramek, niewidocznych
+#     w viewerze, łączących różne nety) usunięty po kontroli wizualnej skanu.
+#   - 2-59, 2-60, package.yaml: litery bramek M1 (2-59: piny 9→8 = D, 1→2 = A) i M47
+#     (2-60: 74170 ma jedną bramkę A) ustawione z numerów pinów w ic_map; package.yaml:
+#     M1 dostaje bramkę D na 2-59.
+kronikarz_gold: 1
+frozen_from: data/MJC-400 @ 2f51e23 (+ poprawki opiekuna powyżej)
+packages:
+  P-R3-2:
+    file: P-R3-2/package.yaml
+    sha256: dad2df0261971f3501226f325f41e2dcab3f4ab6e96f82727a5c90918e2f067b
+    note: gate letters M1 (2-59) and M47 (2-60) set from ic_map pin numbers (M1 D na 2-59)
+pages:
+  - package: P-R3-2
+    page: 2-58
+    file: P-R3-2/2-58.sch.yaml
+    scope: full
+    sha256: 026da090ea1d34470a217fe702807e6c00e59ba052bcad8a8e7e94da8afb809c
+  - package: P-R3-2
+    page: 2-59
+    file: P-R3-2/2-59.sch.yaml
+    scope: full
+    sha256: 2463352b39c0d177e681de3d5e95b921ace2d9958d21d17ebd184b6b00722ebc
+    note: >-
+      net "" usunięty (7 odcinków-śmieci) po kontroli wizualnej opiekuna;
+      gate letters M1 (2-59) and M47 (2-60) set from ic_map pin numbers
+  - package: P-R3-2
+    page: 2-60
+    file: P-R3-2/2-60.sch.yaml
+    scope: full
+    sha256: 1a2f9a2bef42ee8c42723a14ab507c0e1d8e06fe023eb9066c7bfa67c1096b1a
+    note: gate letters M1 (2-59) and M47 (2-60) set from ic_map pin numbers
+  - package: P-R3-2
+    page: 2-61
+    file: P-R3-2/2-61.sch.yaml
+    scope: full
+    sha256: 98b08c69b7f2dcd94110f4db1ca4d1ba61eb5e71eae1e9af7c18ab8be7f509a8
+  - package: P-R3-2
+    page: 2-63
+    file: P-R3-2/2-63.sch.yaml
+    scope: gates_only
+    sha256: 4e925af679d9f6582893bd08d5dde305d788c978dda737b3b30a899ab5e27daf

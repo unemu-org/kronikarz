@@ -1,0 +1,1066 @@
+kronikarz: "1"
+page: 2-60
+package: P-R3-2
+scan_size:
+  - 2340
+  - 1654
+gates:
+  - ref: M3
+    gate: B
+    x: 474
+    "y": 885
+    rotation: 0
+    pins:
+      - num: 3
+        side: left
+        net: NET_B25
+        px: 451
+        py: 872
+      - num: 4
+        side: right
+        net: +W6
+        px: 500
+        py: 872
+    label_left: "3"
+    label_right: "4"
+    verified: true
+    note: "04"
+    w: 52
+    h: 83
+  - ref: M3
+    gate: C
+    x: 474
+    "y": 967
+    rotation: 0
+    pins:
+      - num: 5
+        side: left
+        net: NET_B23
+        px: 447
+        py: 954
+      - num: 6
+        side: right
+        net: +W7
+        px: 499
+        py: 956
+    label_left: "5"
+    label_right: "6"
+    verified: true
+    note: "04"
+    w: 52
+    h: 81
+  - ref: M47
+    gate: A
+    x: 788.4661432870655
+    "y": 623.6995521524741
+    rotation: 0
+    pins:
+      - num: 11
+        side: left
+        net: "-CZYTRN"
+        px: 734.4433272512681
+        py: 473.93922711412483
+      - num: 4
+        side: left
+        net: +RA
+        px: 734
+        py: 501
+      - num: 5
+        side: left
+        net: +RA
+        px: 734
+        py: 530
+      - num: 15
+        side: left
+        net: +W4
+        px: 734.4433272512681
+        py: 580.9392271141248
+      - num: 1
+        side: left
+        net: +W5
+        px: 734.4433272512681
+        py: 609.9392271141248
+      - num: 2
+        side: left
+        net: +W6
+        px: 734
+        py: 637
+      - num: 3
+        side: left
+        net: +W7
+        px: 734
+        py: 662
+      - num: 14
+        side: left
+        net: +RA
+        px: 734
+        py: 713
+      - num: 13
+        side: left
+        net: +RA
+        px: 734
+        py: 741
+      - num: 12
+        side: left
+        net: "-PISZRN"
+        px: 734
+        py: 767
+      - num: 10
+        side: right
+        net: NET_M49_B_6
+        px: 842
+        py: 583
+      - num: 9
+        side: right
+        net: NET_A10
+        px: 842
+        py: 610
+      - num: 7
+        side: right
+        net: NET_M49_D_11
+        px: 842
+        py: 639
+      - num: 6
+        side: right
+        net: +L7
+        px: 842
+        py: 664
+    label_left: null
+    label_right: null
+    verified: true
+    note: R 170 RAM block
+    w: 108
+    h: 342
+  - ref: M48
+    gate: A
+    x: 789.6550159463823
+    "y": 966.3131658445441
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: +W5
+        px: 734.2993398196132
+        py: 953.6179605354487
+      - num: 2
+        side: left
+        net: +W6
+        px: 734
+        py: 982
+      - num: 3
+        side: left
+        net: +W7
+        px: 734
+        py: 1008
+      - num: 4
+        side: left
+        net: +RA
+        px: 735
+        py: 842
+      - num: 10
+        side: right
+        net: NET_M49_B_6
+        px: 842
+        py: 924
+      - num: 11
+        side: left
+        net: "-CZYTRW"
+        px: 734.2993398196132
+        py: 816.6179605354487
+      - num: 12
+        side: left
+        net: "-PISZRW"
+        px: 734.2993398196132
+        py: 1113.6179605354487
+      - num: 13
+        side: left
+        net: +RA
+        px: 734
+        py: 1086
+      - num: 14
+        side: left
+        net: +RA
+        px: 734
+        py: 1060
+      - num: 15
+        side: left
+        net: +W4
+        px: 734.2993398196132
+        py: 927.6179605354487
+      - num: 5
+        side: left
+        net: +RA
+        px: 736
+        py: 870
+      - num: 6
+        side: right
+        net: +L7
+        px: 842
+        py: 1005
+      - num: 7
+        side: right
+        net: NET_M49_D_11
+        px: 842
+        py: 978
+      - num: 9
+        side: right
+        net: NET_A10
+        px: 842
+        py: 957
+    label_left: null
+    label_right: null
+    verified: true
+    note: R 170 RAM block
+    w: 108
+    h: 349
+  - ref: M3
+    gate: D
+    x: 476
+    "y": 594
+    rotation: 0
+    pins:
+      - num: 9
+        side: left
+        net: NET_B22
+        px: 451
+        py: 582
+      - num: 8
+        side: right
+        net: +W4
+        px: 500
+        py: 580
+    label_left: "9"
+    label_right: "8"
+    verified: true
+    note: 04 (inverter)
+    w: 52
+    h: 76
+  - ref: M3
+    gate: A
+    x: 476
+    "y": 674
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: NET_B24
+        px: 451
+        py: 662
+      - num: 2
+        side: right
+        net: +W5
+        px: 503
+        py: 662
+    label_left: "1"
+    label_right: "2"
+    verified: true
+    note: 04 (inverter)
+    w: 52
+    h: 83
+  - ref: M49
+    gate: B
+    x: 1211
+    "y": 175.17708672858572
+    rotation: 0
+    pins:
+      - num: 4
+        side: left
+        net: "-L"
+        px: 1183
+        py: 159
+      - num: 5
+        side: left
+        net: +RPA
+        px: 1183
+        py: 189
+      - num: 6
+        side: right
+        net: NET_M49_B_6
+        px: 1240
+        py: 161
+    label_left: 4,5
+    label_right: "6"
+    verified: true
+    note: null
+    w: 57
+    h: 81
+  - ref: M49
+    gate: C
+    x: 1211
+    "y": 255
+    rotation: 0
+    pins:
+      - num: 9
+        side: left
+        net: +RPA
+        px: 1183
+        py: 239
+      - num: 10
+        side: left
+        net: "-E"
+        px: 1183
+        py: 264
+      - num: 8
+        side: right
+        net: NET_A10
+        px: 1240
+        py: 241
+    label_left: 9,10
+    label_right: "8"
+    verified: true
+    note: null
+    w: 57
+    h: 78
+  - ref: M49
+    gate: D
+    x: 1211
+    "y": 333
+    rotation: 0
+    pins:
+      - num: 12
+        side: left
+        net: +RPA
+        px: 1183
+        py: 319
+      - num: 13
+        side: left
+        net: "-G"
+        px: 1183
+        py: 344
+      - num: 11
+        side: right
+        net: NET_M49_D_11
+        px: 1240
+        py: 318
+    label_left: 12,13
+    label_right: "11"
+    verified: true
+    note: null
+    w: 57
+    h: 78
+  - ref: M49
+    gate: A
+    x: 1211
+    "y": 412
+    rotation: 0
+    pins:
+      - num: 1
+        side: left
+        net: "-Y"
+        px: 1183
+        py: 421
+      - num: 2
+        side: left
+        net: +RPA
+        px: 1183
+        py: 397
+      - num: 3
+        side: right
+        net: +L7
+        px: 1240
+        py: 397
+    label_left: 2,1
+    label_right: "3"
+    verified: true
+    note: null
+    w: 57
+    h: 81
+power: []
+nets:
+  +RPA:
+    pins: []
+    segments:
+      - - 314
+        - 189
+        - 1134
+        - 189
+      - - 1134
+        - 189
+        - 1183
+        - 189
+      - - 1183
+        - 397
+        - 1134
+        - 397
+      - - 1134
+        - 397
+        - 1134
+        - 319
+      - - 1134
+        - 319
+        - 1134
+        - 239
+      - - 1134
+        - 239
+        - 1134
+        - 189
+      - - 1183
+        - 239
+        - 1134
+        - 239
+      - - 1183
+        - 319
+        - 1134
+        - 319
+      - - 1134
+        - 319
+        - 1134
+        - 319
+    junctions: null
+  "-L":
+    pins: []
+    segments:
+      - - 314
+        - 159
+        - 1183
+        - 159
+    junctions: null
+  "-E":
+    pins: []
+    segments:
+      - - 314
+        - 264
+        - 1183
+        - 264
+    junctions: null
+  "-G":
+    pins: []
+    segments:
+      - - 314
+        - 344
+        - 1183
+        - 344
+    junctions: null
+  "-Y":
+    pins: []
+    segments:
+      - - 314
+        - 421
+        - 1183
+        - 421
+    junctions: null
+  "-CZYTRN":
+    pins: []
+    segments:
+      - - 314
+        - 473
+        - 734.4433272512681
+        - 473.93922711412483
+    junctions: null
+  NET_B22:
+    pins: []
+    segments:
+      - - 266
+        - 582
+        - 451
+        - 582
+    junctions: null
+  NET_B24:
+    pins: []
+    segments:
+      - - 266
+        - 662
+        - 451
+        - 662
+    junctions: null
+  "-CZYTRW":
+    pins: []
+    segments:
+      - - 298
+        - 818
+        - 734.2993398196132
+        - 816.6179605354487
+    junctions: null
+  NET_B25:
+    pins: []
+    segments:
+      - - 264
+        - 872
+        - 451
+        - 872
+    junctions: null
+  NET_B23:
+    pins: []
+    segments:
+      - - 264
+        - 954
+        - 447
+        - 954
+    junctions: null
+  +RA:
+    pins: []
+    segments:
+      - - 734
+        - 530
+        - 687
+        - 530
+      - - 687
+        - 530
+        - 687
+        - 712
+      - - 687
+        - 712
+        - 734
+        - 713
+      - - 736
+        - 870
+        - 687
+        - 870
+      - - 687
+        - 870
+        - 687
+        - 712
+      - - 687
+        - 870
+        - 687
+        - 1060
+      - - 687
+        - 1060
+        - 734
+        - 1060
+      - - 687
+        - 1060
+        - 301
+        - 1060
+      - - 301
+        - 1060
+        - 301
+        - 1086
+      - - 301
+        - 1086
+        - 658
+        - 1086
+      - - 658
+        - 1086
+        - 734
+        - 1086
+      - - 658
+        - 1086
+        - 658
+        - 842
+      - - 658
+        - 842
+        - 658
+        - 741
+      - - 658
+        - 741
+        - 658
+        - 501
+      - - 658
+        - 501
+        - 734
+        - 501
+      - - 658
+        - 842
+        - 735
+        - 842
+      - - 658
+        - 741
+        - 734
+        - 741
+    junctions: []
+  "-PISZRW":
+    pins: []
+    segments:
+      - - 300
+        - 1115
+        - 734.2993398196132
+        - 1113.6179605354487
+    junctions: null
+  +W5:
+    pins: []
+    segments:
+      - - 608
+        - 955
+        - 608
+        - 1244
+      - - 608
+        - 1244
+        - 1119
+        - 1244
+      - - 503
+        - 662
+        - 608
+        - 662
+      - - 608
+        - 662
+        - 608
+        - 609
+      - - 608
+        - 609
+        - 734.4433272512681
+        - 609.9392271141248
+      - - 608
+        - 662
+        - 608
+        - 955
+      - - 608
+        - 955
+        - 734.2993398196132
+        - 953.6179605354487
+    junctions: null
+  +W4:
+    pins: []
+    segments:
+      - - 635
+        - 580
+        - 634
+        - 928
+      - - 634
+        - 928
+        - 634
+        - 1194
+      - - 634
+        - 1194
+        - 1119
+        - 1194
+      - - 500
+        - 580
+        - 635
+        - 580
+      - - 635
+        - 580
+        - 734.4433272512681
+        - 580.9392271141248
+      - - 734.2993398196132
+        - 927.6179605354487
+        - 634
+        - 928
+    junctions: null
+  "-PISZRN":
+    pins: []
+    segments:
+      - - 298
+        - 767
+        - 734
+        - 767
+    junctions: null
+  NET_M49_B_6:
+    pins: []
+    segments:
+      - - 1240
+        - 161
+        - 1421
+        - 161
+      - - 1421
+        - 161
+        - 1421
+        - 924
+      - - 1421
+        - 924
+        - 1421
+        - 928
+      - - 1421
+        - 928
+        - 1558
+        - 928
+      - - 842
+        - 924
+        - 972
+        - 924
+      - - 972
+        - 924
+        - 1421
+        - 924
+      - - 972
+        - 924
+        - 972
+        - 583
+      - - 972
+        - 583
+        - 842
+        - 583
+    junctions: null
+  NET_A10:
+    pins: []
+    segments:
+      - - 1558
+        - 818
+        - 1394
+        - 818
+      - - 1394
+        - 818
+        - 1394
+        - 241
+      - - 1394
+        - 241
+        - 1240
+        - 241
+      - - 1394
+        - 818
+        - 1394
+        - 957
+      - - 1394
+        - 957
+        - 947
+        - 957
+      - - 947
+        - 957
+        - 842
+        - 957
+      - - 947
+        - 957
+        - 947
+        - 610
+      - - 947
+        - 610
+        - 842
+        - 610
+    junctions: null
+  +L7:
+    pins: []
+    segments:
+      - - 842
+        - 1005
+        - 894
+        - 1005
+      - - 894
+        - 1005
+        - 1344
+        - 1005
+      - - 1344
+        - 1005
+        - 1554
+        - 1005
+      - - 1240
+        - 397
+        - 1344
+        - 397
+      - - 1344
+        - 397
+        - 1344
+        - 1005
+      - - 842
+        - 664
+        - 894
+        - 664
+      - - 894
+        - 664
+        - 894
+        - 1005
+    junctions: null
+  NET_M49_D_11:
+    pins: []
+    segments:
+      - - 1240
+        - 318
+        - 1369
+        - 318
+      - - 1369
+        - 318
+        - 1369
+        - 870
+      - - 1369
+        - 870
+        - 1559
+        - 870
+      - - 842
+        - 978
+        - 921
+        - 978
+      - - 921
+        - 978
+        - 1368
+        - 978
+      - - 1368
+        - 978
+        - 1369
+        - 870
+      - - 921
+        - 978
+        - 921
+        - 639
+      - - 921
+        - 639
+        - 842
+        - 639
+    junctions: null
+  +W6:
+    pins: []
+    segments:
+      - - 734
+        - 637
+        - 580
+        - 637
+      - - 580
+        - 637
+        - 580
+        - 871
+      - - 580
+        - 871
+        - 500
+        - 872
+      - - 580
+        - 871
+        - 580
+        - 981
+      - - 580
+        - 981
+        - 734
+        - 982
+      - - 580
+        - 981
+        - 580
+        - 1300
+      - - 580
+        - 1300
+        - 1121
+        - 1300
+    junctions: null
+  +W7:
+    pins: []
+    segments:
+      - - 734
+        - 662
+        - 712
+        - 662
+      - - 712
+        - 662
+        - 712
+        - 689
+      - - 712
+        - 689
+        - 551
+        - 689
+      - - 551
+        - 689
+        - 551
+        - 956
+      - - 551
+        - 956
+        - 499
+        - 956
+      - - 551
+        - 956
+        - 551
+        - 1006
+      - - 551
+        - 1006
+        - 734
+        - 1008
+      - - 551
+        - 1006
+        - 551
+        - 1355
+      - - 551
+        - 1355
+        - 1119
+        - 1355
+    junctions: null
+annotations:
+  - text: 12-006368-01-8A
+    x: 1802
+    "y": 1451
+    fontSize: 50
+  - text: A-y
+    x: 1730
+    "y": 1503
+    fontSize: 15
+    rotation: 270
+  - text: Ark.
+    x: 1730
+    "y": 1460
+    fontSize: 15
+    rotation: 270
+  - text: "3"
+    x: 1746
+    "y": 1429
+    fontSize: 30
+  - text: "12"
+    x: 1746
+    "y": 1477
+    fontSize: 30
+  - text: 2-60
+    x: 1604
+    "y": 1448
+    fontSize: 40
+  - text: |-
+      Schemat ideowy
+      pakietu P-R3-2
+    x: 1818
+    "y": 1310
+    fontSize: 40
+cross_refs:
+  - net: "-E"
+    label: "-E"
+    pages:
+      - "9"
+    x: 314
+    "y": 264
+    side: left
+  - net: "-G"
+    label: "-G"
+    pages:
+      - "9"
+    x: 314
+    "y": 344
+    side: left
+  - net: "-Y"
+    label: "-Y"
+    pages:
+      - "9"
+    x: 314
+    "y": 421
+    side: left
+  - net: "-CZYTRN"
+    label: "-CZYTRN"
+    pages:
+      - "1"
+    x: 314
+    "y": 473
+    side: left
+  - net: "-PISZRN"
+    label: "-PISZRN"
+    pages:
+      - "1"
+    x: 298
+    "y": 767
+    side: left
+  - net: "-CZYTRW"
+    label: "-CZYTRW"
+    pages:
+      - "1"
+    x: 298
+    "y": 818
+    side: left
+  - net: +RA
+    label: +RA
+    pages:
+      - "1"
+    x: 301
+    "y": 1060
+    side: left
+  - net: +RA
+    label: +RB
+    pages:
+      - "1"
+    x: 301
+    "y": 1086
+    side: left
+  - net: "-PISZRW"
+    label: "-PISZRW"
+    pages:
+      - "1"
+    x: 300
+    "y": 1115
+    side: left
+  - net: +W4
+    label: +W4
+    pages:
+      - "9"
+    x: 1121
+    "y": 1194
+    side: right
+  - net: +W5
+    label: +W5
+    pages:
+      - "9"
+    x: 1121
+    "y": 1244
+    side: right
+  - net: +W6
+    label: +W6
+    pages:
+      - "9"
+    x: 1121
+    "y": 1300
+    side: right
+  - net: +W7
+    label: +W7
+    pages:
+      - "9"
+    x: 1121
+    "y": 1355
+    side: right
+  - label: "-L"
+    net: "-L"
+    pages:
+      - "9"
+    x: 314
+    "y": 159
+    side: left
+  - label: +RPA
+    net: +RPA
+    pages:
+      - "1"
+    x: 314
+    "y": 189
+    side: left
+decorations:
+  - kind: line
+    x1: 1774
+    y1: 1417
+    x2: 1592
+    y2: 1417
+  - kind: line
+    x1: 1591
+    y1: 1416
+    x2: 1591
+    y2: 1511
+  - kind: line
+    x1: 1590
+    y1: 1512
+    x2: 1773
+    y2: 1512
+  - kind: line
+    x1: 1724
+    y1: 1418
+    x2: 1724
+    y2: 1512
+ports:
+  - connector: B
+    pin: 22
+    label: "-W4"
+    net: NET_B22
+    x: 191
+    "y": 581
+    side: left
+  - connector: B
+    pin: 24
+    label: "-W5"
+    net: NET_B24
+    x: 190
+    "y": 662
+    side: left
+  - connector: B
+    pin: 25
+    label: "-W6"
+    net: NET_B25
+    x: 188
+    "y": 872
+    side: left
+  - connector: B
+    pin: 23
+    label: "-W7"
+    net: NET_B23
+    x: 188
+    "y": 954
+    side: left
+  - connector: A
+    pin: 10
+    label: +L5
+    net: NET_A10
+    x: 1634
+    "y": 818
+    side: right
+  - connector: A
+    pin: 26
+    label: +L6
+    net: NET_M49_D_11
+    x: 1635
+    "y": 872
+    side: right
+  - connector: A
+    pin: 9
+    label: +L4
+    net: NET_M49_B_6
+    x: 1634
+    "y": 926
+    side: right
+  - connector: A
+    pin: 25
+    label: +L7
+    net: +L7
+    x: 1630
+    "y": 1008
+    side: right

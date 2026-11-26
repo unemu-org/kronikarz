@@ -77,12 +77,56 @@ ma liczbę, którą poprawiamy.
 
 - **Zestaw wzorcowy:** P-R3-2 2-58…2-61 (komplet) + 2-63 (bramki) + 2 arkusze z innych
   pakietów (ręcznie, dla różnorodności — jedyny zaplanowany koszt ludzki).
-- **Metryki:** bramki (precision/recall przy IoU ≥ 0,5; dokładność ref/typu/litery), piny
-  (dokładność numeru), druty (recall odcinków w tolerancji 3 px), nety (zgodność podziału
-  pinów na nety — para pinów w tym samym necie lub nie), porty i cross-refy (dokładność
-  etykiet), czas na arkusz.
+- **Metryki** (`scripts/eval-digitize.py`, szczegóły niżej): połączenia na poziomie
+  endpointów (`ep_acc` — odsetek pinów/portów/cross-refów w pełni poprawnie połączonych),
+  pary endpointów (`pair_F1`), bramki (P/R przy IoU ≥ 0,5; dokładność ref i litery), piny
+  (P/R numerów, błąd położenia), druty (P/R/F1 w tolerancji 3 px z przynależnością do netu),
+  junctions, porty i cross-refy (dokładność etykiet), czas na arkusz.
 - **Linia bazowa:** obecny `vision-page.py` (Claude) na tych samych arkuszach.
-- **Próg sukcesu etapu:** ≤ 5 poprawek na arkusz przy ≥ 95 % poprawnych par pin–net.
+- **Próg sukcesu etapu:** ≤ 5 poprawek na arkusz przy `ep_acc` ≥ 95 % (≥ 95 % endpointów
+  ma dokładnie te same współczłonki netu co we wzorcu).
+
+Zestaw wzorcowy jest zamrożony w `data/gold/` (`manifest.yaml`: strony, `scope`
+`full`/`gates_only`, sha256 każdego pliku, historia poprawek opiekuna). Pipeline'y nigdy go nie
+edytują. Integralność jest sprawdzana przed oceną: brak pliku = exit 3; brak sha256 albo
+niezgodne sha256 = exit 3 (obejście `--allow-modified`). Kandydat ma układ
+`<pakiet>/<strona>.sch.yaml` albo `<pakiet>/pages/<strona>.sch.yaml` (działa też
+`--candidate data/MJC-400`); brak strony = strona pusta, brak wszystkich = błąd, exit 2.
+
+```bash
+uv run scripts/eval-digitize.py --gold data/gold --candidate <katalog> [--json wynik.json]
+```
+
+Wynik: tabela per strona + `TOTAL` (micro-average: liczniki sumowane po stronach) i linia
+`HEADLINE ep_acc=… pair_F1=… gate_F1=… wire_F1=…`.
+
+- `ep_acc` (liczba nagłówkowa): dla każdego endpointu wzorca (pin `REF.GATE.NUM`, port,
+  cross-ref) zbiór pozostałych endpointów jego netu we wzorcu i u kandydata musi być identyczny;
+  nazwy netów nie muszą się zgadzać. Nieodnaleziony endpoint = błąd; endpoint kandydata bez
+  odpowiednika w necie = błędny członek. `epJac` to średni Jaccard tych zbiorów (miękka diagnostyka).
+- `pair_F1`: dla każdej pary endpointów z sumy wzorca i kandydata — czy leżą w tym samym necie.
+  Waży nety kwadratem rozmiaru (jeden net z 10 endpointami = 45 par), dlatego nie jest nagłówkiem.
+  `pF1cond` to samo tylko na endpointach dopasowanych w obu.
+- Bramki: IoU ≥ 0,5; brak `w`/`h` = domyślny rozmiar viewera (`autoBox`). Piny: precision
+  i recall numerów w dopasowanych bramkach.
+- Druty: geometria per net znormalizowana (scalone współliniowe odcinki, bez duplikatów), próbki
+  co 5 px deduplikowane na siatce 1 px. Nety kandydata mapowane 1:1 na nety wzorca po wspólnych
+  endpointach (rozstrzygająco geometrią). Próbka liczy się tylko przy odcinku ZMAPOWANEGO netu,
+  więc druty przypisane do złych netów nie dają punktów. `wF1geom` = to samo bez netów.
+  Nety o pustej nazwie są pomijane (viewer ich nie rysuje).
+- Junctions: zapisane `junctions` ∪ kropki z reguły viewera (≥ 3 końce odcinków jednego netu
+  w dokładnie tym samym punkcie; duplikaty odcinków liczą się raz). T-złącze bez podziału
+  odcinka nie dostaje kropki — tak jak w viewerze.
+- Druty, junctions, pary i `ep_*` tylko na stronach `full`.
+
+Testy (nie zostawiają `__pycache__` ani `.pytest_cache`):
+`PYTHONDONTWRITEBYTECODE=1 uv run --with pytest --with pyyaml --with numpy --with scipy pytest -p no:cacheprovider scripts/test_eval_digitize.py`.
+
+## Pętla uczenia
+
+Każda strona zatwierdzona przez człowieka to dane treningowe. Pipeline zapisuje niezmienny snapshot swojego wyniku; po zatwierdzeniu `learn-diff` porównuje go ze stroną i dopisuje poprawki do logu (`kr-9p8.10`). `just learn` (`kr-9p8.12`) po sesji przeglądu: słownik etykiet netów, typów IC, refów i pinów (samokorekta, ograniczenie odpowiedzi VLM); przykłady few-shot z podobnych zatwierdzonych wycinków; retrening YOLO i ewentualnej segmentacji drutów; strojenie parametrów CV (Optuna, `kr-9p8.11`); LoRA VLM (`kr-9p8.9`). Nowa wersja wchodzi tylko, jeśli jest lepsza na `data/gold` bez regresji.
+
+**Zasada:** `data/gold` służy wyłącznie do testu — nigdy do treningu ani strojenia. Uczymy się tylko na stronach zatwierdzonych spoza wzorca.
 
 ## Modele online — dla porównania
 
