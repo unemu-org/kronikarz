@@ -41,6 +41,13 @@ validate PKG="data/MJC-400/P-X3-2":
 install:
     npm install
 
+# Skany MJC-400 z oracles (fetch-only PDF) -> data/scans-raw + data/MJC-400/*/scans
+scans:
+    git submodule update --init oracles
+    # tylko ten jeden PDF (pełne ./fetch-oracles.sh fetch to kilka GB); pin sprawdza extract-scans.py
+    test -s oracles/mera400/mera400-dtr-t4-cz2-mjc400-schematy.pdf || (mkdir -p oracles/mera400 && curl -fL -o oracles/mera400/mera400-dtr-t4-cz2-mjc400-schematy.pdf https://mera400.pl/files/mera400-dtr-t4-cz2-mjc400-schematy.pdf)
+    uv run scripts/extract-scans.py
+
 clean:
     rm -rf dist/ viewer/dist/ .parcel-cache/
     find . -name "node_modules" -type d -maxdepth 3 -exec rm -rf {} +

@@ -35,3 +35,9 @@ data/unmatched/
 .beads-credential-key
 .beads/proxieddb/
 *.gate.lock*
+
+# Skany dokumentacji MERA-400 — bez prawa redystrybucji, NIE commitujemy.
+# Odtwarzane lokalnie z oracles/mera400/*.pdf: `just scans` (scripts/extract-scans.py).
+data/scans-raw/
+data/MJC-400/*/scans/
+*.pdf
