@@ -50,7 +50,7 @@ gates:
     w: 52
     h: 81
   - ref: M47
-    gate: null
+    gate: A
     x: 788.4661432870655
     "y": 623.6995521524741
     rotation: 0

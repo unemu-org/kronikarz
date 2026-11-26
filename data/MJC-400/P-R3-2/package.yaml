@@ -279,6 +279,8 @@ components:
         page: 2-62
       F:
         page: 2-66
+      D:
+        page: 2-59
   M57:
     ic: "170"
     gates:
