@@ -22,6 +22,7 @@ export type Selection =
   | { kind: 'cross_ref'; idx: number }
   | { kind: 'annotation'; idx: number }
   | { kind: 'decoration'; idx: number }
+  | { kind: 'power'; idx: number }
   | null;
 
 export type MultiKind = 'gate' | 'port' | 'cross_ref';

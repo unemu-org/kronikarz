@@ -17,6 +17,13 @@ export function PinLayer({ gates }: Props): JSX.Element {
   const page = useDocStore((s) => s.page);
   const editing = tool === 'edit';
 
+  const pkg = useDocStore((s) => s.pkg);
+  // Gates whose component is a jumper: pin numeric labels suppressed (the
+  // pad letter is rendered by JumperShape instead).
+  const isJumperGate = (g: Gate): boolean => {
+    const c = pkg?.components[g.ref];
+    return !!c && c.ic === null && c.type === 'jumper';
+  };
   // Orphan pin = pin.net is empty OR its net has <2 total endpoints.
   const netUsage = new Map<string, number>();
   if (page) {
@@ -112,21 +119,23 @@ export function PinLayer({ gates }: Props): JSX.Element {
     <Layer>
       {gates.flatMap((g, gi) =>
         g.pins.map((p, pi) => {
+          if (p.disconnected) return null;
           const armed = armedPin && armedPin.g === gi && armedPin.p === pi;
           const active = activeNets.has(p.net) || gi === selectedGateIdx;
           const orphan = isOrphan(p.net);
-          const strokeColor = armed || active ? '#39ff14' : orphan ? '#ff3030' : undefined;
-          const strokeW = armed ? 2 : active ? 1.5 : orphan ? 2.5 : 0;
+          const jumper = isJumperGate(g);
+          const strokeColor = armed || active ? '#39ff14' : orphan ? '#ff3030' : jumper ? '#FFC107' : undefined;
+          const strokeW = jumper ? 2 : armed ? 2 : active ? 1.5 : orphan ? 2.5 : 0;
           return (
             <Circle
               key={`${gi}-${pi}-d`}
               x={p.px}
               y={p.py}
               radius={armed ? 10 : active ? 8 : orphan ? 8 : 6}
-              fill={armed ? '#2196F3' : active ? '#FF9800' : '#39ff14'}
+              fill={jumper ? 'rgba(13,17,23,0.7)' : armed ? '#2196F3' : active ? '#FF9800' : '#39ff14'}
               stroke={strokeColor}
               strokeWidth={strokeW}
-              draggable={editing}
+              draggable={editing && !jumper}
               dragBoundFunc={function (this: Konva.Node, absPos) {
                 const stage = this.getStage();
                 if (!stage) return absPos;
@@ -198,6 +207,8 @@ export function PinLayer({ gates }: Props): JSX.Element {
       )}
       {gates.flatMap((g, gi) =>
         g.pins.map((p, pi) => {
+          if (p.disconnected) return null;
+          if (isJumperGate(g)) return null;
           // Above the pin AND offset to the outside, so horizontal wires
           // can enter the pin without crossing the number.
           const labelText = String(p.num);

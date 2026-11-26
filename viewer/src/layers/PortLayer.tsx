@@ -168,7 +168,7 @@ export function PortLayer({ ports, zoom }: Props): JSX.Element {
         const labelStr = p.label ?? '';
         const labelTextW = Math.max(40, labelStr.length * 12);
         const lblBase = toScan(bw + 12 + labelTextW / 2, 0);
-        const lblCenter = { x: lblBase.x, y: lblBase.y - 18 };
+        const lblCenter = { x: lblBase.x, y: lblBase.y - 13 };
         return (
           <Group key={`txt-${i}`} listening={false}>
             <Text

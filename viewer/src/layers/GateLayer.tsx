@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Layer, Rect, Group, Text, Line } from 'react-konva';
+import { Layer, Rect, Group, Text, Line, Circle } from 'react-konva';
 import type Konva from 'konva';
 import type { Gate } from '@kronikarz/shared';
 import { useDocStore } from '../store.ts';
@@ -61,7 +61,25 @@ function GateNode({ gate: g, idx: i, selected }: { gate: Gate; idx: number; sele
   const [override, setOverride] = useState<{ w: number; h: number; lox: number; loy: number } | null>(null);
   const box = override ?? { ...base, lox: 0, loy: 0 };
 
+  const isPassive = comp?.ic === null;
+  const isJumper = comp?.ic === null && comp.type === 'jumper';
+  const passiveLabel = isPassive && !isJumper ? `${g.ref}${g.value ? `-${g.value}` : ''}` : null;
+  // World anchor for the always-horizontal passive label.
+  // rot 0/180 (horizontal body): label above body center.
+  // rot 90/270 (vertical body): label to the left of body, vertically centered.
+  let labelAnchor: { x: number; y: number; align: 'center' | 'left'; w: number } | null = null;
+  if (passiveLabel) {
+    const charW = 11;
+    const labelW = Math.max(80, passiveLabel.length * charW + 8);
+    if (g.rotation === 0 || g.rotation === 180) {
+      labelAnchor = { x: g.x - labelW / 2, y: g.y - 30, align: 'center', w: labelW };
+    } else {
+      labelAnchor = { x: g.x - 36 - labelW, y: g.y - 8, align: 'left', w: labelW };
+    }
+  }
+
   return (
+    <Group>
     <Group
       x={g.x}
       y={g.y}
@@ -121,7 +139,15 @@ function GateNode({ gate: g, idx: i, selected }: { gate: Gate; idx: number; sele
         });
       }}
     >
-      <ShapeBody gate={g} shape={shape} color={color} icSuffix={icSuffix} boxOverride={override} />
+      <ShapeBody
+        gate={g}
+        shape={shape}
+        color={color}
+        icSuffix={icSuffix}
+        boxOverride={override}
+        jumperPositions={comp?.ic === null && comp.type === 'jumper' ? comp.positions : undefined}
+        jumperSelected={comp?.ic === null && comp.type === 'jumper' ? comp.selected ?? null : undefined}
+      />
       {selected && editing && shape === 'rect' && (
         <ResizeHandles
           w={box.w}
@@ -214,6 +240,20 @@ function GateNode({ gate: g, idx: i, selected }: { gate: Gate; idx: number; sele
           }}
         />
       )}
+    </Group>
+    {passiveLabel && labelAnchor && (
+      <Group x={labelAnchor.x} y={labelAnchor.y} listening={false}>
+        <Text
+          text={passiveLabel}
+          width={labelAnchor.w}
+          align={labelAnchor.align}
+          fontSize={14}
+          fontFamily="IBM Plex Mono"
+          fill={color}
+          fontStyle="bold"
+        />
+      </Group>
+    )}
     </Group>
   );
 }
@@ -329,6 +369,8 @@ interface BodyProps {
   color: string;
   icSuffix?: string | number;
   boxOverride?: { w: number; h: number; lox: number; loy: number } | null;
+  jumperPositions?: string[];
+  jumperSelected?: string | null;
 }
 
 // Polish DTR symbols inside a gate box (per IEC 60617 used in the era):
@@ -348,26 +390,23 @@ function gateSymbol(icSuffix?: string | number): string | null {
   return null;
 }
 
-function ShapeBody({ gate, shape, color, icSuffix, boxOverride }: BodyProps): JSX.Element {
+function ShapeBody({ gate, shape, color, icSuffix, boxOverride, jumperPositions, jumperSelected }: BodyProps): JSX.Element {
   const { w, h } = boxOverride ?? gateBox(gate);
   const lox = boxOverride?.lox ?? 0;
   const loy = boxOverride?.loy ?? 0;
   let body: JSX.Element;
   switch (shape) {
     case 'resistor':
-      body = <ResistorShape color={color} value={gate.value} />;
+      body = <ResistorShape color={color} />;
       break;
     case 'capacitor':
-      body = <CapacitorShape color={color} polarized={false} value={gate.value} />;
+      body = <CapacitorShape color={color} polarized={false} />;
       break;
     case 'capacitor_polarized':
-      body = <CapacitorShape color={color} polarized value={gate.value} />;
+      body = <CapacitorShape color={color} polarized />;
       break;
-    case 'triangle':
-      body = <TriangleShape gate={gate} color={color} w={w} h={h} icSuffix={icSuffix} />;
-      break;
-    case 'flipflop':
-      body = <FlipFlopShape gate={gate} color={color} w={w + 20} h={h} />;
+    case 'jumper':
+      body = <JumperShape color={color} positions={jumperPositions ?? []} selected={jumperSelected ?? null} />;
       break;
     case 'rect':
     default:
@@ -470,86 +509,28 @@ function RectShape({
   );
 }
 
-function TriangleShape({
-  gate,
-  color,
-  w,
-  h,
-  icSuffix,
-}: {
-  gate: Gate;
-  color: string;
-  w: number;
-  h: number;
-  icSuffix?: string | number;
-}) {
-  const pts = [-w / 2, -h / 2, w / 2, 0, -w / 2, h / 2];
+function ResistorShape({ color, wattage }: { color: string; wattage?: string }) {
+  // Rectangle body, leads on both sides. Pin tips at ±40 (matches passivePins L).
+  const BODY_HALF = 25; // body W=50
+  const H = 14;
+  const LEAD = 40;
+  const w = String(wattage ?? '0,25');
   return (
     <>
-      <Line points={pts} closed stroke={color} strokeWidth={2} fill="rgba(13,17,23,0.7)" />
+      <Rect x={-BODY_HALF} y={-H / 2} width={BODY_HALF * 2} height={H} stroke={color} strokeWidth={2} fill="rgba(13,17,23,0.7)" />
+      <Line points={[-LEAD, 0, -BODY_HALF, 0]} stroke={color} strokeWidth={1.5} />
+      <Line points={[BODY_HALF, 0, LEAD, 0]} stroke={color} strokeWidth={1.5} />
+      {/* Wattage inscription centered inside body */}
       <Text
-        x={-w / 2 + 4}
-        y={-6}
-        text={gate.ref}
+        x={-BODY_HALF}
+        y={-5}
+        width={BODY_HALF * 2}
+        align="center"
+        text={w}
         fontSize={10}
         fontFamily="IBM Plex Mono"
-        fill="#39ff14"
-        fontStyle="bold"
+        fill={color}
       />
-      {icSuffix && (
-        <Text
-          x={-w / 2 + 4}
-          y={5}
-          text={String(icSuffix)}
-          fontSize={8}
-          fontFamily="IBM Plex Mono"
-          fill="#8b949e"
-        />
-      )}
-    </>
-  );
-}
-
-function FlipFlopShape({ gate, color, w, h }: { gate: Gate; color: string; w: number; h: number }) {
-  return (
-    <>
-      <Rect
-        x={-w / 2}
-        y={-h / 2}
-        width={w}
-        height={h}
-        stroke={color}
-        strokeWidth={2}
-        fill="rgba(13,17,23,0.7)"
-        cornerRadius={4}
-      />
-      <Text
-        x={-w / 2}
-        y={-h / 2 - 14}
-        width={w}
-        align="center"
-        text={`${gate.ref}${gate.gate ? `.${gate.gate}` : ''}`}
-        fontSize={18}
-        fontFamily="IBM Plex Mono"
-        fill="#39ff14"
-      />
-      <Text x={-w / 2 + 4} y={-h / 2 + 4} text="FF" fontSize={9} fontFamily="IBM Plex Mono" fill={color} />
-    </>
-  );
-}
-
-function ResistorShape({ color, value }: { color: string; value?: string }) {
-  // Horizontal zig-zag style — width 40, height 16
-  const W = 40;
-  const H = 8;
-  return (
-    <>
-      <Rect x={-W / 2} y={-H / 2} width={W} height={H} stroke={color} strokeWidth={2} fill="rgba(13,17,23,0.7)" />
-      <Line points={[-W, 0, -W / 2, 0]} stroke={color} strokeWidth={1.5} />
-      <Line points={[W / 2, 0, W, 0]} stroke={color} strokeWidth={1.5} />
-      {value && (
-        <Text x={-20} y={H} text={value} fontSize={10} fontFamily="IBM Plex Mono" fill="#39ff14" />
-      )}
     </>
   );
 }
@@ -557,34 +538,82 @@ function ResistorShape({ color, value }: { color: string; value?: string }) {
 function CapacitorShape({
   color,
   polarized,
-  value,
 }: {
   color: string;
   polarized: boolean;
-  value?: string;
 }) {
-  // Two parallel plates, perpendicular to leads. Default horizontal.
+  // Two parallel plates, perpendicular to leads. Pin tips at ±40.
+  const LEAD = 40;
+  const PLATE_HALF = 14;
   return (
     <>
-      <Line points={[-3, -10, -3, 10]} stroke={color} strokeWidth={2.5} />
+      <Line points={[-4, -PLATE_HALF, -4, PLATE_HALF]} stroke={color} strokeWidth={2.5} />
       {polarized ? (
         <Line
-          points={[3, -10, 6, -8, 8, -4, 9, 0, 8, 4, 6, 8, 3, 10]}
+          points={[4, -PLATE_HALF, 8, -PLATE_HALF + 4, 10, -4, 11, 0, 10, 4, 8, PLATE_HALF - 4, 4, PLATE_HALF]}
           stroke={color}
           strokeWidth={2.5}
           tension={0.4}
         />
       ) : (
-        <Line points={[3, -10, 3, 10]} stroke={color} strokeWidth={2.5} />
+        <Line points={[4, -PLATE_HALF, 4, PLATE_HALF]} stroke={color} strokeWidth={2.5} />
       )}
-      <Line points={[-15, 0, -3, 0]} stroke={color} strokeWidth={1.5} />
-      <Line points={[3, 0, 15, 0]} stroke={color} strokeWidth={1.5} />
+      <Line points={[-LEAD, 0, -4, 0]} stroke={color} strokeWidth={1.5} />
+      <Line points={[4, 0, LEAD, 0]} stroke={color} strokeWidth={1.5} />
       {polarized && (
-        <Text x={-12} y={-18} text="+" fontSize={18} fontFamily="IBM Plex Mono" fill={color} />
+        <Text x={-14} y={-PLATE_HALF - 10} text="+" fontSize={16} fontFamily="IBM Plex Mono" fill={color} />
       )}
-      {value && (
-        <Text x={-20} y={12} text={value} fontSize={10} fontFamily="IBM Plex Mono" fill="#39ff14" />
+    </>
+  );
+}
+
+// Row of solder pad labels (D, C, ...). The pad circle itself is rendered by
+// PinLayer (each position is a pin). Selected position gets a filled dot
+// overlay to indicate the bridge.
+function JumperShape({ color, positions, selected }: { color: string; positions: string[]; selected: string | null }) {
+  const STEP = 22;
+  const N = Math.max(1, positions.length);
+  const totalW = (N - 1) * STEP;
+  const startX = -totalW / 2;
+  const tool = useDocStore((s) => s.tool);
+  // Hit area only in edit tool — otherwise it would swallow clicks on segments
+  // running beneath the jumper (preventing wire connections).
+  return (
+    <>
+      {tool === 'edit' && (
+        <Rect
+          x={startX - 30}
+          y={-14}
+          width={totalW + 60}
+          height={28}
+          fill="transparent"
+        />
       )}
+      {positions.map((label, i) => {
+        const cx = startX + i * STEP;
+        const isSelected = label === selected;
+        // Label next to pad: rightmost pad → label on the right, others on the left.
+        const labelOnRight = i === N - 1 && N > 1;
+        const labelX = labelOnRight ? cx + 10 : cx - 22;
+        return (
+          <Group key={i}>
+            <Text
+              x={labelX}
+              y={-7}
+              width={12}
+              align="center"
+              text={label}
+              fontSize={14}
+              fontFamily="IBM Plex Mono"
+              fill={color}
+              fontStyle="bold"
+            />
+            {isSelected && (
+              <Circle x={cx} y={0} radius={2.5} fill={color} listening={false} />
+            )}
+          </Group>
+        );
+      })}
     </>
   );
 }

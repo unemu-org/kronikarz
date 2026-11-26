@@ -157,6 +157,7 @@ export function validatePage(page: Page, pkg?: Package, icMap?: IcMap, project?:
       const out: Pt[] = [];
       for (const g of page.gates) {
         for (const pin of g.pins) {
+          if (pin.disconnected) continue;
           if (pin.net === netName) out.push({ x: pin.px, y: pin.py, tag: `${g.ref}${g.gate ? '.' + g.gate : ''}.${pin.num}` });
         }
       }
@@ -168,6 +169,9 @@ export function validatePage(page: Page, pkg?: Package, icMap?: IcMap, project?:
       }
       for (const cr of page.cross_refs ?? []) {
         if (cr.net === netName) out.push({ x: cr.x, y: cr.y, tag: `xref:${cr.label}` });
+      }
+      for (const ps of page.power ?? []) {
+        if (ps.net === netName) out.push({ x: ps.x, y: ps.y, tag: `power:${ps.type}` });
       }
       return out;
     };
@@ -257,6 +261,7 @@ export function validatePage(page: Page, pkg?: Package, icMap?: IcMap, project?:
   // Source-of-truth: pin.net / port.net / cr.net — NIE legacy net.pins[].
   const netRefCount = new Map<string, number>();
   for (const g of page.gates) for (const pin of g.pins) {
+    if (pin.disconnected) continue;
     if (pin.net && pin.net.trim()) netRefCount.set(pin.net, (netRefCount.get(pin.net) ?? 0) + 1);
   }
   for (const port of page.ports ?? []) {
@@ -264,6 +269,9 @@ export function validatePage(page: Page, pkg?: Package, icMap?: IcMap, project?:
   }
   for (const cr of page.cross_refs ?? []) {
     if (cr.net && cr.net.trim()) netRefCount.set(cr.net, (netRefCount.get(cr.net) ?? 0) + 1);
+  }
+  for (const ps of page.power ?? []) {
+    if (ps.net && ps.net.trim()) netRefCount.set(ps.net, (netRefCount.get(ps.net) ?? 0) + 1);
   }
   for (const [netName, net] of Object.entries(page.nets)) {
     const refs = netRefCount.get(netName) ?? 0;
@@ -344,6 +352,7 @@ export function validatePage(page: Page, pkg?: Package, icMap?: IcMap, project?:
   };
   for (const g of page.gates) {
     for (const pin of g.pins) {
+      if (pin.disconnected) continue;
       const segNet = onSegEndpoint(pin.px, pin.py);
       if (segNet && pin.net && segNet !== pin.net) {
         issues.push({
@@ -420,6 +429,26 @@ export function validatePackage(pkg: Package, icMap?: IcMap): Issue[] {
             code: 'GATE_PAGE_UNKNOWN',
             message: `${ref}.${letter} declared on page "${g.page}" which is not in package.pages`,
             ref: `${ref}.${letter}`,
+          });
+        }
+      }
+      // Unused gates: ic_map.gate_pins enumerates all letters; comp.gates has only used.
+      if (icMap) {
+        const resolved = resolveIcKey(comp.ic, icMap);
+        const icDef = resolved ? icMap[resolved] : null;
+        const expected = icDef?.gate_pins ? Object.keys(icDef.gate_pins) : [];
+        const used = new Set(
+          Object.entries(comp.gates)
+            .filter(([, v]) => v !== null)
+            .map(([k]) => k),
+        );
+        const unused = expected.filter((l) => !used.has(l));
+        if (unused.length > 0) {
+          issues.push({
+            level: 'warn',
+            code: 'GATE_UNUSED',
+            message: `${ref} (74${resolved}) ma niewykorzystane bramki: ${unused.join(', ')}`,
+            ref,
           });
         }
       }

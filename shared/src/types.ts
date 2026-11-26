@@ -69,7 +69,17 @@ export interface PassiveComponent {
   pages: string[];
 }
 
-export type Component = IcComponent | PassiveComponent;
+// Solder jumper — N pads with labels (e.g. ['D','C']). At most one is
+// bridged to the common trace; `selected` records which.
+export interface JumperComponent {
+  ic: null;
+  type: 'jumper';
+  positions: string[];
+  selected?: string | null;
+  pages: string[];
+}
+
+export type Component = IcComponent | PassiveComponent | JumperComponent;
 
 export interface Package {
   kronikarz: '1';
@@ -104,6 +114,8 @@ export interface Pin {
   px: number;
   py: number;
   cross?: CrossPage;
+  // Explicitly marked NC (Not Connected). Hidden in viewer, skipped by validator.
+  disconnected?: boolean;
 }
 
 export interface Gate {
@@ -129,6 +141,7 @@ export interface PowerSymbol {
   x: number;
   y: number;
   net: string;
+  rotation?: Rotation;
 }
 
 // Edge connector / port — `< A50 >` style symbol entering or leaving the page.
@@ -192,7 +205,7 @@ export interface Page {
 
 // --- ic_map.yaml ---
 
-export type IcShape = 'triangle' | 'resistor' | 'capacitor' | 'capacitor_polarized';
+export type IcShape = 'resistor' | 'capacitor' | 'capacitor_polarized';
 
 export interface IcGateGeometry {
   in?: number[];

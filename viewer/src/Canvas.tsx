@@ -34,6 +34,7 @@ export function Canvas(): JSX.Element {
   const [placingPort, setPlacingPort] = useState(false);
   const [placingAnn, setPlacingAnn] = useState(false);
   const [placingDeco, setPlacingDeco] = useState<null | 'line' | 'rect' | 'ellipse'>(null);
+  const [placingPower, setPlacingPower] = useState<null | string>(null);
   const selectDragRef = useRef<{ x0: number; y0: number } | null>(null);
   const [selectRect, setSelectRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const setMulti = useDocStore((s) => s.setMulti);
@@ -80,6 +81,8 @@ export function Canvas(): JSX.Element {
   const setOpacity = useDocStore((s) => s.setScanOpacity);
   const setTool = useDocStore((s) => s.setTool);
   const editPage = useDocStore((s) => s.editPage);
+  const editPackage = useDocStore((s) => s.editPackage);
+  const pkg = useDocStore((s) => s.pkg);
   const undo = useDocStore((s) => s.undo);
   const redo = useDocStore((s) => s.redo);
   const selection = useDocStore((s) => s.selection);
@@ -233,6 +236,7 @@ export function Canvas(): JSX.Element {
         else if (placingPort) setPlacingPort(false);
         else if (placingAnn) setPlacingAnn(false);
         else if (placingDeco) { setPlacingDeco(null); setDecoDraft(null); decoDragRef.current = null; }
+        else if (placingPower) setPlacingPower(null);
         else if (wireDraft) { setWireDraft(null); setWireCursor(null); }
         else setSelection(null);
       }
@@ -266,9 +270,34 @@ export function Canvas(): JSX.Element {
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (tool === 'edit' && selection?.kind === 'gate') {
           const idx = selection.idx;
+          editPage((p) => { p.gates.splice(idx, 1); });
+          setSelection(null);
+        } else if (tool === 'edit' && selection?.kind === 'segment') {
+          const { netName, segmentIdx } = selection;
           editPage((p) => {
-            p.gates.splice(idx, 1);
+            const segs = p.nets[netName]?.segments;
+            if (segs) segs.splice(segmentIdx, 1);
           });
+          setSelection({ kind: 'net', name: netName });
+        } else if (tool === 'edit' && selection?.kind === 'power') {
+          const idx = selection.idx;
+          editPage((p) => { p.power.splice(idx, 1); });
+          setSelection(null);
+        } else if (tool === 'edit' && selection?.kind === 'annotation') {
+          const idx = selection.idx;
+          editPage((p) => { p.annotations?.splice(idx, 1); });
+          setSelection(null);
+        } else if (tool === 'edit' && selection?.kind === 'decoration') {
+          const idx = selection.idx;
+          editPage((p) => { p.decorations?.splice(idx, 1); });
+          setSelection(null);
+        } else if (tool === 'edit' && selection?.kind === 'port') {
+          const idx = selection.idx;
+          editPage((p) => { p.ports?.splice(idx, 1); });
+          setSelection(null);
+        } else if (tool === 'edit' && selection?.kind === 'cross_ref') {
+          const idx = selection.idx;
+          editPage((p) => { p.cross_refs?.splice(idx, 1); });
           setSelection(null);
         }
       }
@@ -286,6 +315,10 @@ export function Canvas(): JSX.Element {
           e.preventDefault();
           const d = page.decorations?.[selection.idx];
           if (d) localStorage.setItem('kronikarz:clip', JSON.stringify({ kind: 'decoration', data: d }));
+        } else if (selection?.kind === 'gate') {
+          e.preventDefault();
+          const g = page.gates[selection.idx];
+          if (g) localStorage.setItem('kronikarz:clip', JSON.stringify({ kind: 'gate', data: g }));
         }
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'v' && tool === 'edit' && page) {
@@ -293,19 +326,74 @@ export function Canvas(): JSX.Element {
         if (raw) {
           try {
             const clip = JSON.parse(raw);
+            // Mouse position in scan coords for paste-at-cursor
+            const stage = stageRef.current;
+            const ptr = stage?.getPointerPosition();
+            const mouseX = ptr ? Math.round((ptr.x - view.x) / view.scale) : null;
+            const mouseY = ptr ? Math.round((ptr.y - view.y) / view.scale) : null;
             let newIdx = -1;
-            let newKind: 'annotation' | 'decoration' | null = null;
+            let newKind: 'annotation' | 'decoration' | 'gate' | null = null;
             editPage((p) => {
               if (clip.kind === 'annotation') {
                 const arr = (p.annotations ??= []);
-                arr.push({ ...clip.data });
+                const a = { ...clip.data };
+                if (mouseX !== null && mouseY !== null) { a.x = mouseX; a.y = mouseY; }
+                arr.push(a);
                 newIdx = arr.length - 1;
                 newKind = 'annotation';
               } else if (clip.kind === 'decoration') {
                 const arr = (p.decorations ??= []);
-                arr.push({ ...clip.data });
+                const d = { ...clip.data };
+                if (mouseX !== null && mouseY !== null) {
+                  if (d.kind === 'line') {
+                    const dx = mouseX - (d.x1 + d.x2) / 2;
+                    const dy = mouseY - (d.y1 + d.y2) / 2;
+                    d.x1 += dx; d.x2 += dx; d.y1 += dy; d.y2 += dy;
+                  } else if (d.kind === 'rect') {
+                    d.x = mouseX - d.w / 2; d.y = mouseY - d.h / 2;
+                  } else if (d.kind === 'ellipse') {
+                    d.x = mouseX; d.y = mouseY;
+                  }
+                }
+                arr.push(d);
                 newIdx = arr.length - 1;
                 newKind = 'decoration';
+              } else if (clip.kind === 'gate') {
+                const src = clip.data;
+                const tx = mouseX !== null ? mouseX : src.x + 60;
+                const ty = mouseY !== null ? mouseY : src.y + 60;
+                const dx = tx - src.x;
+                const dy = ty - src.y;
+                // For passives: auto-pick next free ref + clone PassiveComponent
+                let newRef: string = src.ref;
+                const srcComp = pkg?.components[src.ref];
+                if (srcComp && srcComp.ic === null) {
+                  newRef = nextFreeRef(pkg, src.ref);
+                  editPackage((pp) => {
+                    pp.components[newRef] = JSON.parse(JSON.stringify(srcComp));
+                    const c = pp.components[newRef];
+                    if (c && c.ic === null) {
+                      const pid = p.page;
+                      if (!c.pages.includes(pid)) c.pages.push(pid);
+                    }
+                  });
+                }
+                const copy = {
+                  ...src,
+                  ref: newRef,
+                  x: tx,
+                  y: ty,
+                  pins: (src.pins ?? []).map((pn: { px: number; py: number } & object) => ({
+                    ...pn,
+                    px: pn.px + dx,
+                    py: pn.py + dy,
+                    net: '',
+                  })),
+                  verified: false,
+                };
+                p.gates.push(copy);
+                newIdx = p.gates.length - 1;
+                newKind = 'gate';
               }
             });
             if (newIdx >= 0 && newKind) setSelection({ kind: newKind, idx: newIdx });
@@ -337,6 +425,11 @@ export function Canvas(): JSX.Element {
       const ce = ev as CustomEvent<{ kind: 'line' | 'rect' | 'ellipse' }>;
       setPlacingDeco(ce.detail?.kind ?? 'line');
     };
+    const onPlacePowerEvent = (ev: Event) => {
+      if (tool !== 'edit') return;
+      const ce = ev as CustomEvent<{ type: string }>;
+      setPlacingPower(ce.detail?.type ?? '+5V');
+    };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     window.addEventListener('kronikarz:place-gate', onPlaceEvent);
@@ -344,6 +437,7 @@ export function Canvas(): JSX.Element {
     window.addEventListener('kronikarz:place-port', onPlacePortEvent);
     window.addEventListener('kronikarz:place-annotation', onPlaceAnnEvent);
     window.addEventListener('kronikarz:place-decoration', onPlaceDecoEvent as EventListener);
+    window.addEventListener('kronikarz:place-power', onPlacePowerEvent as EventListener);
     const onExportPng = (ev: Event) => {
       const stage = stageRef.current;
       if (!stage || !page) return;
@@ -384,6 +478,7 @@ export function Canvas(): JSX.Element {
       window.removeEventListener('kronikarz:place-port', onPlacePortEvent);
       window.removeEventListener('kronikarz:place-annotation', onPlaceAnnEvent);
       window.removeEventListener('kronikarz:place-decoration', onPlaceDecoEvent as EventListener);
+      window.removeEventListener('kronikarz:place-power', onPlacePowerEvent as EventListener);
       window.removeEventListener('kronikarz:export-png', onExportPng as EventListener);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1170,6 +1265,23 @@ export function Canvas(): JSX.Element {
             setPlacingAnn(false);
             return;
           }
+          if (placingPower && tool === 'edit' && page) {
+            const stage = stageRef.current;
+            const ptr = stage?.getPointerPosition();
+            if (ptr) {
+              const sx = Math.round((ptr.x - view.x) / view.scale);
+              const sy = Math.round((ptr.y - view.y) / view.scale);
+              if (sx >= 0 && sx <= page.scan_size[0] && sy >= 0 && sy <= page.scan_size[1]) {
+                const ptype = placingPower;
+                const defaultNet = ptype === '+5V' ? '+5V' : ptype === '+0V' ? '+0V' : ptype;
+                editPage((p) => {
+                  p.power.push({ type: ptype, x: sx, y: sy, net: defaultNet });
+                });
+              }
+            }
+            setPlacingPower(null);
+            return;
+          }
           if (placingPort && tool === 'edit' && page) {
             const stage = stageRef.current;
             const ptr = stage?.getPointerPosition();
@@ -1454,4 +1566,20 @@ export function Canvas(): JSX.Element {
 
 function getScanPath(page: { package: string; page: string }, _pkg: string): string {
   return `scans/${page.page}.jpg`;
+}
+
+// "R7" → next free "R8", "R9", ... Skips collisions in pkg.components.
+function nextFreeRef(pkg: { components: Record<string, unknown> } | null, srcRef: string): string {
+  if (!pkg) return srcRef;
+  const m = /^([A-Za-z]+)(\d+)$/.exec(srcRef);
+  if (!m) {
+    // Fallback: append numeric suffix
+    let i = 2;
+    while (pkg.components[`${srcRef}_${i}`]) i++;
+    return `${srcRef}_${i}`;
+  }
+  const prefix = m[1]!;
+  let n = parseInt(m[2]!, 10) + 1;
+  while (pkg.components[`${prefix}${n}`]) n++;
+  return `${prefix}${n}`;
 }

@@ -191,8 +191,8 @@ export function CrossRefLayer({ refs, zoom }: Props): JSX.Element {
             />
             {/* Hit area: pokrywa stub + label nad + pages obok */}
             {(() => {
-              const stubMidX = (r.x + x2) / 2;
-              const labelX = stubMidX - labelW / 2;
+              const labelOnRight = r.side === 'left';
+              const labelX = labelOnRight ? r.x + 12 : r.x - labelW - 12;
               const pagesX = r.side === 'right' ? x2 + 6 : x2 - pagesW - 6;
               const minX = Math.min(r.x, x2, labelX, pagesX) - 6;
               const maxX = Math.max(r.x, x2, labelX + labelW, pagesX + pagesW) + 6;
@@ -207,11 +207,11 @@ export function CrossRefLayer({ refs, zoom }: Props): JSX.Element {
               );
             })()}
             {(() => {
-              // Label NAD wirem stub (jak na schemacie), wycentrowany horyzontalnie
-              // wzgledem stuba. Pages tuz za koncem stuba na poziomie wire'a.
-              const stubMidX = (r.x + x2) / 2;
-              const labelX = stubMidX - labelW / 2;
-              const labelY = r.y - 24;
+              // Label OBOK kuleczki r.x/r.y (po przeciwnej stronie niz pages),
+              // na poziomie wire'a — zeby nie nachodzilo na numery stron.
+              const labelOnRight = r.side === 'left';
+              const labelX = labelOnRight ? r.x + 12 : r.x - labelW - 12;
+              const labelY = r.y - 19;
               const pagesX = r.side === 'right' ? x2 + 6 : x2 - pagesW - 6;
               const pagesY = r.y - 10;
               const nodes: JSX.Element[] = [];

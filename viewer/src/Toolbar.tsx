@@ -336,6 +336,18 @@ export function Toolbar(): JSX.Element {
             className="px-2 py-0.5 text-text-dim hover:bg-bg-accent hover:text-phosphor disabled:hover:bg-transparent disabled:hover:text-text-dim"
             title="narysuj koło (drag)"
           >+ koło</button>
+          <button
+            disabled={tool !== 'edit'}
+            onClick={() => window.dispatchEvent(new CustomEvent('kronikarz:place-power', { detail: { type: '+5V' } }))}
+            className="px-2 py-0.5 text-text-dim hover:bg-bg-accent hover:text-phosphor disabled:hover:bg-transparent disabled:hover:text-text-dim"
+            title="dodaj symbol +5V (pull-up)"
+          >+ +5V</button>
+          <button
+            disabled={tool !== 'edit'}
+            onClick={() => window.dispatchEvent(new CustomEvent('kronikarz:place-power', { detail: { type: '+0V' } }))}
+            className="px-2 py-0.5 text-text-dim hover:bg-bg-accent hover:text-phosphor disabled:hover:bg-transparent disabled:hover:text-text-dim"
+            title="dodaj symbol +0V/GND (pull-down)"
+          >+ +0V</button>
         </div>
         {multi && multi.indices.length >= 2 && (
           <div className="ml-auto flex items-center gap-1 border-l border-bg-accent pl-3">

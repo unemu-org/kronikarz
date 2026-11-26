@@ -1,7 +1,9 @@
 import type { ChangeEvent } from 'react';
+import { useRef as useReactRef } from 'react';
 import type { Page, Side, IcMap } from '@kronikarz/shared';
 import { parsePinId, resolveIcKey } from '@kronikarz/shared';
 import { useDocStore } from './store.ts';
+import { passivePins } from './AddGateDialog.tsx';
 
 const ROTATIONS: Array<0 | 90 | 180 | 270> = [0, 90, 180, 270];
 const SIDES: Side[] = ['left', 'right', 'top', 'bottom'];
@@ -39,9 +41,53 @@ export function SelectionPanel(): JSX.Element | null {
 
   return (
     <aside className="w-72 shrink-0 overflow-y-auto border-l border-bg-accent bg-bg-panel p-2 text-xs">
-      {!gate && !net && selection?.kind !== 'segment' && selection?.kind !== 'port' && selection?.kind !== 'cross_ref' && (
+      {!gate && !net && selection?.kind !== 'segment' && selection?.kind !== 'port' && selection?.kind !== 'cross_ref' && selection?.kind !== 'power' && selection?.kind !== 'annotation' && selection?.kind !== 'decoration' && (
         <div className="text-text-dim">brak zaznaczenia</div>
       )}
+
+      {selection?.kind === 'power' && (() => {
+        const idx = selection.idx;
+        const ps = page.power?.[idx];
+        if (!ps) return null;
+        return (
+          <div className="space-y-2">
+            <h2 className="font-bold text-phosphor">{ps.type}</h2>
+            {editing ? (
+              <>
+                <Field
+                  label="type"
+                  value={ps.type}
+                  onChange={(v) => editPage((p) => { const t = p.power[idx]; if (t) t.type = v; })}
+                />
+                <Field
+                  label="net"
+                  value={ps.net}
+                  onChange={(v) => editPage((p) => { const t = p.power[idx]; if (t) t.net = v; })}
+                />
+                <div className="flex items-center gap-2">
+                  <label className="w-16 text-text-dim">rotation</label>
+                  <select
+                    className="flex-1 bg-bg-accent px-1 py-0.5"
+                    value={ps.rotation ?? 0}
+                    onChange={(e) => {
+                      const r = Number(e.target.value) as 0 | 90 | 180 | 270;
+                      editPage((p) => { const t = p.power[idx]; if (t) t.rotation = r; });
+                    }}
+                  >
+                    {ROTATIONS.map((r) => <option key={r} value={r}>{r}°</option>)}
+                  </select>
+                </div>
+                <button
+                  className="w-full bg-error/40 px-2 py-0.5 text-left text-error hover:bg-error/60"
+                  onClick={() => { if (!confirm('Usunąć?')) return; editPage((p) => { p.power.splice(idx, 1); }); useDocStore.getState().setSelection(null); }}
+                >usuń</button>
+              </>
+            ) : (
+              <div className="text-text-dim">x={ps.x} y={ps.y} rot={ps.rotation ?? 0}</div>
+            )}
+          </div>
+        );
+      })()}
 
       {net && netName && (
         <div className="space-y-2">
@@ -149,8 +195,8 @@ export function SelectionPanel(): JSX.Element | null {
             <hr className="border-bg-accent" />
             <Field label="connector" value={port.connector} onChange={(v) => editPage((p) => { const x = p.ports?.[idx]; if (x) x.connector = v.trim().toUpperCase(); })} />
             <Field label="pin" value={String(port.pin)} onChange={(v) => editPage((p) => { const x = p.ports?.[idx]; if (x) { const n = parseInt(v, 10); if (Number.isFinite(n)) x.pin = n; } })} />
-            <Field label="label" value={port.label} onChange={(v) => editPage((p) => { const x = p.ports?.[idx]; if (x) x.label = v; })} />
-            <Field label="net" value={port.net} onChange={(v) => {
+            <FieldUni label="label" value={port.label} onChange={(v) => editPage((p) => { const x = p.ports?.[idx]; if (x) x.label = v; })} />
+            <FieldUni label="net" value={port.net} onChange={(v) => {
               const old = port.net;
               if (!v || v === old) return;
               if (old && old.trim() && page.nets[old]) {
@@ -184,8 +230,8 @@ export function SelectionPanel(): JSX.Element | null {
           <div className="space-y-2">
             <h2 className="font-bold text-phosphor">CROSS-REF {cr.label}</h2>
             <hr className="border-bg-accent" />
-            <Field label="label" value={cr.label} onChange={(v) => editPage((p) => { const x = p.cross_refs?.[idx]; if (x) x.label = v; })} />
-            <Field label="net" value={cr.net} onChange={(v) => {
+            <FieldUni label="label" value={cr.label} onChange={(v) => editPage((p) => { const x = p.cross_refs?.[idx]; if (x) x.label = v; })} />
+            <FieldUni label="net" value={cr.net} onChange={(v) => {
               const old = cr.net;
               if (!v || v === old) return;
               if (old && old.trim() && page.nets[old]) {
@@ -410,7 +456,7 @@ export function SelectionPanel(): JSX.Element | null {
               {icDef.name ?? '?'} — {icDef.desc ?? ''}
             </div>
           )}
-          {gate && icMap && (
+          {gate && icMap && comp?.ic !== null && (
             <IcPicker
               gate={gate}
               gateIdx={gateIdx!}
@@ -429,6 +475,79 @@ export function SelectionPanel(): JSX.Element | null {
                 });
               }}
             />
+          )}
+          {gate && comp?.ic === null && editing && (
+            <div className="space-y-1 border border-bg-accent p-1">
+              <div className="text-text-dim">
+                {comp.type === 'resistor' ? 'Rezystor' : comp.type === 'capacitor' ? 'Kondensator' : 'Jumper'}
+              </div>
+              {(comp.type === 'resistor' || comp.type === 'capacitor') && (
+                <Field
+                  label="wartość"
+                  value={gate.value ?? ''}
+                  onChange={(v) => {
+                    updateGate((g) => { g.value = v || undefined; });
+                    editPackage((p) => {
+                      const c = p.components[gate.ref];
+                      if (c && c.ic === null && (c.type === 'resistor' || c.type === 'capacitor')) c.value = v;
+                    });
+                  }}
+                />
+              )}
+              {comp.type === 'capacitor' && (
+                <div className="flex items-center gap-2">
+                  <label className="w-16 text-text-dim">polar</label>
+                  <input
+                    type="checkbox"
+                    checked={!!comp.polarized}
+                    onChange={(e) => {
+                      const val = e.target.checked;
+                      editPackage((p) => {
+                        const c = p.components[gate.ref];
+                        if (c && c.ic === null && c.type === 'capacitor') {
+                          if (val) c.polarized = true;
+                          else delete c.polarized;
+                        }
+                      });
+                    }}
+                  />
+                </div>
+              )}
+              {comp.type === 'jumper' && (
+                <>
+                  <Field
+                    label="pozycje"
+                    value={comp.positions.join(',')}
+                    onChange={(v) => {
+                      const list = v.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+                      editPackage((p) => {
+                        const c = p.components[gate.ref];
+                        if (c && c.ic === null && c.type === 'jumper') c.positions = list;
+                      });
+                    }}
+                  />
+                  <div className="flex items-center gap-2">
+                    <label className="w-16 text-text-dim">selected</label>
+                    <select
+                      className="flex-1 bg-bg-accent px-1 py-0.5"
+                      value={comp.selected ?? ''}
+                      onChange={(e) => {
+                        const val = e.target.value || null;
+                        editPackage((p) => {
+                          const c = p.components[gate.ref];
+                          if (c && c.ic === null && c.type === 'jumper') c.selected = val;
+                        });
+                      }}
+                    >
+                      <option value="">— none —</option>
+                      {comp.positions.map((pos) => (
+                        <option key={pos} value={pos}>{pos}</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+            </div>
           )}
           {(() => {
             const gateKey = `${gate.ref}${gate.gate ? `.${gate.gate}` : ''}`;
@@ -450,21 +569,44 @@ export function SelectionPanel(): JSX.Element | null {
               <Field
                 label="ref"
                 value={gate.ref}
-                onChange={(v) => updateGate((g) => (g.ref = v))}
+                onChange={(v) => {
+                  const newRef = v.trim();
+                  const oldRef = gate.ref;
+                  if (!newRef || newRef === oldRef) return;
+                  updateGate((g) => (g.ref = newRef));
+                  // Rename in package.components too (preserves passive/IC metadata)
+                  editPackage((p) => {
+                    if (!p.components[oldRef]) return;
+                    if (p.components[newRef]) return; // collision: leave alone
+                    p.components[newRef] = p.components[oldRef]!;
+                    delete p.components[oldRef];
+                  });
+                }}
               />
-              <Field
-                label="gate"
-                value={gate.gate ?? ''}
-                onChange={(v) => updateGate((g) => (g.gate = v || null))}
-              />
+              {comp?.ic !== null && (
+                <Field
+                  label="gate"
+                  value={gate.gate ?? ''}
+                  onChange={(v) => updateGate((g) => (g.gate = v || null))}
+                />
+              )}
               <div className="flex items-center gap-2">
                 <label className="w-16 text-text-dim">rotation</label>
                 <select
                   className="flex-1 bg-bg-accent px-1 py-0.5"
                   value={gate.rotation}
-                  onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-                    updateGate((g) => (g.rotation = Number(e.target.value) as 0 | 90 | 180 | 270))
-                  }
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) => {
+                    const r = Number(e.target.value) as 0 | 90 | 180 | 270;
+                    updateGate((g) => {
+                      g.rotation = r;
+                      // Passive: recompute the 2 pin positions to follow rotation
+                      if (comp?.ic === null && g.pins.length === 2) {
+                        const fresh = passivePins(g.x, g.y, r);
+                        g.pins[0]!.px = fresh[0]!.px; g.pins[0]!.py = fresh[0]!.py; g.pins[0]!.side = fresh[0]!.side;
+                        g.pins[1]!.px = fresh[1]!.px; g.pins[1]!.py = fresh[1]!.py; g.pins[1]!.side = fresh[1]!.side;
+                      }
+                    });
+                  }}
                 >
                   {ROTATIONS.map((r) => (
                     <option key={r} value={r}>
@@ -490,7 +632,7 @@ export function SelectionPanel(): JSX.Element | null {
             <h3 className="text-text-dim">PINY</h3>
             <ul className="space-y-0.5">
               {gate.pins.map((p, pi) => (
-                <li key={p.num} className="flex items-center gap-1">
+                <li key={p.num} className={`flex items-center gap-1 ${p.disconnected ? 'opacity-50' : ''}`}>
                   <span className="w-4 text-phosphor">{p.num}</span>
                   <span className="w-8 text-text-dim">{p.side}</span>
                   {editing ? (
@@ -498,6 +640,7 @@ export function SelectionPanel(): JSX.Element | null {
                       className="flex-1 bg-bg-accent px-1"
                       defaultValue={p.net}
                       key={p.net}
+                      disabled={p.disconnected}
                       onBlur={(e) => {
                         const v = e.target.value;
                         const old = p.net;
@@ -513,7 +656,25 @@ export function SelectionPanel(): JSX.Element | null {
                       }}
                     />
                   ) : (
-                    <span className="flex-1">{p.net}</span>
+                    <span className="flex-1">{p.disconnected ? 'NC' : p.net}</span>
+                  )}
+                  {editing && (
+                    <label className="flex items-center gap-0.5 text-text-dim" title="NC — not connected (ukryj pin, skip walidacji)">
+                      <input
+                        type="checkbox"
+                        checked={!!p.disconnected}
+                        onChange={(e) => {
+                          const val = e.target.checked;
+                          updateGate((g) => {
+                            const pin = g.pins[pi];
+                            if (!pin) return;
+                            if (val) pin.disconnected = true;
+                            else delete pin.disconnected;
+                          });
+                        }}
+                      />
+                      <span>NC</span>
+                    </label>
                   )}
                   {p.cross && (
                     <span className="text-warning">→{p.cross.page}</span>
@@ -565,6 +726,50 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
+    </div>
+  );
+}
+
+// Field z guziczkami quick-insert unicode (DTR: ↑ ↓ Ø).
+// Wstawia znak w pozycji kursora lub dokleja na końcu jak focus utracony.
+function FieldUni({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}): JSX.Element {
+  const inputRef = useReactRef<HTMLInputElement>(null);
+  const insert = (ch: string) => {
+    const el = inputRef.current;
+    if (el) {
+      const start = el.selectionStart ?? value.length;
+      const end = el.selectionEnd ?? value.length;
+      const next = value.slice(0, start) + ch + value.slice(end);
+      onChange(next);
+      requestAnimationFrame(() => {
+        el.focus();
+        const pos = start + ch.length;
+        el.setSelectionRange(pos, pos);
+      });
+    } else {
+      onChange(value + ch);
+    }
+  };
+  return (
+    <div className="flex items-center gap-1">
+      <label className="w-16 text-text-dim">{label}</label>
+      <input
+        ref={inputRef}
+        className="flex-1 bg-bg-accent px-1 py-0.5"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <button type="button" tabIndex={-1} className="bg-bg-accent px-1 hover:bg-phosphor-dim hover:text-bg-main" title="↑" onClick={() => insert('↑')}>↑</button>
+      <button type="button" tabIndex={-1} className="bg-bg-accent px-1 hover:bg-phosphor-dim hover:text-bg-main" title="↓" onClick={() => insert('↓')}>↓</button>
+      <button type="button" tabIndex={-1} className="bg-bg-accent px-1 hover:bg-phosphor-dim hover:text-bg-main" title="Ø (przekreślone 0)" onClick={() => insert('Ø')}>Ø</button>
     </div>
   );
 }
