@@ -10,15 +10,30 @@ Pin layouts verified against TI datasheets / KiCad 74xx library.
 
 Add new parts by appending to PARTS. Re-run to rebuild the YAML.
 
-Usage: uv run scripts/build-ic-map.py
+UWAGA: data/MJC-400/ic_map.yaml bywa poprawiany ręcznie. Bez --force skrypt
+odmawia nadpisania istniejącego pliku (kod wyjścia 1, nic nie zapisuje).
+
+  --force     nadpisz; stary plik jest najpierw kopiowany do
+              `ic_map.yaml.<ISO-UTC>.bak` obok (np. ic_map.yaml.2026-11-27T10-15-30-123Z.bak,
+              ten sam wzór co backupy serwera; *.bak jest w .gitignore).
+              Zapis atomowy (plik tymczasowy w tym samym katalogu + os.replace).
+  --root DIR  katalog, w którym powstaje ic_map.yaml (domyślnie data/MJC-400).
+  --dry-run   tylko wypisz, co zostałoby utworzone / nadpisane.
+
+Usage: uv run scripts/build-ic-map.py [--root DIR] [--force] [--dry-run]
 """
 from __future__ import annotations
+import argparse
 import sys
 from pathlib import Path
 
 import yaml
 
 REPO = Path(__file__).resolve().parent.parent
+ROOT = REPO / "data" / "MJC-400"
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _safe_write import write_all  # noqa: E402
 
 # (suffix, name, desc, pins, gates, power_vcc, power_gnd, gate_pins_dict, extra)
 # gate_pins_dict: {"A": {"in":[1,2], "out":[3]}, ...}
@@ -265,12 +280,27 @@ def emit() -> dict:
     return out
 
 
-def main():
+def render(doc: dict) -> str:
+    return yaml.safe_dump(doc, sort_keys=False, allow_unicode=True, default_flow_style=False, width=120)
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="Buduje ic_map.yaml (nie nadpisuje bez --force).")
+    ap.add_argument("--root", type=Path, default=ROOT, help=f"katalog docelowy (domyślnie {ROOT})")
+    ap.add_argument("--force", action="store_true", help="nadpisz istniejący plik (z kopią .bak)")
+    ap.add_argument("--dry-run", action="store_true", help="tylko pokaż plan zapisu")
+    args = ap.parse_args(argv)
+    if not args.root.is_dir():
+        sys.stderr.write(f"błąd: brak katalogu {args.root}\n")
+        return 1
+
     doc = emit()
-    out_path = REPO / "data" / "MJC-400" / "ic_map.yaml"
-    out_path.write_text(yaml.safe_dump(doc, sort_keys=False, allow_unicode=True, default_flow_style=False, width=120))
-    sys.stdout.write(f"wrote {len(doc)} entries to {out_path}\n")
+    out_path = args.root / "ic_map.yaml"
+    rc = write_all({out_path: render(doc)}, force=args.force, dry_run=args.dry_run)
+    if rc == 0 and not args.dry_run:
+        sys.stdout.write(f"wrote {len(doc)} entries to {out_path}\n")
+    return rc
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

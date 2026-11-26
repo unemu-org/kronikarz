@@ -11,12 +11,37 @@ Produces:
   data/MJC-400/<pkg>/package.yaml — lists pages from scans/ dir
   data/MJC-400/<pkg>/pages/<page-id>.sch.yaml — empty gates/nets, real scan_size
 
-Run: uv run scripts/gen-stubs.py
+UWAGA: data/MJC-400 to ręcznie kurowane dane. Skrypt domyślnie NIE nadpisuje
+niczego: najpierw zbiera wszystkie pliki docelowe i jeśli którykolwiek z
+project.yaml / ic_map.yaml / <pkg>/package.yaml już istnieje, wypisuje listę i
+kończy się kodem 1, nie zapisując nic (wszystko albo nic). Istniejące strony
+*.sch.yaml są zawsze pomijane (nigdy nie nadpisywane, także z --force).
+
+Konsekwencja: dodanie stuba dla NOWEGO skanu w istniejącym module wymaga
+--force (bo package.yaml / project.yaml już istnieją), a --force przepisuje
+package.yaml od zera — `components: {}` (rejestr IC zostaje wyczyszczony),
+project.yaml dostaje `backplane: []`, ic_map.yaml wraca do minimalnego zestawu.
+W praktyce: NIE używaj --force na kurowanych danych; nową stronę dopisz ręcznie
+(albo wygeneruj do pustego katalogu przez --root i przenieś sam *.sch.yaml).
+
+  --force     nadpisz istniejące pliki; przed nadpisaniem każdy jest kopiowany do
+              `<plik>.<ISO-UTC>.bak` obok (np. project.yaml.2026-11-27T10-15-30-123Z.bak,
+              ten sam wzór co backupy serwera; *.bak jest w .gitignore).
+              Zapis atomowy (plik tymczasowy w tym samym katalogu + os.replace).
+  --root DIR  katalog modułu (domyślnie data/MJC-400) — do testów / prób.
+  --dry-run   tylko wypisz, co zostałoby utworzone / nadpisane.
+
+Run: uv run scripts/gen-stubs.py [--root DIR] [--force] [--dry-run]
 """
 from __future__ import annotations
+import argparse
+import sys
 from pathlib import Path
 import yaml
 from PIL import Image
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _safe_write import write_all  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
 ROOT = REPO / "data/MJC-400"
@@ -93,11 +118,14 @@ def page_id_sort_key(name: str) -> tuple:
         return (999, name)
 
 
-def main() -> None:
-    packages = sorted(p for p in ROOT.iterdir() if p.is_dir())
+def build_writes(root: Path) -> tuple[dict[Path, str], list[str]]:
+    """Wylicza (ścieżka → treść) wszystkich plików do zapisu, bez zapisywania."""
+    writes: dict[Path, str] = {}
+    log: list[str] = []
+    packages = sorted(p for p in root.iterdir() if p.is_dir())
 
     # ic_map.yaml
-    (ROOT / "ic_map.yaml").write_text(yaml.safe_dump(IC_MAP, sort_keys=False, allow_unicode=True))
+    writes[root / "ic_map.yaml"] = yaml.safe_dump(IC_MAP, sort_keys=False, allow_unicode=True)
 
     # project.yaml
     project_doc = {
@@ -114,7 +142,7 @@ def main() -> None:
         ],
         "backplane": [],
     }
-    (ROOT / "project.yaml").write_text(
+    writes[root / "project.yaml"] = (
         "kronikarz: \"1\"\n" + yaml.safe_dump(
             {k: v for k, v in project_doc.items() if k != "kronikarz"},
             sort_keys=False, allow_unicode=True,
@@ -128,7 +156,6 @@ def main() -> None:
             continue
         scans = sorted(scans_dir.glob("*.jpg"), key=lambda p: page_id_sort_key(p.name))
         pages_dir = pkg_dir / "pages"
-        pages_dir.mkdir(exist_ok=True)
 
         page_refs = []
         for scan in scans:
@@ -155,7 +182,7 @@ def main() -> None:
                 "nets": {},
                 "annotations": [],
             }
-            sch_path.write_text(
+            writes[sch_path] = (
                 "kronikarz: \"1\"\n" + yaml.safe_dump(
                     {k: v for k, v in sch_doc.items() if k != "kronikarz"},
                     sort_keys=False, allow_unicode=True, default_flow_style=None,
@@ -174,16 +201,34 @@ def main() -> None:
             },
             "components": {},
         }
-        (pkg_dir / "package.yaml").write_text(
+        writes[pkg_dir / "package.yaml"] = (
             "kronikarz: \"1\"\n" + yaml.safe_dump(
                 {k: v for k, v in pkg_doc.items() if k != "kronikarz"},
                 sort_keys=False, allow_unicode=True,
             )
         )
-        print(f"  {pkg_dir.name}: {len(scans)} stron")
+        log.append(f"  {pkg_dir.name}: {len(scans)} stron")
 
-    print(f"\nTotal: {len(packages)} pakietow, {total_pages} stron sch.yaml")
+    log.append(f"\nTotal: {len(packages)} pakietow, {total_pages} stron sch.yaml")
+    return writes, log
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="Generuje stuby YAML (nie nadpisuje bez --force).")
+    ap.add_argument("--root", type=Path, default=ROOT, help=f"katalog modułu (domyślnie {ROOT})")
+    ap.add_argument("--force", action="store_true", help="nadpisz istniejące pliki (z kopią .bak)")
+    ap.add_argument("--dry-run", action="store_true", help="tylko pokaż plan zapisu")
+    args = ap.parse_args(argv)
+    if not args.root.is_dir():
+        sys.stderr.write(f"błąd: brak katalogu {args.root}\n")
+        return 1
+
+    writes, log = build_writes(args.root)
+    rc = write_all(writes, force=args.force, dry_run=args.dry_run)
+    if rc == 0 and not args.dry_run:
+        print("\n".join(log))
+    return rc
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
