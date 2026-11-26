@@ -1,5 +1,6 @@
 {
   "name": "@kronikarz/viewer",
+  "license": "BSD-2-Clause",
   "private": true,
   "type": "module",
   "scripts": {

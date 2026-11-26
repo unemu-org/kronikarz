@@ -1,5 +1,6 @@
 {
   "name": "@kronikarz/export",
+  "license": "BSD-2-Clause",
   "private": true,
   "type": "module",
   "bin": {

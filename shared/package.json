@@ -1,5 +1,6 @@
 {
   "name": "@kronikarz/shared",
+  "license": "BSD-2-Clause",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",

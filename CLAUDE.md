@@ -109,6 +109,10 @@ Kluczowe kody:
 
 `/make-bak`, `/restore-bak`. Każdy `/vision-page*` i autosave robi rolling `.bak` + timestamped `<page>.sch.yaml.<ISO>.bak`. Pliki `*.bak` w `.gitignore`.
 
+## Licencja
+
+Kod i dokumenty projektu: BSD-2-Clause (`LICENSE`, pole `license` w każdym `package.json`). `data/` (zdigitalizowane schematy) **nie jest objęte licencją** — to praca inżynierów MERA-400, nie nasza (`data/README.md`). Nie dopisuj nagłówków licencji do plików w `data/` i nie przenoś treści schematów do kodu jako „przykładów”; fixture’y testów rób własne.
+
 ## Skany (poza repo)
 
 Repo jest publiczne, a do skanów dokumentacji MERA-400 nie mamy prawa redystrybucji — **skany nie są w gicie** i nie wolno ich commitować (`.gitignore`: `data/scans-raw/`, `data/MJC-400/*/scans/`, `*.pdf`). Źródłem jest `oracles/` (submodule `unemu-org/oracles`, fetch-only, przypięty sha256): `oracles/mera400/mera400-dtr-t4-cz2-mjc400-schematy.pdf`. `just scans` pobiera ten jeden PDF (z URL przypiętego w oracles) i odtwarza bajt w bajt `data/scans-raw/page-NNN.png` (arkusz `2-(NNN+1)`) i `data/MJC-400/<pkg>/scans/2-N.jpg`, sprawdzając `data/scans.sha256`. Pozostałe dokumenty MERA-400 (DTR, dokumentacja projektowa, oprogramowanie, Amepol) są w `oracles/mera400/` po `./fetch-oracles.sh fetch`; opis w `oracles/MANIFEST.md`. Worktree agenta nie ma checkoutu submodule — wskazuj mu `oracles/` z głównego checkoutu (read-only) albo `--oracles DIR`.

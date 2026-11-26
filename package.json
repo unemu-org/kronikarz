@@ -1,5 +1,6 @@
 {
   "name": "kronikarz",
+  "license": "BSD-2-Clause",
   "private": true,
   "workspaces": [
     "shared",
