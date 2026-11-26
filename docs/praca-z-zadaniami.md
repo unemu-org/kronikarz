@@ -49,6 +49,7 @@ Epik niesie etykietę tematu; dzieci mają własne etykiety (tworzone z `--no-in
 | `kr-2fb` | `refaktor` | Struktura kodu i refaktor |
 | `kr-p4g` | `spec` | Specyfikacja formatu i decyzje otwarte |
 | `kr-0dl` | `ux` | Viewer: odłożone funkcje UX |
+| `kr-9p8` | `auto` | Automatyczna digitalizacja (lokalnie, M5 Pro 64 GB) — `docs/auto-digitalizacja.md` |
 
 ## Cykl życia beada
 
