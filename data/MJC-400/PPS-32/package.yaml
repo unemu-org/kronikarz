@@ -2,6 +2,7 @@ kronikarz: "1"
 package:
   id: PPS-32
   name: PPS-32
+  board: PPS32
   doc: 12-006368-01-8A
   status: raw
   pages:

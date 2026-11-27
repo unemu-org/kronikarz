@@ -2,6 +2,7 @@ kronikarz: "1"
 package:
   id: P-R3-2
   name: P-R3-2
+  board: P-R
   doc: 12-006368-01-8A
   status: raw
   pages:

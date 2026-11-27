@@ -2,6 +2,7 @@ kronikarz: "1"
 package:
   id: JPP-16-18
   name: JPP-16-18
+  board: JPP16
   doc: 12-006368-01-8A
   status: raw
   pages:

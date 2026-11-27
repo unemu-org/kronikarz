@@ -6,7 +6,8 @@
 """Classify scanned pages by package using Claude vision.
 
 Each page in data/scans-raw/ has a title block in the bottom-right with
-"Schemat ideowy pakietu <PACKAGE>" and a page id "2-NN". This script crops
+"Schemat ideowy pakietu <PACKAGE>" (or "pulpitu <PACKAGE>",
+"terminatora interfejsu <PACKAGE>") and a page id "2-NN". This script crops
 that region, sends it to claude-opus-4-7, and writes the response to a
 per-page cache JSON. After classification, files are copied to
 data/MJC-400/<PACKAGE>/scans/<page_id>.jpg.
@@ -36,12 +37,13 @@ MODEL = "claude-opus-4-7"
 SYSTEM = """You read scanned title blocks from a Polish 1970s computer DTR (MERA-400 MJC-400 schematics).
 
 The title block typically contains:
-- Two-line title: "Schemat ideowy / pakietu <PACKAGE_CODE>"
+- Two-line title: "Schemat ideowy / pakietu <PACKAGE_CODE>" (also "pulpitu <CODE>",
+  "terminatora interfejsu <CODE>")
 - A page id like "2-1", "2-32", "2-101" (NOT the document number "12-006368-...")
 - The document number "12-006368-..."
 
 Package codes look like: P-X3-2, P-M3-2, P-D3-2, P-P3-2, P-R3-2, P-A3-2, P-O3-2,
-I-SK1-1, SM-POSET-1, SM-PKT-1, JPP-16/18, SPP-32/16, PPS-32.
+I-SK1-1, SM-POSE11, SM-PK11, TJ, JPP-16/18, SPP-32/16, PPS-32.
 
 Some pages may be cover sheets, BOM tables, or otherwise have no clear package
 title — return null for those fields.

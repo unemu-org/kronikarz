@@ -14,7 +14,7 @@ Usage:
                              [--overlay <png>] [--page 2-58 --package P-R3-2]
                              [--set NAZWA=wartość ...]
 
-Idea: grubość ramki NIE jest kryterium (na SM-POSET-1 ramki mają ~1,6 px, tyle co druty;
+Idea: grubość ramki NIE jest kryterium (na SM-POSE11 ramki mają ~1,6 px, tyle co druty;
 poprzedni tryb (b) cv-wires.py szukał grubych kresek). Kryterium jest topologia:
   - bramka to prostokąt z czterech długich linii (tekst w środku nie przeszkadza — znaki są
     krótsze niż LINE_L i znikają z map linii);
@@ -60,7 +60,7 @@ też są w `gates` (model danych: Gate z gate: null).
 
 Strojone na P-R3-2 2-58/2-59 + ogląd P-X3-2 2-1; 2-60/2-61/2-63 = held-out. v1 (ślepy
 wynik) zamrożona przed held-out i stronami spoza P-R3-2; wersja końcowa stroiła się także po
-obejrzeniu 2-63, JPP-16-18 2-115, SM-POSET-1 2-97, P-M3-2 2-13 i I-SK1-1 2-87; v3 (po
+obejrzeniu 2-63, JPP-16-18 2-115, SM-POSE11 2-97, P-M3-2 2-13 i I-SK1-1 2-87; v3 (po
 recenzji) także po P-D3-2 2-31, SPP-32-16 2-142, P-A3-2 2-72, P-P3-2 2-46 i PPS-32 2-150
 (zob. docs).
 """

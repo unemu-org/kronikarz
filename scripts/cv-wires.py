@@ -358,7 +358,7 @@ def detect_dots(bw: np.ndarray, P: dict, gray: np.ndarray | None = None) -> list
         sub = dt[y : y + h, x : x + w] * comp
         r = float(sub.max())
         # kropka „zrobiona” zamalowaniem musi być wyraźnie większa: 1–2-pikselowe dziury
-        # (szum JPEG) w kleksie na skrzyżowaniu cienkich linii dają r ~3,2 (SM-POSET-1 2-97)
+        # (szum JPEG) w kleksie na skrzyżowaniu cienkich linii dają r ~3,2 (SM-POSE11 2-97)
         r0 = float((dt0[y : y + h, x : x + w] * comp).max())
         filled = added[y : y + h, x : x + w][comp].any()
         if not (r0 >= P["DOT_DT"] or (filled and r >= P["DOT_DT"] + P["DOT_FILL_EXTRA"])

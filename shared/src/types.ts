@@ -86,6 +86,10 @@ export interface Package {
   package: {
     id: string;
     name: string;
+    // rodzina płyty (jak na wiki / na sprzęcie), np. "SM-POSE", "P-K", "TJ".
+    board?: string;
+    // wcześniejsze id i inne pisownie nazwy pakietu, np. ["SM-POSET-1", "SM.POSE-11"].
+    aliases?: string[];
     doc: string;
     status: Status;
     pcb?: {

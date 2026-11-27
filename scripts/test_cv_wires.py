@@ -200,7 +200,7 @@ def test_pale_hollow_dot_is_still_a_dot():
 
 def test_speckle_hole_in_crossing_blot_is_not_a_dot():
     # 1-pikselowa szara dziurka (szum JPEG) w kleksie na skrzyżowaniu cienkich linii
-    # (SM-POSET-1 2-97): po zamalowaniu kleks ma r ~4 < DOT_DT + DOT_FILL_EXTRA
+    # (SM-POSE11 2-97): po zamalowaniu kleks ma r ~4 < DOT_DT + DOT_FILL_EXTRA
     img = blank()
     hline(img, 50, 350, 200, 2)
     vline(img, 200, 50, 350, 2)

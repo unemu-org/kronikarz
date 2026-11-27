@@ -38,7 +38,7 @@ Python scripts: `uv run scripts/<name>.py`. Server resolwuje `uv` z PATH lub `ni
 just dev                     # viewer (Vite :5173) + server (:8080) równolegle
 just viewer | just server    # pojedynczy proces
 just build / just typecheck / just lint / just fmt
-just validate PKG=...        # yq sprawdza YAML pakietu i stron
+just validate data/MJC-400/<PKG>  # yq sprawdza YAML pakietu i stron
 just export PKG=...          # node export/index.js → dist/kicad/   (nie zaimplementowane)
 ```
 

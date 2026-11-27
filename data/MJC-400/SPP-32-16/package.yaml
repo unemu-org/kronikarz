@@ -2,6 +2,7 @@ kronikarz: "1"
 package:
   id: SPP-32-16
   name: SPP-32-16
+  board: SPP32
   doc: 12-006368-01-8A
   status: raw
   pages:

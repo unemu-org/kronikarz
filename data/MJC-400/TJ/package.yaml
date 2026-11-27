@@ -1,0 +1,11 @@
+kronikarz: "1"
+package:
+  id: TJ
+  name: TJ
+  board: TJ
+  doc: 12-006368-01-8A
+  status: raw
+  pages:
+  - {id: 2-109, file: pages/2-109.sch.yaml, scan: scans/2-109.jpg, title: Schemat ideowy terminatora interfejsu TJ, status: raw, sheet: 1}
+  - {id: 2-110, file: pages/2-110.sch.yaml, scan: scans/2-110.jpg, title: Schemat ideowy terminatora interfejsu TJ, status: raw, sheet: 2}
+components: {}

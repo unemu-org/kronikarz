@@ -41,16 +41,20 @@ packages:
   name: PPS-32
   file: PPS-32/package.yaml
   status: raw
-- id: SM-PKT-1
-  name: SM-PKT-1
-  file: SM-PKT-1/package.yaml
+- id: SM-PK11
+  name: SM-PK11
+  file: SM-PK11/package.yaml
   status: raw
-- id: SM-POSET-1
-  name: SM-POSET-1
-  file: SM-POSET-1/package.yaml
+- id: SM-POSE11
+  name: SM-POSE11
+  file: SM-POSE11/package.yaml
   status: raw
 - id: SPP-32-16
   name: SPP-32-16
   file: SPP-32-16/package.yaml
+  status: raw
+- id: TJ
+  name: TJ
+  file: TJ/package.yaml
   status: raw
 backplane: []

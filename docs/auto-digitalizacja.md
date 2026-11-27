@@ -166,7 +166,7 @@ Hipoteza w liczbach `eval-digitize` nie jest spełniona. Ślepy wynik held-out (
 0,84 na 2-60 i 0,36 na 2-61; późniejsze wersje stroiłem już po obejrzeniu tych stron.
 
 Tryb (b), w którym bramki są wykrywane samodzielnie, **nie nadaje się jeszcze do użytku
-poza P-R3-2/P-X3-2** (zob. „Poza P-R3-2”). Na JPP-16-18 i SM-POSET-1 nie wykrywa
+poza P-R3-2/P-X3-2** (zob. „Poza P-R3-2”). Na JPP-16-18 i SM-POSE11 nie wykrywa
 złożonych układów, a ramka strony, tabliczka i odręczne dopiski stają się drutami.
 
 Dalsze kroki:
@@ -185,7 +185,7 @@ Szczegóły są w docstringu skryptu.
 
 **Grubość kreski `sw`** mierzę na każdej stronie: średni przekrój długich linii (Otsu),
 bez biegów dłuższych niż mediana + 1 (żeby pominąć ramki bramek). Wyniki: 2-58 2,09 px,
-2-59 2,35, 2-60 2,58, 2-61 2,97, P-X3-2 2-1 2,16, JPP-16-18 2-115 2,69, SM-POSET-1 2-97
+2-59 2,35, 2-60 2,58, 2-61 2,97, P-X3-2 2-1 2,16, JPP-16-18 2-115 2,69, SM-POSE11 2-97
 1,56. Rozmiary związane z kreską liczę ze wzorów:
 
 | parametr | wzór |
@@ -222,7 +222,7 @@ Pozostałe stałe są w PARAMS.
 2. Otwarcie dyskiem `DOT_D`.
 3. Promień koła wpisanego ≥ `DOT_DT`. Kandydat, który przechodzi próg dopiero po
    zamalowaniu, musi mieć ≥ `DOT_DT` + 1,5 (`DOT_FILL_EXTRA`). Szum JPEG (1–2 px dziurki)
-   w kleksie na skrzyżowaniu cienkich linii daje r ≤ 4,2 (SM-POSET-1 2-97); prawdziwe
+   w kleksie na skrzyżowaniu cienkich linii daje r ≤ 4,2 (SM-POSE11 2-97); prawdziwe
    blade kropki mają 5,4 (P-X3-2) i 7,6 (2-61).
 
 **Tekst.** Usuwam składowe w rozmiarze znaku i znaki przyklejone do drutu (po odjęciu
@@ -305,7 +305,7 @@ Uwagi:
 - Tryb (a) v4: `pairP` = 1,000 na wszystkich stronach, `pF1cond` 0,959 / 1,000 / 0,816 /
   0,977.
 - `ep_acc` jest niskie, bo kandydat nie ma portów ani cross-refów.
-- Czas na stronę (sam rdzeń): v4 0,14–0,40 s (najwolniej SM-POSET-1 2-100: 0,40 s; dwie
+- Czas na stronę (sam rdzeń): v4 0,14–0,40 s (najwolniej SM-POSE11 2-100: 0,40 s; dwie
   transformaty odległości w `detect_dots`). W v3 było 0,12–0,41 s.
 
 ### Poza P-R3-2
@@ -316,11 +316,11 @@ i statystyk.
 | strona | sw | v3: nety / odcinki / kropki | v3 największy net | v4: nety / odcinki / kropki | v4 największy net |
 |---|---|---|---|---|---|
 | JPP-16-18 2-115 | 2,69 | 124 / 384 / 125 | 8690 px | 163 / 262 / 22 | 3608 px |
-| SM-POSET-1 2-97 | 1,56 | 68 / 277 / 107 | 25 283 px | 90 / 184 / 25 | 3282 px |
-| SM-POSET-1 2-100 | 1,88 | 195 / 609 / 186 | 7197 px | 235 / 506 / 99 | 2090 px |
+| SM-POSE11 2-97 | 1,56 | 68 / 277 / 107 | 25 283 px | 90 / 184 / 25 | 3282 px |
+| SM-POSE11 2-100 | 1,88 | 195 / 609 / 186 | 7197 px | 235 / 506 / 99 | 2090 px |
 | P-X3-2 2-1 | 2,16 | 69 / 187 / 39 | 3786 px | 70 / 176 / 37 | 3384 px |
 
-Recenzja zmierzyła na SM-POSET-1 2-97 bez zamalowania 8045 px (v3). v4 bez zamalowania
+Recenzja zmierzyła na SM-POSE11 2-97 bez zamalowania 8045 px (v3). v4 bez zamalowania
 (`DOT_HOLE=0`) daje 2897 px, a z zamalowaniem 3282 px. Część różnicy wobec v3 wynika też
 z najbliższej nieparzystej w `DOT_D` (2-115: 9 → 7) i z przycinania końców do kropek.
 
@@ -328,23 +328,23 @@ Cztery klasy błędów (zmierzone przez recenzję i potwierdzone na overlayach v
 
 1. **Kropki z zamalowanych dziur** (v3). `DOT_HOLE` = `DOT_D`² zamalowywał kółka negacji,
    oczka liter i kratki ramek, przez co kandydatów na kropki było dwa razy więcej
-   (2-58: 108 → 236 kropek). Na SM-POSET-1 2-97 największy net urósł do 25 283 px.
+   (2-58: 108 → 236 kropek). Na SM-POSE11 2-97 największy net urósł do 25 283 px.
    **Naprawione w v4**:
    - liczba kropek (z testem promienia) z zamalowaniem / bez: 2-58 106/108, 2-61 85/83,
-     P-X3-2 163/161, SM-POSET-1 2-97 77/77, JPP 2-115 56/58 (v3: 236/174/289/107/241);
+     P-X3-2 163/161, SM-POSE11 2-97 77/77, JPP 2-115 56/58 (v3: 236/174/289/107/241);
    - zysk zostaje: (1480, 243) na P-X3-2 łączy zegar M2 C3/C11 z C bramek M4/M6/M7,
      a złącze 2-61 (716, 679) jest nadal wykrywane;
-   - SM-POSET-1 2-97: kółko negacji ~(612, 1203) nie jest już kropką. Przy ~(612, 1046)
+   - SM-POSE11 2-97: kółko negacji ~(612, 1203) nie jest już kropką. Przy ~(612, 1046)
      zostaje kandydat r = 3,6 (kółko zlane z grubą ramką układu, bez zamalowania) — to już
      klasa 2.
 2. **Złożone układy** (RAM K565 na JPP 2-115, rejestry/liczniki z kolumnami etykiet
-   pinów na SM-POSET): czworobok ich nie łapie (JPP 2-115: 3 maski), więc ramki,
+   pinów na SM-POSE11): czworobok ich nie łapie (JPP 2-115: 3 maski), więc ramki,
    przegródki i kolumny etykiet stają się drutami. Do kr-9p8.3.
 3. **Ramka strony i tabliczka.** Na JPP 2-115 ramka arkusza (x ≈ 130–2200, y ≈ 170–1520)
    jest jednym długim „netem”, a tabliczka ma inne położenie i rozmiar niż na P-R3-2, więc
    maska `TITLE` (x ≥ 0,66 W, y ≥ 0,76 H) jej nie obejmuje i tabela tabliczki zamienia się
    w druty. Do nowego beada.
-4. **Odręczne dopiski i klamry magistral.** Na SM-POSET 2-97 jest pionowa kreska / klamra
+4. **Odręczne dopiski i klamry magistral.** Na SM-POSE11 2-97 jest pionowa kreska / klamra
    przy lewej kolumnie wejść (x ≈ 220), do której dochodzi kilkanaście drutów.
    W v3 sklejało się to w największy net (z kropkami z klasy 1). W v4 druty dochodzące
    do klamry tworzą T bez kropki, więc się nie łączą (największy net 3282 px). Klamra
@@ -458,7 +458,7 @@ kropki, ramki stron i złożone układy wystarczy mała segmentacja semantyczna:
 - model: U-Net albo SegFormer-B0, klasy tło / drut / kropka / ramka bramki / ramka
   strony, tekst jako „ignoruj”, kafelki 256–512 px;
 - etykiety z rasteryzacji zatwierdzonych stron spoza wzorca (20–50 arkuszy, z różnych
-  pakietów — JPP i SM-POSET wyglądają inaczej niż P-R3-2), z augmentacją grubości kreski,
+  pakietów — JPP i SM-POSE11 wyglądają inaczej niż P-R3-2), z augmentacją grubości kreski,
   skosu, bladości i kompresji JPEG;
 - trening na MPS/MLX.
 
@@ -506,14 +506,14 @@ ten detektor zamiast własnego szukania grubych czworoboków.
 
 Kontrola wzrokowa opiekuna (overlaye wersji końcowej):
 
-- SM-POSET-1 2-97: 22/22 bramki, 0 fałszywych ramek, stosy podzielone poprawnie;
+- SM-POSE11 2-97: 22/22 bramki, 0 fałszywych ramek, stosy podzielone poprawnie;
 - P-X3-2 2-1: 21/21 bramek i 1 rezystor, M3 znaleziona, 0 fałszywych.
 
 ### Metoda
 
 Szczegóły są w docstringu. Najważniejsze decyzje:
 
-- **Grubość ramki nie jest kryterium.** Na SM-POSET-1 ramka ma ~1,6 px, tyle co drut;
+- **Grubość ramki nie jest kryterium.** Na SM-POSE11 ramka ma ~1,6 px, tyle co drut;
   stary tryb (b) przez to gubił układy. Liczy się topologia:
   - prostokąt z czterech długich linii (tekst znika z map linii, bo znak jest krótszy
     od `LINE_L` = 25 px);
@@ -539,7 +539,7 @@ Szczegóły są w docstringu. Najważniejsze decyzje:
   M30/M31/M42 to we wzorcu po jednej bramce A z 14 pinami.
 - **Klasy:**
   - `composite`: ≥ 2 wewnętrzne pionowe ściany albo wysokość ≥ 200 px, więc wysoka 7430
-    (SM-POSET H4/J4) też dostaje tę klasę;
+    (SM-POSE11 H4/J4) też dostaje tę klasę;
   - `passive`: mały płaski prostokąt z jednym wyprowadzeniem na każdym krótkim boku
     (rezystory); kondensatorów nie wykrywam;
   - `gate`: pozostałe.
@@ -559,7 +559,7 @@ Szczegóły są w docstringu. Najważniejsze decyzje:
 
 - **v1** (sha256 `6c0d4ccb…`) zamrożona po strojeniu na 2-58/2-59 i oglądzie P-X3-2 2-1,
   przed pierwszym uruchomieniem na 2-60/2-61/2-63 i na stronach spoza P-R3-2. To jedyny
-  ślepy wynik. JPP 2-115 i SM-POSET 2-97 znałem wcześniej z miniatur skanów (opis zadania),
+  ślepy wynik. JPP 2-115 i SM-POSE11 2-97 znałem wcześniej z miniatur skanów (opis zadania),
   ale nie z wyników detektora.
 - **końcowa** (sha256 `d2a60bde…`) powstała po obejrzeniu wyników v1 na 2-63 i 4 stronach
   bez wzorca. Zmiany:
@@ -621,7 +621,7 @@ gateP / gateR / gateF1:
 |---|---|---|---|---|
 | P-X3-2 2-1 (ogląd przy strojeniu) | 21 | 21 / 0 | 21 / 0 | 1/1 / 1/1 |
 | JPP-16-18 2-115 | 4 (K565) | 3 / 2 | 4 / 0 | – |
-| SM-POSET-1 2-97 | 22 | 22 / 1 | 22 / 0 | – |
+| SM-POSE11 2-97 | 22 | 22 / 1 | 22 / 0 | – |
 | P-M3-2 2-13 | 23 | 21 / 4 | 22 / 0 | 1/5 / 3/5 |
 | I-SK1-1 2-87 | 56 | 33 / 34 | 54 / 0 | 3/14 / 13/14 |
 | razem 4 strony powyżej: ślepe dla v1, **strojenie** dla końcowej | 105 | 79 / 41 (R 0,75, P 0,66) | 102 / 0 (R 0,97, P 1,00) — nie ślepe | |
@@ -641,7 +641,7 @@ v3 (po recenzji, **nie ślepa**, ponowne uruchomienie wszystkich 15 stron):
 
 | strona | końcowa | v3 |
 |---|---|---|
-| P-R3-2 2-58…2-63, P-X3-2, JPP, SM-POSET, I-SK1-1 | jak wyżej | bez zmian (te same ramki) |
+| P-R3-2 2-58…2-63, P-X3-2, JPP, SM-POSE11, I-SK1-1 | jak wyżej | bez zmian (te same ramki) |
 | P-M3-2 2-13 | 22/23, rez. 3/5 | 22/23, rez. **5/5** (R24, R3) |
 | P-D3-2 2-31 | 10/13 | **11/13** (M95 (1883, 216, 1940, 297)) |
 | SPP-32-16 2-142 | 6/24 | **14/24** (stosy A7 (769, 308, 826, 624) i T7 (694, 1016, 748, 1333)) |
@@ -671,7 +671,7 @@ Konkretne błędy (współrzędne skanu x0, y0, x1, y1):
   - JPP: FP w kolumnie dat tabliczki (1749, 1257, 1827, 1466) i (1749, 1466, 1827, 1524);
     zgubiony M18 (1508, 314, 1611, 788): wyjście W to kółko + 20 px drutu, a pas pinów
     14–28 px go nie widział;
-  - SM-POSET: FP (1362, 683, 1398, 997) — prostokąt z drutów przy J2/J6;
+  - SM-POSE11: FP (1362, 683, 1398, 997) — prostokąt z drutów przy J2/J6;
   - P-M3-2: FP (382, 767, 499, 900), (831, 692, 890, 799), (831, 799, 890, 849),
     (831, 849, 890, 933) — prostokąty z drutów przy M91 i przy stosie M16…M17; zgubione
     M1 (1679, 284, 1738, 366) i M30 w lewym górnym rogu;
@@ -706,7 +706,7 @@ strony z kr-9p8.2).
   | strona | maski | nety / odcinki / kropki | v4 | największy net |
   |---|---|---|---|---|
   | JPP 2-115 | 4 | 158 / 245 / 17 | 163 / 262 / 22 | 3608 px |
-  | SM-POSET 2-97 | 6 | 80 / 168 / 20 | 90 / 184 / 25 | 3138 px |
+  | SM-POSE11 2-97 | 6 | 80 / 168 / 20 | 90 / 184 / 25 | 3138 px |
   | P-X3-2 2-1 | 11 | 66 / 168 / 36 | 70 / 176 / 37 | 3383 px |
 
   Na overlayu JPP korpusy M16…M19 nie mają już drutów. Kolumny etykiet „A15 12…” przed

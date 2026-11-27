@@ -12,6 +12,7 @@ Zmiany od v1.0:
 - **Port** i **cross_ref** są osobnymi bytami na poziomie strony (nie tylko polem w pinie)
 - **Net** ma jawne `segments` i `junctions` jako geometrię wire'a
 - Format walidacji + lista kodów błędów
+- **Package** ma opcjonalne `board` (rodzina płyty) i `aliases` (dawne identyfikatory i inne zapisy nazwy)
 
 ---
 
@@ -110,6 +111,8 @@ kronikarz: "1"
 package:
   id: P-R3-2
   name: "Pakiet R"
+  board: P-R                      # opcjonalne: rodzina płyty
+  # aliases: [...]                # opcjonalne: inne id / pisownie (patrz niżej)
   doc: "12-006368-01-8A"
   status: wip
 
@@ -155,6 +158,15 @@ components:
     polarized: false
     pages: ["2-1"]
 ```
+
+`package.id` to nazwa z ramki rysunku (tytuł arkusza), ze spacjami i `/`
+zamienionymi na `-` (np. „SPP 32/16” → `SPP-32-16`). Pola opcjonalne:
+
+- `board` — rodzina płyty, jak na wiki / na sprzęcie (np. `SM-POSE`, `P-K`,
+  `TJ`, `I-SK`, `P-R`). Kilka pakietów (wersji) może mieć ten sam `board`.
+- `aliases` — lista wcześniejszych id i innych pisowni nazwy spotykanych
+  gdzie indziej (np. `[SM-POSET-1, SM.POSE-11]`). Tylko informacyjnie;
+  referencje (`page.package`, backplane) używają zawsze `id`.
 
 ---
 

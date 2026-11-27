@@ -2,6 +2,7 @@ kronikarz: "1"
 package:
   id: I-SK1-1
   name: I-SK1-1
+  board: I-SK
   doc: 12-006368-01-8A
   status: raw
   pages:

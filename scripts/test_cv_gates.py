@@ -260,7 +260,7 @@ def test_gate_with_bubbles_on_input_side():
 
 
 def test_thin_frame_gate():
-    # SM-POSET-1: ramka tak cienka jak drut (~1,6 px)
+    # SM-POSE11: ramka tak cienka jak drut (~1,6 px)
     img = blank()
     frame(img, 250, 200, 305, 290, t=2)
     for y in (225, 265):
