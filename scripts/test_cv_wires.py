@@ -63,6 +63,34 @@ def frame(img, x0, y0, x1, y1, t=5):
     img[y0 : y1 + 1, x1 - t + 1 : x1 + 1] = 0
 
 
+GLYPHS = {  # pochyłe znaki szablonowe (własny rysunek): łamane w polu 0..0.7 x 0..1, y w dół
+    "1": [[(0.15, 0.2), (0.45, 0.0), (0.45, 1.0)]],
+    "2": [[(0.05, 0.2), (0.3, 0.0), (0.6, 0.1), (0.6, 0.35), (0.05, 1.0), (0.65, 1.0)]],
+    "3": [[(0.05, 0.1), (0.35, 0.0), (0.6, 0.15), (0.55, 0.4), (0.3, 0.5), (0.6, 0.65), (0.6, 0.9),
+           (0.3, 1.0), (0.0, 0.9)]],
+    "4": [[(0.5, 1.0), (0.5, 0.0), (0.0, 0.65), (0.7, 0.65)]],
+    "5": [[(0.6, 0.0), (0.1, 0.0), (0.05, 0.45), (0.4, 0.4), (0.6, 0.6), (0.55, 0.9), (0.3, 1.0),
+           (0.0, 0.9)]],
+    "L": [[(0.05, 0.0), (0.05, 1.0), (0.6, 1.0)]],
+    "+": [[(0.0, 0.55), (0.5, 0.55)], [(0.25, 0.3), (0.25, 0.8)]],
+    "8": [[(0.3, 0.0), (0.6, 0.15), (0.55, 0.4), (0.3, 0.5), (0.05, 0.4), (0.05, 0.15), (0.3, 0.0)],
+          [(0.3, 0.5), (0.6, 0.65), (0.6, 0.9), (0.3, 1.0), (0.0, 0.9), (0.0, 0.65), (0.3, 0.5)]],
+    "9": [[(0.6, 0.4), (0.3, 0.5), (0.05, 0.4), (0.05, 0.15), (0.3, 0.0), (0.6, 0.15), (0.6, 0.7),
+           (0.4, 1.0), (0.05, 0.95)]],
+}
+
+
+def text(img, s, x, y_base, h=20, th=4, slant=0.22):
+    """Napis szablonem jak na skanie 200 dpi: znaki wysokości h px, kreska th px, pochylenie
+    slant (2-62: ~5 px na 20 px); dolny brzeg kreski w wierszu y_base."""
+    for i, ch in enumerate(s):
+        x0 = x + i * 0.6 * h
+        for line in GLYPHS[ch]:
+            pts = [(int(round(x0 + 0.75 * px * h + slant * (1 - py) * h)),
+                    int(round(y_base - th // 2 - (1 - py) * (h - th)))) for px, py in line]
+            cv2.polylines(img, [np.array(pts, np.int32)], False, 0, th, lineType=cv2.LINE_8)
+
+
 def gate(x0, y0, x1, y1, pins=()):
     return {"ref": "M1", "gate": "A", "x": (x0 + x1) / 2, "y": (y0 + y1) / 2,
             "w": x1 - x0, "h": y1 - y0, "rotation": 0,
@@ -402,6 +430,404 @@ def test_stacked_pin_number_ones_are_not_a_wire():
     vert = [p for n in res["nets"] for p in n["pieces"] if p[0] == p[2] and abs(p[0] - 178) <= 3]
     assert vert == [], vert
     assert len(res["nets"]) == 4
+
+
+@pytest.mark.parametrize("h", [21, 22, 24])
+def test_pin_number_stack_touching_wires_is_not_a_wire(h):
+    # 2-62 M24: numery pinów 14/13/12 stoją na drutach pinów i prawie dotykają drutu nad sobą;
+    # w v4 słupek był „pewną” linią pionową (i przechodził przez pas pinów, bo bieg łączył
+    # się przez druty) — druty WA/WE/EN skręcały przez cyfry i sklejały piny
+    img = blank()
+    frame(img, 200, 120, 260, 300)
+    for y in (160, 186, 212, 238):
+        hline(img, 40, 200, y)
+    for y, s in ((186, "14"), (212, "13"), (238, "12")):
+        text(img, s, 164, y - 2, h=h)
+    g = cvw.clean_gates([gate(200, 120, 260, 300, [(14, "left", 200, 186), (13, "left", 200, 212),
+                                                   (12, "left", 200, 238)])])
+    res = run(img, g)
+    cvw.assign_pins(g, res["nets"], res["params"])
+    nets = [p["net"] for p in g[0]["pins"]]
+    assert all(nets) and len(set(nets)) == 3, nets
+    vert = [p for n in res["nets"] for p in n["pieces"] if p[0] == p[2]]
+    assert vert == [], vert
+    assert len(res["nets"]) == 4
+
+
+def test_label_stack_on_wires_is_not_a_wire():
+    # 2-62 lewy dół: etykiety „+L15”…„+L12” na kolejnych drutach (co 26 px) — kreski „L”
+    # i „1” tworzyły pionowe „druty” przez cały słupek
+    img = blank()
+    for i, y in enumerate((150, 176, 202, 228)):
+        hline(img, 40, 380, y)
+        text(img, f"+L1{5 - i}", 60, y - 2, h=22)
+    res = run(img, [])
+    assert len(res["nets"]) == 4
+    assert all(p[1] == p[3] for n in res["nets"] for p in n["pieces"]), res["nets"]
+
+
+def test_short_stub_with_digit_reaches_pin():
+    # 2-58 M64.12 / M40.3: od narożnika do pinu odcinek ~25 px, na nim numer pinu — w v4
+    # cała składowa (odcinek + cyfra) szła do kosza jako znak i pin zostawał bez drutu
+    img = blank()
+    frame(img, 200, 120, 260, 300)
+    hline(img, 40, 200, 150)
+    vline(img, 168, 150, 220)
+    dot(img, 168, 150)
+    hline(img, 168, 200, 220)
+    text(img, "12", 174, 218, h=20)
+    g = cvw.clean_gates([gate(200, 120, 260, 300, [(2, "left", 200, 150), (12, "left", 200, 220)])])
+    res = run(img, g)
+    cvw.assign_pins(g, res["nets"], res["params"])
+    n2, n12 = (p["net"] for p in g[0]["pins"])
+    assert n12 and n12 == n2
+
+
+def test_short_corner_wire_around_digit_is_kept():
+    # 2-62 M24.C1: drut z dołu skręca w górę 22–28 px od krawędzi i krótkim odcinkiem
+    # dochodzi do pinu; cyfra „3” stoi w środku narożnika i dotyka obu kawałków
+    img = blank()
+    frame(img, 200, 120, 260, 300)
+    hline(img, 40, 200, 206)              # drut innego pinu, krzyżuje pion bez kropki
+    hline(img, 40, 172, 232)              # drut C1 z lewej, narożnik w x=172
+    vline(img, 172, 180, 232)
+    hline(img, 172, 200, 180)             # krótki odcinek do pinu C1 (< MIN_LEN1)
+    text(img, "3", 176, 201, h=18)        # dotyka odcinka i pionu, nie drutu pod spodem
+    g = cvw.clean_gates([gate(200, 120, 260, 300, [(1, "left", 200, 180), (2, "left", 200, 206)])])
+    res = run(img, g, SW=3.0)  # mało drutów na obrazku: pomiar sw łapałby kreski znaków
+    cvw.assign_pins(g, res["nets"], res["params"])
+    n1, n2 = (p["net"] for p in g[0]["pins"])
+    assert n1 and n1 == net_at(res, (100, 232)), res["nets"]
+    assert n2 and n2 != n1
+
+
+def test_wire_through_dot_to_pin_between_digits_is_kept():
+    # 2-64 M7.8: drut z lewej przez kropkę na pionie i dalej ~20 px do pinu; cyfry „8” nad
+    # i „9” pod nim dotykają odcinka. Przebieg „v” (odjęte piony) widzi sam odcinek z cyframi
+    # — bez ochrony pewnych linii poziomych ginął razem z nimi
+    img = blank()
+    frame(img, 200, 120, 260, 300)
+    hline(img, 40, 200, 180)
+    vline(img, 180, 180, 330)
+    dot(img, 180, 180)
+    hline(img, 40, 200, 206)
+    text(img, "8", 186, 178, h=20, slant=0.15)
+    text(img, "9", 186, 203, h=20, slant=0.15)
+    g = cvw.clean_gates([gate(200, 120, 260, 300, [(8, "left", 200, 180), (9, "left", 200, 206)])])
+    res = run(img, g)
+    cvw.assign_pins(g, res["nets"], res["params"])
+    n8, n9 = (p["net"] for p in g[0]["pins"])
+    assert n8 and n8 == net_at(res, (100, 180)) == net_at(res, (180, 300)), res["nets"]
+    assert n9 and n9 != n8
+
+
+def test_corner_below_dot_with_digit_is_kept():
+    # 2-58 M40.1: z kropki pion 27 px w dół i odcinek 25 px do pinu, cyfra „1” w narożniku;
+    # pół kropki wydłuża składową — rdzeń liczony względem rozmiaru bez kropki
+    img = blank()
+    frame(img, 200, 120, 260, 300)
+    hline(img, 40, 172, 200)
+    vline(img, 172, 160, 227)
+    dot(img, 172, 200)
+    hline(img, 172, 200, 160)
+    hline(img, 172, 200, 227)
+    text(img, "1", 180, 224, h=20)
+    g = cvw.clean_gates([gate(200, 120, 260, 300, [(3, "left", 200, 160), (1, "left", 200, 227)])])
+    res = run(img, g, SW=3.0)
+    cvw.assign_pins(g, res["nets"], res["params"])
+    n3, n1 = (p["net"] for p in g[0]["pins"])
+    assert n1 and n1 == n3 == net_at(res, (100, 200)), res["nets"]
+
+
+def test_upright_digit_between_pin_wires_does_not_join_pins():
+    # 2-65 C/Q: prosta kreska cyfry przy krawędzi bramki dotyka drutu pinu nad i pod sobą;
+    # to dotknięcie (drut biegnie dalej do bramki), nie narożnik — piny zostają osobno
+    img = blank()
+    frame(img, 200, 120, 260, 300)
+    hline(img, 40, 200, 180)
+    hline(img, 40, 200, 206)
+    text(img, "1", 188, 204, h=23, slant=0.0)
+    g = cvw.clean_gates([gate(200, 120, 260, 300, [(11, "left", 200, 180),
+                                                   (13, "left", 200, 206)])])
+    res = run(img, g, SW=3.0)
+    cvw.assign_pins(g, res["nets"], res["params"])
+    n11, n13 = (p["net"] for p in g[0]["pins"])
+    assert n11 and n13 and n11 != n13, res["nets"]
+
+
+def test_wire_between_close_dots_is_kept():
+    # 2-65 (766, 1400): pion między dwiema kropkami na drutach 25 px od siebie — po odjęciu
+    # drutów reszta (pół kropki + 8 px pionu + pół kropki) wyglądała na znak
+    img = blank()
+    hline(img, 40, 380, 200)
+    hline(img, 40, 380, 225)
+    vline(img, 200, 120, 330)
+    dot(img, 200, 200)
+    dot(img, 200, 225)
+    res = run(img, [])
+    assert len(res["nets"]) == 1, res["nets"]
+
+
+def test_stacked_port_chevrons_are_not_a_wire():
+    # 2-62 A18/A05, 2-61 x 1722: zewnętrzne „>” sąsiednich portów jeden nad drugim — końce
+    # ukośnych kresek w jednej kolumnie domknięcie (GAP2) i mostkowanie sklejają w pionową
+    # „linię”, pod którą tusz jest na małej części długości. Synteza odtwarza to tylko dla
+    # części kształtów (szewron 20 x 40 px; przy 12–16 px szerokości kreski są zbyt strome,
+    # od ~24 x 46 px pion nie powstaje wcale)
+    img = blank()
+    for i in range(4):
+        y0 = 100 + 40 * i
+        hline(img, 40, 280, y0 + 20)                       # drut do portu
+        for x in (282, 330):                               # lewy i prawy szewron portu
+            cv2.polylines(img, [np.array([(x, y0), (x + 20, y0 + 20), (x, y0 + 40)], np.int32)],
+                          False, 0, 3)
+    res = run(img, [])
+    vert = [p for n in res["nets"] for p in n["pieces"] if p[0] == p[2]]
+    assert vert == [], vert
+
+
+def test_skewed_long_wire_with_dot_is_not_split():
+    # 2-66 x ≈ 494–500: długi pion ze skosem skanu i kropką jest szerszy niż MAX_THICK;
+    # profil bez odjęcia skosu brał tylko kolumny dolnej części i gubił kawałek nad kropką
+    img = blank(h=440)
+    for y in range(30, 411):  # skos nierówny: górne 40 % odchylone o 8 px, reszta prosto
+        x = 200 + (int(round(8 * (182 - y) / 152)) if y < 182 else 0)
+        img[y, x - 1 : x + 2] = 0
+    hline(img, 40, 207, 60)
+    dot(img, 207, 60)
+    hline(img, 100, 380, 300)
+    res = run(img, [])
+    v = [p for n in res["nets"] for p in n["pieces"] if p[0] == p[2]]
+    assert v and min(min(p[1], p[3]) for p in v) <= 35 and max(max(p[1], p[3]) for p in v) >= 405, v
+
+
+@pytest.mark.parametrize("w", [2, 3])
+@pytest.mark.parametrize("r", [5, 6, 7])
+@pytest.mark.parametrize("up", [18, 21, 24])
+def test_pullup_stub_from_dot_into_gate(w, r, up):
+    # recenzja v5 (SPP-32-16 2-137, SM-POSE11 2-100): z kropki na drucie pion `up` px w górę
+    # i krótki odcinek do pinu (rezystor), bez tekstu. Przebieg „h” nie odejmuje pionu, więc
+    # całe L jest składową w rozmiarze znaku; ratuje je rdzeń z kropką jako kotwicą
+    img = blank()
+    frame(img, 200, 200, 260, 380)
+    hline(img, 20, 400, 395, w=w)
+    dot(img, 170, 395, r=r)
+    vline(img, 170, 395 - up, 395, w=w)
+    hline(img, 170, 200, 395 - up, w=w)
+    for k in range(4):
+        hline(img, 20, 160, 40 + 40 * k, w=w)
+    g = cvw.clean_gates([gate(200, 200, 260, 380, [(1, "left", 200, 395 - up)])])
+    res = run(img, g, SW=float(w))
+    cvw.assign_pins(g, res["nets"], res["params"])
+    assert g[0]["pins"][0]["net"] and g[0]["pins"][0]["net"] == net_at(res, (60, 395)), res["nets"]
+
+
+@pytest.mark.parametrize("r", [5, 6, 7])
+def test_filled_glyph_below_corner_keeps_corner(r):
+    # 2-63 (recenzja): zamalowane „0” etykiety pod drutem, obok (12 px w lewo) prawdziwy
+    # narożnik L, pod znakiem kreska litery na drucie etykiety. Nie ma pionu przez znak,
+    # drut narożnika nie wchodzi w znak, a oba ramiona narożnika są w jednym necie.
+    # (Synteza nie odtwarza błędu z 2-63 — test pilnuje zachowania; mechanizmy sprawdzają
+    # dot_anchor_only_on_line i core_keeps_stroke_only_across_its_run)
+    img = blank()
+    vline(img, 170, 100, 200)
+    hline(img, 170, 380, 200)
+    cy = 208 + r                                    # „0” 7 px pod drutem narożnika
+    ul = cy + r + 1
+    hline(img, 40, 380, ul + 1)                     # drut etykiety pod znakiem
+    cv2.circle(img, (158, cy), r, 0, -1)            # zamalowane „0”
+    text(img, "1", 152, ul + 23, h=22)              # kreska litery na następnym drucie
+    hline(img, 40, 380, ul + 26)
+    for k in range(3):
+        hline(img, 40, 380, 330 + 25 * k)
+    res = run(img, [])
+    vert = [p for n in res["nets"] for p in n["pieces"] if p[0] == p[2] and 140 <= p[0] <= 165]
+    assert vert == [], vert
+    top = [p for n in res["nets"] for p in n["pieces"] if p[1] == p[3] and abs(p[1] - 200) <= 2]
+    assert top and min(min(p[0], p[2]) for p in top) >= 166, top
+    assert net_at(res, (170, 150)) is not None and net_at(res, (170, 150)) == net_at(res, (300, 200))
+
+
+@pytest.mark.parametrize("on_line", [False, True])
+def test_strip_pass_dot_anchor_only_on_line(on_line):
+    # 2-63 „+NB0” (1011, 830): zamalowane „0” etykiety detektor bierze za kropkę. Kotwicą
+    # rdzenia jest tylko kropka, przez której środek przechodzi odjęta linia (prawdziwe
+    # złącze); kreska litery między takim „0” a drutem, którego tylko dotyka, ginie
+    H, W = 90, 120
+    bw = np.zeros((H, W), np.uint8)
+    bw[62:65, 5:115] = 1                            # drut, którego kreska dotyka od góry
+    bw[46:62, 37:43] = 1                            # kreska znaku 16 px, gruba 6 px
+    cv2.circle(bw, (40, 41), 5, 1, -1)              # „kropka” nad nią
+    if on_line:
+        bw[40:43, 5:115] = 1                        # prawdziwe złącze: drut przez środek
+    keep = np.zeros((H, W), np.uint8)
+    cv2.circle(keep, (40, 41), 6, 1, -1)
+    P = cvw.derive({**cvw.PARAMS, "TITLE": None}, 3.0)
+    out = cvw._strip_pass(bw, True, False, P, keep, None)
+    assert out[49:58, 37:43].all() == on_line
+
+
+def test_core_keeps_stroke_only_across_its_run():
+    # cała kreska wokół rdzenia (+-1 px) tylko w poprzek biegu: kreska znaku za końcem rdzenia
+    # (stopka pod pionem) nie może zostać, bo wydłużała drut w znak (2-63 (1011, 823))
+    H, W = 60, 60
+    bw = np.zeros((H, W), np.uint8)
+    bw[10:31, 20:23] = 1                            # pion 21 px
+    bw[31:33, 15:20] = 1                            # stopka znaku za końcem, ukośnie obok
+    gate = np.zeros((H, W), np.uint8)
+    gate[5:10, 15:28] = 1                           # maska nad pionem
+    gate[33:38, 15:28] = 1                          # maska pod stopką
+    comp = bw[10:33, 15:28] > 0
+    P = cvw.derive({**cvw.PARAMS}, 3.0)
+    core = cvw._core(comp, 15, 10, bw, np.zeros_like(bw), gate, P)
+    assert core is not None and core[0:21, 6].all()
+    assert not core[21:23, :].any(), core[19:23].astype(int)
+
+
+# --------------------------------------------------------------------------- jednostki v5
+
+def _hband(shape, y0, y1, x0, x1):
+    m = np.zeros(shape, np.uint8)
+    m[y0:y1, x0:x1] = 1
+    return m
+
+
+def test_anchored_touch_crossing_corner_free():
+    # bieg pionowy (kolumna 20) kończy się w wierszu 9, pod nim linia pozioma w wierszach 10–12
+    H, W = 40, 41
+    line = _hband((H, W), 10, 13, 0, W)             # linia przez całą szerokość
+    bw = line.copy()
+    bw[0:10, 19:22] = 1                             # bieg nad linią
+    none = np.zeros((H, W), np.uint8)
+    # dotknięcie: linia biegnie dalej w obie strony, pod nią nic
+    assert cvw._anchored(bw, line, none, 9, 20, 1, 0, 6) == 1
+    # skrzyżowanie: tusz biegu ciągnie się pod linią
+    bw2 = bw.copy()
+    bw2[13:25, 19:22] = 1
+    assert cvw._anchored(bw2, line, none, 9, 20, 1, 0, 6) == 2
+    # narożnik: linia tylko po prawej stronie biegu
+    line3 = _hband((H, W), 10, 13, 19, W)
+    bw3 = line3 | (bw & (1 - line))
+    assert cvw._anchored(bw3, line3, none, 9, 20, 1, 0, 6) == 2
+    # wolny koniec: po biegu biały papier
+    bw4 = np.zeros((H, W), np.uint8)
+    bw4[0:10, 19:22] = 1
+    assert cvw._anchored(bw4, none, none, 9, 20, 1, 0, 6) == 0
+    # kropka / maska bramki (`strong`) tuż za końcem
+    strong = _hband((H, W), 10, 16, 15, 26)
+    bw5 = bw4 | strong
+    assert cvw._anchored(bw5, none, strong, 9, 20, 1, 0, 6) == 2
+
+
+def test_core_perpendicular_needs_strong_end():
+    # kreska pionowa stoi na drucie (dotknięcie); u góry poprzeczka. Poprzeczka z wolnymi
+    # końcami („T”, flaga „1”) nie jest kotwicą — rdzenia nie ma. Ta sama poprzeczka
+    # dochodząca do bramki (maski) jest — zostaje narożnik L (krótki drut do pinu)
+    H, W = 80, 80
+    line = _hband((H, W), 52, 55, 0, W)             # drut pod spodem
+    bw = line.copy()
+    bw[30:52, 29:32] = 1                            # pion 22 px, dotyka drutu
+    bw[30:33, 29:41] = 1                            # poprzeczka w prawo, 12 px
+    x0, y0 = 29, 30
+    comp = bw[30:52, 29:41] > 0
+    none = np.zeros((H, W), np.uint8)
+    P = cvw.derive({**cvw.PARAMS}, 3.0)
+    assert cvw._core(comp, x0, y0, bw, line & bw, none, P) is None
+    gate_mask = _hband((H, W), 20, 45, 41, 60)      # bramka tuż za końcem poprzeczki
+    core = cvw._core(comp, x0, y0, bw, line & bw, gate_mask, P)
+    assert core is not None and core[0:3, :].all() and core[:, 0:3].all()
+
+
+@pytest.mark.parametrize("wobbly", [False, True])
+def test_strip_pass_h_keeps_l_corner_to_gate(wobbly):
+    # SM-POSE11 2-100 (642, 518): pion tylko dotyka drutu (kropki nie wykryto), mocny koniec
+    # ma wyłącznie odcinek przy bramce. Przebieg „h” zostawia całe L: pion przyjęty dzięki
+    # odcinkowi, odcinek dzięki przyjętemu pionowi (przyjęcie iteracyjne). Pion falujący
+    # (SPP-32-16 2-137, SM-POSE11 2-100 (740, 543)): pełny bieg ma tylko środkowa kolumna —
+    # odcinek zaczyna się kolumnę przed nią, a zostać ma cała kreska, nie 1-px kolumna
+    H, W = 100, 120
+    bw = np.zeros((H, W), np.uint8)
+    bw[79:82, 5:115] = 1                            # drut
+    bw[58:79, 39:42] = 1                            # pion 21 px w górę
+    if wobbly:
+        bw[62:79:5, 39] = 0
+        bw[64:79:5, 41] = 0
+    bw[58:61, 39:62] = 1                            # odcinek 23 px do bramki
+    gate_mask = _hband((H, W), 30, 75, 62, 90)
+    P = cvw.derive({**cvw.PARAMS, "TITLE": None}, 3.0)
+    out = cvw._strip_pass(bw, True, False, P, None, gate_mask)
+    assert out[58:61, 39:62].all()
+    assert (out[61:76, 39:42] == bw[61:76, 39:42]).all()
+
+
+@pytest.mark.parametrize("r", [4, 5, 6, 7])
+def test_strip_pass_h_keeps_wire_between_small_dots(r):
+    # pion między dwiema kropkami na równoległych drutach 26 px od siebie. Kropka (maska
+    # `keep_px`) jest mocnym końcem rdzenia niezależnie od promienia — bez tego mała kropka
+    # (r ~5 przy 200 dpi, SM-POSE11) dawała tylko „dotknięcie” i pion ginął w przebiegu „h”
+    H, W = 100, 120
+    bw = np.zeros((H, W), np.uint8)
+    bw[29:32, 5:115] = 1
+    bw[55:58, 5:115] = 1
+    bw[30:57, 59:62] = 1
+    keep = np.zeros((H, W), np.uint8)
+    for y in (30, 56):
+        cv2.circle(bw, (60, y), r, 1, -1)
+        cv2.circle(keep, (60, y), r + 2, 1, -1)
+    P = cvw.derive({**cvw.PARAMS, "TITLE": None}, 3.0)
+    out = cvw._strip_pass(bw, True, False, P, keep, None)
+    assert out[30:57, 59:62].all()
+
+
+def test_strip_pass_h_keeps_wire_from_dot_into_box_edge():
+    # SM-POSE11 2-101 (685, 320–338): z kropki pion do górnej krawędzi nierozpoznanego
+    # rezystora (tryb b — bez maski). Koniec na długiej (>= CORE_T_MIN) prostopadłej kresce
+    # to dotknięcie, więc pion z kropką na drugim końcu zostaje
+    H, W = 100, 120
+    bw = np.zeros((H, W), np.uint8)
+    bw[19:22, 5:115] = 1                            # drut z kropką
+    cv2.circle(bw, (60, 20), 5, 1, -1)
+    bw[20:41, 59:62] = 1                            # pion do rezystora
+    bw[40:43, 48:73] = 1                            # górna krawędź rezystora (25 px)
+    bw[40:50, 48:51] = 1                            # boki rezystora
+    bw[40:50, 70:73] = 1
+    bw[50:53, 5:115] = 1                            # drut przecina rezystor niżej
+    keep = np.zeros((H, W), np.uint8)
+    cv2.circle(keep, (60, 20), 7, 1, -1)
+    P = cvw.derive({**cvw.PARAMS, "TITLE": None}, 3.0)
+    out = cvw._strip_pass(bw, True, False, P, keep, None)
+    assert out[28:40, 59:62].all()
+
+
+def test_strip_pass_length_without_half_dot():
+    # 2-58 M40.1: pion od kropki 18 px w dół i odcinek do bramki; pół kropki poszerza
+    # składową. CORE_FRAC liczone od długości bez pikseli kropki — pion i odcinek zostają
+    H, W = 120, 120
+    bw = np.zeros((H, W), np.uint8)
+    bw[18:21, 10:110] = 1                           # drut z kropką
+    cv2.circle(bw, (40, 19), 7, 1, -1)              # kropka
+    bw[19:46, 39:42] = 1                            # pion w dół do odcinka
+    bw[43:46, 39:62] = 1                            # odcinek do bramki (23 px < MIN_LEN1)
+    gate_mask = _hband((H, W), 30, 70, 62, 90)
+    keep = np.zeros((H, W), np.uint8)
+    cv2.circle(keep, (40, 19), 9, 1, -1)
+    P = cvw.derive({**cvw.PARAMS, "TITLE": None}, 3.0)
+    out = cvw._strip_pass(bw, True, False, P, keep, gate_mask)
+    assert out[28:42, 39:42].sum() >= 3 * 12 and out[43:46, 45:60].all()
+
+
+def test_strip_pass_v_protects_horizontal_lines():
+    # przebieg „v” odejmuje tylko piony; kawałek pewnej linii poziomej odcięty przez pion
+    # (od kropki do bramki, 2-64 M7.8) z cyfrą na nim nie może zginąć — nawet bez rdzeni
+    H, W = 100, 140
+    bw = np.zeros((H, W), np.uint8)
+    bw[49:52, 5:120] = 1                            # drut poziomy przez pion
+    bw[10:95, 99:102] = 1                           # pion 18 px przed końcem drutu
+    bw[36:49, 105:115] = 1                          # „cyfra” na odcinku za pionem
+    P = cvw.derive({**cvw.PARAMS, "CORE_FRAC": None}, 3.0)
+    out = cvw._strip_pass(bw, False, True, P, None, None)
+    assert out[49:52, 104:120].all(), out[49:52, 100:120]
+    assert out[36:46, 105:115].sum() == 0
 
 
 @pytest.mark.parametrize("dx", [12, 15, 18])

@@ -44,20 +44,30 @@ Potok:
      (kandydat, który przechodzi dopiero po zamalowaniu: >= DOT_DT + DOT_FILL_EXTRA),
      bbox <= DOT_MAX_SIDE. Środek = środek obszaru maksimum transformaty odległości.
   3. Tekst: samodzielne składowe w rozmiarze znaku znikają (GLYPH_MIN..TEXT_MAX, poza
-     cienkimi prostymi kreskami). Znaki dotykające drutów: przebieg zachowawczy (GAP1,
-     MIN_LEN1) wyznacza pewne linie, reszta po ich odjęciu w rozmiarze znaku jest kasowana.
-     W pasie PIN_BAND przy krawędzi bramki z pinami kasowane są tylko krótkie (< BAND_RUN)
-     kreski równoległe do krawędzi (numery pinów); długi drut biegnący w pasie zostaje.
+     cienkimi prostymi kreskami). Znaki dotykające drutów (v5): przebiegi GLYPH_PASSES —
+     najpierw odjęte tylko pewne linie poziome (przebieg zachowawczy GAP1, MIN_LEN1), potem
+     tylko pionowe (pewne poziome chronione), na końcu obie; reszta w rozmiarze znaku jest
+     kasowana. Słupek znaków stojących na kolejnych drutach nie jest już „pewną” linią
+     pionową, która chroniła go przed kasowaniem. Z kasowanej składowej zostaje prosty cienki
+     rdzeń (CORE_*) — krótki drut z przyklejoną cyfrą — jeśli oba jego końce dochodzą do
+     odjętej linii (skrzyżowanie / narożnik, nie samo dotknięcie), maski bramki, kropki
+     albo przyjętego prostopadłego rdzenia (narożnik L, przyjmowany iteracyjnie); zostaje
+     cała kreska wokół rdzenia. Kropki i cienka reszta przy nich nie są kasowane. W pasie
+     PIN_BAND przy krawędzi bramki z pinami kasowane są tylko krótkie (< BAND_RUN) kreski
+     równoległe do krawędzi (numery pinów); długi drut biegnący w pasie zostaje.
   4. Linie: poszerzenie w poprzek (WOBBLE), domknięcie wzdłuż (GAP2) liczone BEZ pikseli
      kropek (kropka dokładana po domknięciu, przed otwarciem), więc drut kończący się na
      kropce nie przedłuża się przez nią na równoległy drut obok. Otwarcie długim cienkim
      jądrem (MIN_LEN), osobno H i V. Składowa grubsza niż MAX_THICK = równoległe linie
-     sklejone tekstem -> rozdzielane po profilu. Odcinek ściśle H/V (mediana) — wzorzec jest
-     ortogonalny, choć skan ma skos do ~1 %; `--fit` = prosta dopasowana do skosu.
+     sklejone tekstem -> rozdzielane po profilu (po odjęciu skosu, SPLIT_DESKEW). Odcinek
+     ściśle H/V (mediana) — wzorzec jest ortogonalny, choć skan ma skos do ~1 %; `--fit` =
+     prosta dopasowana do skosu.
      Współliniowe kawałki scalane, równoległe zachodzące na siebie kawałki bliżej niż
      PAR_OFF też (kropka potrafi dać drugi, równoległy pasek); przerwy do BRIDGE_MAX px
      mostkowane, jeśli w przerwie jest blady tusz (BRIDGE_INK). Koniec odcinka leżący
      w kropce przycinany do jej środka (DOT_TRIM_TOL) — SNAP liczony od środka kropki.
+     Odcinek z tuszem pod sobą na < MIN_COVER długości (sklejony z końców ukośnych kresek,
+     np. szewrony portów jeden nad drugim) jest odrzucany.
   5. Spójność H×V: oba końce przy sobie (<= SNAP) = narożnik = połączone; skrzyżowanie
      wnętrz = połączone tylko z kropką (<= DOT_R); T = połączone tylko z kropką, jeśli
      T_NEEDS_DOT (domyślnie; konwencja rysunku — każde prawdziwe złącze wzorca leżące na
@@ -73,8 +83,9 @@ Potok:
      niebieskie. `--diff` + `--gold`: druty tylko we wzorcu = magenta (pominięte), tylko
      u kandydata = pomarańczowy (nadmiarowe), wspólne = zielony (tolerancja 3 px).
 
-Parametry strojone WYŁĄCZNIE na 2-58 i 2-59 (2-60, 2-61 = held-out). v1 (ślepy wynik
-held-out) i późniejsze wersje opisane w docs/auto-digitalizacja.md.
+Parametry v1–v4 strojone na 2-58 i 2-59 (2-60, 2-61 = held-out); v5 (tekst przy drutach)
+na stronach spoza wzorca (2-62, 2-64…2-69, P-X3-2). Wersje i liczby:
+docs/auto-digitalizacja.md.
 """
 from __future__ import annotations
 
@@ -127,6 +138,12 @@ PARAMS = dict(
     THIN_LEN=15,         # cienka kreska co najmniej tak długa = kawałek drutu
     GAP1=3,              # przebieg zachowawczy (wykrywanie znaków przy drutach): domknięcie
     MIN_LEN1=28,         # ... i długość (cyfra 16 px + drut 3 px nie przejdzie)
+    GLYPH_PASSES="h v hv",  # przebiegi kasowania znaków: odjęte linie poziome / pionowe / obie
+                         #  (v4: tylko "hv" — słupek znaków na drutach zostawał „linią”)
+    CORE_FRAC=0.85,      # z kasowanego znaku zostaje prosty rdzeń: bieg >= CORE_FRAC rozmiaru
+    CORE_MIN=9,          #  składowej i >= CORE_MIN px (krótki drut z cyfrą; CORE_FRAC=None = bez)
+    CORE_REACH=6,        # ... oba końce rdzenia dochodzą tuszem do odjętej linii / bramki (px)
+    CORE_T_MIN=20,       # ... koniec na prostopadłym biegu >= tylu px = dotknięcie (bok rezystora)
     MIN_LEN=21,          # przebieg główny: długość jądra otwarcia
     PIN_BAND=25,         # pas numerów pinów (2-61: słupek „1” 22 px od krawędzi; kasowane
                          #  są tylko krótkie kreski, więc drut 24 px od krawędzi zostaje)
@@ -148,6 +165,8 @@ PARAMS = dict(
     BRIDGE_INK=0.5,      # ... i minimalny udział tuszu w przerwie
     BRIDGE_BAND=2,       # ... w pasie +- px wokół osi
     SPLIT_FRAC=0.5,      # rozdzielanie: wiersz-linia ma tusz na >= tej części długości
+    SPLIT_DESKEW=True,   # ... profil po odjęciu skosu (dopasowana prosta, |k| <= MAX_SLOPE)
+    MIN_COVER=0.6,       # odcinek: tusz pod nim na >= tej części długości (None = bez)
     FIT_MIN_LEN=60,      # --fit: krótszy odcinek bierze medianę
     MAX_SLOPE=0.02,      # --fit: większy skos = mediana
     DOT_ON_WIRE=4,       # kropka w raporcie/overlayu tylko <= tyle px od drutu
@@ -434,23 +453,270 @@ def line_mask(bw: np.ndarray, horizontal: bool, gap: int, min_len: int, P: dict,
     return cv2.morphologyEx(m, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, ko))
 
 
-def strip_glyphs(bw: np.ndarray, P: dict) -> np.ndarray:
-    """Kasuje znaki dotykające drutów: odejmuje pewne linie (przebieg zachowawczy), z reszty
-    usuwa składowe o boku GLYPH_MIN..TEXT_MAX, chyba że to cienka prosta kreska (krótki drut)."""
-    lines = line_mask(bw, True, P["GAP1"], P["MIN_LEN1"], P) | line_mask(
-        bw, False, P["GAP1"], P["MIN_LEN1"], P
-    )
+def _anchored(bw: np.ndarray, line: np.ndarray, strong: np.ndarray, r: int, c: int, step: int,
+              axis: int, reach: int) -> int:
+    """Jak kończy się bieg w (wiersz r, kolumna c), idąc krokami `step` (+-1) wzdłuż osi
+    (1 = w wierszu) tuszem `bw` w pasie +-1 px w poprzek, najwyżej `reach` kroków (krok 0 =
+    sam koniec — w narożniku leży on na prostopadłym rdzeniu):
+      2 — dochodzi do `strong` (maska bramki, prostopadły rdzeń) albo do odjętej linii
+          (`line`), przez którą przechodzi dalej (skrzyżowanie) albo na której ta linia się
+          kończy (narożnik);
+      1 — tylko dotyka linii biegnącej dalej w obie strony (znak stojący na drucie);
+      0 — urywa się (wolny koniec)."""
+    H, W = bw.shape
+
+    def win(rr, cc):
+        if axis == 1:
+            return slice(max(0, rr - 1), rr + 2), cc
+        return rr, slice(max(0, cc - 1), cc + 2)
+
+    def at(k):
+        return (r, c + k * step) if axis == 1 else (r + k * step, c)
+
+    for k in range(0, reach + 1):
+        rr, cc = at(k)
+        if not (0 <= rr < H and 0 <= cc < W):
+            return 0
+        if strong[win(rr, cc)].any():
+            return 2
+        if line[win(rr, cc)].any():
+            # przejście przez linię: dalej tusz na `reach` krokach = skrzyżowanie
+            k2 = k
+            while k2 < k + 3 * reach:
+                r2, c2 = at(k2 + 1)
+                if not (0 <= r2 < H and 0 <= c2 < W) or not line[win(r2, c2)].any():
+                    break
+                k2 += 1
+            cross = True
+            for k3 in range(k2 + 1, k2 + 1 + reach):
+                r3, c3 = at(k3)
+                if not (0 <= r3 < H and 0 <= c3 < W) or not bw[win(r3, c3)].any():
+                    cross = False
+                    break
+            if cross:
+                return 2
+            # narożnik: linia jest tylko po jednej stronie biegu
+            d0, d1 = 2, reach + 2
+            r_lo, r_hi = sorted((rr, at(k2)[0])) if axis == 0 else (rr, rr)
+            c_lo, c_hi = sorted((cc, at(k2)[1])) if axis == 1 else (cc, cc)
+            if axis == 0:  # bieg pionowy, linia pozioma: sprawdzamy lewo / prawo
+                band = line[r_lo : r_hi + 1]
+                left = band[:, max(0, cc - d1) : max(0, cc - d0 + 1)].any()
+                right = band[:, cc + d0 : cc + d1 + 1].any()
+            else:  # bieg poziomy, linia pionowa: góra / dół
+                band = line[:, c_lo : c_hi + 1]
+                left = band[max(0, rr - d1) : max(0, rr - d0 + 1)].any()
+                right = band[rr + d0 : rr + d1 + 1].any()
+            return 1 if (left and right) else 2
+        if not bw[win(rr, cc)].any():
+            return 0
+    return 0
+
+
+def _core_runs(a: np.ndarray, P: dict, L: int | None = None) -> list[tuple[int, int, int]]:
+    """Kandydaci na rdzeń wzdłuż wierszy `a`: (wiersz, początek, koniec) najdłuższego biegu
+    w wierszu, jeśli >= max(CORE_MIN, CORE_FRAC * L) (L = szerokość składowej bez pikseli
+    chronionych, domyślnie `a`); bez pasów sąsiednich wierszy grubszych niż THIN_W + 1
+    (kleks, bryła znaku)."""
+    L = a.shape[1] if L is None else L
+    need = max(P["CORE_MIN"], P["CORE_FRAC"] * L)
+    if L < need:
+        return []
+    runs = []
+    for r in range(a.shape[0]):
+        d = np.diff(np.concatenate([[0], a[r].astype(np.int8), [0]]))
+        s, e = np.nonzero(d == 1)[0], np.nonzero(d == -1)[0]
+        k = int(np.argmax(e - s)) if len(s) else -1
+        if k >= 0 and e[k] - s[k] >= need:
+            runs.append((r, int(s[k]), int(e[k])))
+    # pasy sąsiednich wierszy; pas grubszy niż THIN_W + 1 to kleks albo bryła znaku
+    out, band = [], []
+    for t in runs + [None]:
+        if t is not None and (not band or t[0] - band[-1][0] <= 1):
+            band.append(t)
+            continue
+        if band and band[-1][0] - band[0][0] + 1 <= P["THIN_W"] + 1:
+            out += band
+        band = [t] if t is not None else []
+    return out
+
+
+def _core(comp: np.ndarray, x: int, y: int, bw: np.ndarray, line: np.ndarray,
+          strong: np.ndarray, P: dict,
+          ext: tuple[int, int] | None = None) -> np.ndarray | None:
+    """Prosty cienki rdzeń składowej (v5) = krótki drut, do którego przykleił się znak
+    (2-58: odcinek 25 px od narożnika do pinu M64.12 z cyfrą „12” na nim). Rdzeń to wiersze
+    (kreska pozioma) albo kolumny (pionowa) z `_core_runs`, których bieg kończy się z obu
+    stron (`_anchored`, CORE_REACH px) na odjętej linii (`line`), masce bramki albo kropce
+    (`strong`) albo na prostopadłym rdzeniu tej samej składowej (narożnik krótkiego drutu,
+    2-62 M24.C1), i co najmniej jednym końcem nie tylko „dotyka” linii. Kreska znaku stojącego
+    na drucie dotyka drutu jednym końcem; znak wciśnięty między dwa druty (2-62 M24: 14/13/12)
+    dotyka obu, ale nie przechodzi przez żaden i żaden się na nim nie kończy.
+    (x, y) = lewy górny róg `comp` w `bw`; `ext` = (szerokość, wysokość) bez pikseli
+    chronionych (pół kropki przy narożniku nie wydłuża składowej, 2-58 M40.1).
+    Zwraca maskę rdzenia albo None."""
+    h, w = comp.shape
+    ew, eh = ext if ext is not None else (w, h)
+    cand = {1: _core_runs(comp, P, ew), 0: _core_runs(comp.T, P, eh)}
+    if not cand[0] and not cand[1]:
+        return None
+    R = P["CORE_REACH"]
+    pad = 5 * R + 3
+    H, W = bw.shape
+    ys = slice(max(0, y - pad), min(H, y + h + pad))
+    xs = slice(max(0, x - pad), min(W, x + w + pad))
+    oy, ox = y - ys.start, x - xs.start
+    lbw, lline, lstrong0 = bw[ys, xs], line[ys, xs] > 0, strong[ys, xs] > 0
+
+    def ends(ax, r, s, e, strong_):
+        if ax == 1:
+            return (_anchored(lbw, lline, strong_, oy + r, ox + s, -1, 1, R),
+                    _anchored(lbw, lline, strong_, oy + r, ox + e - 1, 1, 1, R))
+        return (_anchored(lbw, lline, strong_, oy + s, ox + r, -1, 0, R),
+                _anchored(lbw, lline, strong_, oy + e - 1, ox + r, 1, 0, R))
+
+    def paint(m, ax, r, s, e):
+        if ax == 1:
+            m[oy + r, ox + s : ox + e] = True
+        else:
+            m[oy + s : oy + e, ox + r] = True
+
+    # rdzeń prostopadły może być kotwicą (narożnik krótkiego drutu) tylko, jeśli sam — liczony
+    # bez prostopadłych — ma choć jeden koniec mocny (2); kreska flagi „1” przy kresce pionowej
+    # znaku nie ma żadnego
+    q0 = {ax: [ends(ax, r, s, e, lstrong0) for r, s, e in runs] for ax, runs in cand.items()}
+    good, allc = {}, {}
+    for ax, runs in cand.items():
+        m = np.zeros(lbw.shape, bool)
+        a = np.zeros(lbw.shape, bool)
+        for (r, s, e), q in zip(runs, q0[ax]):
+            if e - s >= P["CORE_T_MIN"]:
+                paint(a, ax, r, s, e)
+            if max(q) == 2:
+                paint(m, ax, r, s, e)
+        good[ax], allc[ax] = m, a
+
+    def perp_near(m, ax, r, s, e, end):
+        """Prostopadły rdzeń `m` przecina bieg (+-1 px w poprzek) najwyżej R px od końca do
+        środka — narożnik L: pion może leżeć kolumnę dalej niż koniec poziomej kreski."""
+        a0, a1 = (s, min(e, s + R + 1)) if end == 0 else (max(s, e - R - 1), e)
+        if ax == 1:
+            return m[max(0, oy + r - 1) : oy + r + 2, ox + a0 : ox + a1].any()
+        return m[oy + a0 : oy + a1, max(0, ox + r - 1) : ox + r + 2].any()
+
+    # przyjęcie iteracyjne: koniec przy przyjętym (albo dobrym) prostopadłym rdzeniu jest
+    # mocny — narożnik L, w którym tylko jedno ramię ma mocny koniec zewnętrzny (pion od
+    # drutu bez kropki, odcinek do bramki: SM-POSE11 2-100 (642, 518)), przechodzi w całości
+    acc = {ax: np.zeros(lbw.shape, bool) for ax in cand}
+    done = {ax: [False] * len(runs) for ax, runs in cand.items()}
+    for _ in range(3):
+        changed = False
+        for ax, runs in cand.items():
+            perp = good[1 - ax] | acc[1 - ax]
+            lstrong = lstrong0 | perp
+            for i, (r, s, e) in enumerate(runs):
+                if done[ax][i]:
+                    continue
+                q = list(ends(ax, r, s, e, lstrong))
+                for end in (0, 1):
+                    if q[end] < 2 and perp_near(perp, ax, r, s, e, end):
+                        q[end] = 2
+                    elif q[end] == 0 and perp_near(allc[1 - ax], ax, r, s, e, end):
+                        q[end] = 1  # kończy się na długiej prostopadłej kresce (T w bok
+                        #             nierozpoznanego rezystora, SM-POSE11 2-101 (685, 338))
+                if min(q) >= 1 and max(q) == 2:
+                    paint(acc[ax], ax, r, s, e)
+                    done[ax][i] = changed = True
+        if not changed:
+            break
+    # cała kreska wokół przyjętego biegu (+-1 px tylko w poprzek, nie za jego końce): sam bieg
+    # bywa 1-px kolumną falującej kreski i potem ginie jako okruch
+    out = (cv2.dilate(acc[1].astype(np.uint8), np.ones((3, 1), np.uint8))
+           | cv2.dilate(acc[0].astype(np.uint8), np.ones((1, 3), np.uint8))) > 0
+    out = out[oy : oy + h, ox : ox + w] & comp
+    return out if out.any() else None
+
+
+def _strip_pass(bw: np.ndarray, horiz: bool, vert: bool, P: dict,
+                keep_px: np.ndarray | None = None, fixed: np.ndarray | None = None) -> np.ndarray:
+    """Jeden przebieg kasowania znaków: odejmuje pewne linie wybranych orientacji (przebieg
+    zachowawczy GAP1/MIN_LEN1, poszerzone o GLYPH_DIL), z reszty usuwa składowe o boku
+    GLYPH_MIN..TEXT_MAX, chyba że to cienka prosta kreska (krótki drut). Z usuwanej składowej
+    zostaje jej rdzeń (`_core`, CORE_*; kotwice = tusz odjętych linii i `fixed` — maska
+    bramek, kropki) i piksele `keep_px` (kropki)."""
+    lines = np.zeros_like(bw)
+    if horiz:
+        lines |= line_mask(bw, True, P["GAP1"], P["MIN_LEN1"], P)
+    if vert:
+        lines |= line_mask(bw, False, P["GAP1"], P["MIN_LEN1"], P)
+    protect = keep_px
+    if vert and not horiz:
+        # tekst jest poziomy: pewne linie poziome to druty (fałszywe linie z tekstu są pionowe —
+        # słupki znaków, przebieg „h”). Kawałek drutu poziomego odcięty przez pionowy (od
+        # kropki do bramki, 2-64 M7.8) nie może zginąć razem z cyfrą, która na nim stoi.
+        hl = line_mask(bw, True, P["GAP1"], P["MIN_LEN1"], P) & bw
+        protect = hl if protect is None else (protect | hl)
+    line_ink = lines & bw
+    strong = np.zeros_like(bw) if fixed is None else fixed.copy()
+    if keep_px is not None:
+        # kropka = koniec drutu (T z kropką, narożnik przy kropce), ale tylko kropka, przez
+        # której środek przechodzi odjęta pewna linia — zamalowane „0” etykiety stykające się
+        # z drutem (2-63 „+NB0” (1011, 830)) kotwicą nie jest; linia przeciwnej orientacji
+        # nie wystarcza, bo w „h” bywa nią słupek liter
+        both = lines
+        nd, labd, _, cen = cv2.connectedComponentsWithStats(keep_px, connectivity=8)
+        Hh, Ww = bw.shape
+        ok = np.zeros(nd, bool)
+        for i in range(1, nd):
+            cx, cy = int(round(cen[i][0])), int(round(cen[i][1]))
+            ok[i] = both[max(0, cy - 1) : min(Hh, cy + 2), max(0, cx - 1) : min(Ww, cx + 2)].any()
+        strong |= ok[labd].astype(np.uint8) & bw
     lines = cv2.dilate(lines, np.ones((P["GLYPH_DIL"], P["GLYPH_DIL"]), np.uint8))
     resid = bw & (1 - lines)
     n, lab, stats, _ = cv2.connectedComponentsWithStats(resid, connectivity=8)
-    kill = np.zeros(n, bool)
+    out = bw.copy()
     for i in range(1, n):
         x, y, w, h, area = stats[i]
-        if P["GLYPH_MIN"] <= max(w, h) <= P["TEXT_MAX"] and not _thin(w, h, P):
-            kill[i] = True
-    out = bw.copy()
-    out[kill[lab]] = 0
+        if not (P["GLYPH_MIN"] <= max(w, h) <= P["TEXT_MAX"]) or _thin(w, h, P):
+            continue
+        comp = lab[y : y + h, x : x + w] == i
+        kill = comp
+        kw, kh = w, h
+        if protect is not None:
+            # rozmiar liczony bez pikseli chronionych: drut między dwiema kropkami na krótkim
+            # pionie (2-65 (766, 1400)) to po odjęciu kropek okruch, nie znak
+            kill = comp & (protect[y : y + h, x : x + w] == 0)
+            ys_, xs_ = np.nonzero(kill)
+            if not len(ys_):
+                continue
+            kw, kh = int(xs_.max() - xs_.min() + 1), int(ys_.max() - ys_.min() + 1)
+            if max(kw, kh) < P["GLYPH_MIN"] or _thin(kw, kh, P):
+                continue
+            if min(kw, kh) <= P["THIN_W"] and kill.sum() < comp.sum():
+                continue  # cienka kreska przy kropce / drucie (blady odcinek, P-A3-2 2-74)
+        if P["CORE_FRAC"] is not None:
+            core = _core(comp, x, y, bw, line_ink, strong, P, (kw, kh))
+            if core is not None:
+                kill = kill & ~core
+        out[y : y + h, x : x + w][kill] = 0
     return out
+
+
+def strip_glyphs(bw: np.ndarray, P: dict, keep_px: np.ndarray | None = None,
+                 fixed: np.ndarray | None = None) -> np.ndarray:
+    """Kasuje znaki dotykające drutów — przebiegi `_strip_pass` z GLYPH_PASSES.
+
+    v4 miała jeden przebieg „hv” (odjęte linie obu orientacji). Słupek cyfr i liter stojących
+    na kolejnych drutach (numery pinów 14/13/12 przy M24 na 2-62, „+L15”…„+L12”, „+RA/+RB”)
+    jest wtedy sam „pewną” pionową linią: każdy znak dotyka drutu pod sobą (i prawie nad
+    sobą), więc po domknięciu i otwarciu (MIN_LEN1) słupek przechodzi jak drut i nie jest
+    odejmowany jako reszta. v5 najpierw („h”) odejmuje tylko linie poziome — słupek rozpada
+    się na pojedyncze znaki, które giną; potem („v”) tylko pionowe; na końcu („hv”) obie
+    (znak w narożniku). `keep_px` (kropki) nie jest kasowany; `fixed` (maska bramek) to
+    kotwica rdzenia (`_core`)."""
+    for p in P["GLYPH_PASSES"].split():
+        bw = _strip_pass(bw, "h" in p, "v" in p, P, keep_px, fixed)
+    return bw
 
 
 def clear_pin_band(img: np.ndarray, region, along_axis: int, P: dict) -> None:
@@ -480,14 +746,16 @@ def clear_pin_band(img: np.ndarray, region, along_axis: int, P: dict) -> None:
 # --------------------------------------------------------------------------- odcinki
 
 class Seg:
-    """Odcinek H ('h': wzdłuż = x, w poprzek = y) albo V ('v'): od a0 do a1, w poprzek c0..c1."""
+    """Odcinek H ('h': wzdłuż = x, w poprzek = y) albo V ('v'): od a0 do a1, w poprzek c0..c1.
+    `ink` = liczba pozycji wzdłuż z tuszem pod odcinkiem (None = nie liczono)."""
 
-    __slots__ = ("o", "a0", "a1", "c0", "c1")
+    __slots__ = ("o", "a0", "a1", "c0", "c1", "ink")
 
-    def __init__(self, o, a0, a1, c0, c1=None):
+    def __init__(self, o, a0, a1, c0, c1=None, ink=None):
         self.o, self.a0, self.a1 = o, float(a0), float(a1)
         self.c0 = float(c0)
         self.c1 = float(c0 if c1 is None else c1)
+        self.ink = ink
 
     def c(self, a: float) -> float:
         if self.a1 == self.a0:
@@ -513,6 +781,15 @@ def _split_thick(along: np.ndarray, cross: np.ndarray, P: dict):
     if c_hi - c_lo + 1 <= P["MAX_THICK"]:
         return [(along, cross)]
     length = float(along.max() - along.min() + 1)
+    if P["SPLIT_DESKEW"] and length >= P["FIT_MIN_LEN"]:
+        # skos skanu (4–10 px na 1000 px): długi drut z kropką przekracza MAX_THICK, a żadna
+        # kolumna nie ma tuszu na połowie długości — profil liczony po odjęciu skosu
+        # (2-66 x ≈ 494–500, y 224–1151: bez tego ginął górny kawałek drutu)
+        k = float(np.polyfit(along.astype(float), cross.astype(float), 1)[0])
+        if abs(k) <= P["MAX_SLOPE"]:
+            sh = np.round(k * (along - along.min())).astype(cross.dtype)
+            parts = _split_thick(along, cross - sh, {**P, "SPLIT_DESKEW": False})
+            return [(a, c + np.round(k * (a - along.min())).astype(cross.dtype)) for a, c in parts]
     prof = np.bincount(cross - c_lo, minlength=c_hi - c_lo + 1)
     rows = np.nonzero(prof >= P["SPLIT_FRAC"] * length)[0]
     if len(rows) == 0:
@@ -554,7 +831,8 @@ def extract_lines(bw: np.ndarray, horizontal: bool, P: dict, ortho: bool = True,
                 k, b = np.polyfit(al.astype(float), cr.astype(float), 1)
                 if abs(k) <= P["MAX_SLOPE"]:
                     c0, c1 = k * a0 + b, k * a1 + b
-            segs.append(Seg(o, a0, a1, c0, c1))
+            ink = (bw[cr, al] if horizontal else bw[al, cr]) > 0  # tusz pod składową
+            segs.append(Seg(o, a0, a1, c0, c1, len(np.unique(al[ink]))))
     return merge_collinear(segs, P)
 
 
@@ -573,6 +851,14 @@ def _clusters(segs: list[Seg], tol: float):
         if cur:
             out.append(sorted(cur, key=lambda t: t.a0))
     return out
+
+
+def _ink_sum(s: Seg, t: Seg, length: float):
+    """Tusz scalonego odcinka: suma bez części wspólnej (zachodzące kawałki), <= długość."""
+    if s.ink is None or t.ink is None:
+        return None
+    over = max(0.0, min(s.a1, t.a1) - max(s.a0, t.a0) + 1)
+    return min(length, s.ink + t.ink - min(over, s.ink, t.ink))
 
 
 def merge_collinear(segs: list[Seg], P: dict) -> list[Seg]:
@@ -596,14 +882,15 @@ def merge_collinear(segs: list[Seg], P: dict) -> list[Seg]:
                     lo = cur if cur.a0 <= t.a0 else t
                     hi = cur if cur.a1 >= t.a1 else t
                     main = cur if cur.length() >= t.length() else t
+                    ink = _ink_sum(cur, t, hi.a1 - lo.a0 + 1)
                     if off <= P["MERGE_OFF"]:
-                        merged[k] = Seg(cur.o, lo.a0, hi.a1, lo.c0, hi.c1)
+                        merged[k] = Seg(cur.o, lo.a0, hi.a1, lo.c0, hi.c1, ink)
                     else:
-                        merged[k] = Seg(cur.o, lo.a0, hi.a1, main.c0, main.c1)
+                        merged[k] = Seg(cur.o, lo.a0, hi.a1, main.c0, main.c1, ink)
                     done = True
                     break
             if not done:
-                merged.append(Seg(t.o, t.a0, t.a1, t.c0, t.c1))
+                merged.append(Seg(t.o, t.a0, t.a1, t.c0, t.c1, t.ink))
         out += merged
     return out
 
@@ -630,12 +917,27 @@ def bridge_gaps(segs: list[Seg], bw: np.ndarray, P: dict) -> list[Seg]:
                     band = bw[gap0:gap1, max(0, c - b) : c + b + 1].max(axis=1)
                 ok = band.size > 0 and band.mean() >= P["BRIDGE_INK"]
             if ok:
-                cur = Seg(cur.o, cur.a0, max(cur.a1, t.a1), cur.c0, t.c1)
+                L = max(cur.a1, t.a1) - cur.a0 + 1
+                ink = _ink_sum(cur, t, L)
+                ink = None if ink is None else min(ink + int(band.sum()), L)  # + tusz w przerwie
+                cur = Seg(cur.o, cur.a0, max(cur.a1, t.a1), cur.c0, t.c1, ink)
             else:
                 out.append(cur)
                 cur = t
         out.append(cur)
     return out
+
+
+def drop_uncovered(segs: list[Seg], P: dict) -> list[Seg]:
+    """Odrzuca odcinki z tuszem (`Seg.ink`: piksele składowej przed domknięciem, przy scalaniu
+    sumowane, przy mostkowaniu + tusz w przerwie) na mniej niż MIN_COVER długości. Drut ma
+    tusz prawie wszędzie (przerwy ze skanu są krótkie), „linia” sklejona domknięciem
+    i mostkowaniem z końców ukośnych kresek nie (2-62: szewrony portów A18/A05 jeden nad
+    drugim; 2-61 x 1722; kolumny minusów etykiet „-R1/-I1” na P-X3-2 2-8). Tusz liczony
+    na pikselach składowej, więc skos skanu go nie zaniża."""
+    if not P["MIN_COVER"]:
+        return segs
+    return [s for s in segs if s.ink is None or s.ink >= P["MIN_COVER"] * (s.a1 - s.a0 + 1)]
 
 
 def trim_to_dots(segs: list[Seg], dots, P: dict) -> list[Seg]:
@@ -808,9 +1110,9 @@ def digitize(gray: np.ndarray, gates: list[dict] | None, P: dict | None = None, 
     bw_w = binarize(gray, P["THR"])
     bw_w[mask > 0] = 0
     bw_raw = bw_w.copy()
-    bw_w = remove_text(bw_w, P)
-    bw_w = strip_glyphs(bw_w, P)
     hold = dot_mask(bw.shape, dots, P["DOT_MASK_MARGIN"])
+    bw_w = remove_text(bw_w, P)
+    bw_w = strip_glyphs(bw_w, P, hold, mask)
     # pas numerów pinów przy krawędzi z pinami: krótkie kreski równoległe do krawędzi
     # (cyfry) kasowane z obrazu dla tej orientacji; długi drut w pasie zostaje
     bw_h, bw_v = bw_w.copy(), bw_w.copy()
@@ -827,6 +1129,7 @@ def digitize(gray: np.ndarray, gates: list[dict] | None, P: dict | None = None, 
                 clear_pin_band(bw_h, (min(H_, y1 + 1), min(H_, y1 + 1 + b), x0c, x1c), 1, P)
     segs = extract_lines(bw_h, True, P, ortho, hold) + extract_lines(bw_v, False, P, ortho, hold)
     segs = bridge_gaps(segs, bw_raw, P)
+    segs = drop_uncovered(segs, P)
     segs = trim_to_dots(segs, dots, P)
 
     # krótkie odgałęzienia z wolnym końcem, który nie wchodzi w bramkę = kreski tekstu

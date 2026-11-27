@@ -362,6 +362,10 @@ znane** (tryb a). Na P-R3-2 v4 daje wireR 0,79–0,94, juncR 0,80–1,00, a `pai
 na każdej stronie — żaden pin nie trafia do cudzego netu. Pozostałe braki to głównie
 reprezentacja i wzorzec: przy tolerancji 6 px pokrycie drutów wzorca wynosi 0,97–1,00.
 
+v5 (kr-9p8.22) usuwa fałszywe piony ze słupków tekstu i szewronów portów oraz odzyskuje
+krótkie odcinki do pinów z cyfrą. Liczby wzorca nie spadły na żadnej stronie (zob.
+„v5: tekst przy drutach”).
+
 Hipoteza w liczbach `eval-digitize` nie jest spełniona. Ślepy wynik held-out (v1) to wireR
 0,84 na 2-60 i 0,36 na 2-61; późniejsze wersje stroiłem już po obejrzeniu tych stron.
 
@@ -428,7 +432,8 @@ Pozostałe stałe są w PARAMS.
 **Tekst.** Usuwam składowe w rozmiarze znaku i znaki przyklejone do drutu (po odjęciu
 pewnych linii). W pasie numerów pinów (`PIN_BAND` = 25 px, wcześniej 20) kasuję tylko
 krótkie (< 32 px) kreski równoległe do krawędzi. Słupek „1” na 2-61 stoi 22 px od
-krawędzi, a długi drut biegnący w pasie zostaje.
+krawędzi, a długi drut biegnący w pasie zostaje. W v5 kasowanie znaków przy drutach
+zmieniło się (zob. „v5: tekst przy drutach”).
 
 **Linie:**
 
@@ -589,9 +594,328 @@ dla v4, tryb a; v3 różni się o ≤ 0,001.
    - przeciek pól bramek wzorca do kandydata;
    - zaokrąglanie `DOT_D` zawsze w górę (7,76 → 9).
 
+### v5: tekst przy drutach (kr-9p8.22)
+
+Opiekun obejrzał overlaye trybu (a) na całych arkuszach (2-62, 2-58) i zgłosił trzy klasy
+błędów. Przyczyny zmierzyłem na powiększeniach i obrazach pośrednich potoku.
+
+1. **Słupki znaków stojących na kolejnych drutach stają się pionowymi drutami.**
+   Przykłady: 2-62 lewy dół (`+RA/+RB/-PISZRW`, `+L15`…`+L12`) i numery pinów
+   14/13/12 przy M24.
+   - Każdy znak dotyka drutu pod sobą i prawie dotyka drutu nad sobą. Przebieg
+     zachowawczy (`GAP1` = 3, `MIN_LEN1` = 28) uznawał więc cały słupek za „pewną”
+     linię pionową.
+   - v4 odejmowała pewne linie obu orientacji naraz, więc słupek nie trafiał do reszty
+     i nie był kasowany jako znak.
+   - Przy M24 bieg słupka przechodził przez druty i miał ≥ 32 px, więc pas pinów
+     (`BAND_RUN`) też go nie kasował.
+   - Skutek na M24: drut WA (pin 14) i EN (pin 12) skręcał przez cyfry. Pion
+     [778, 680–731] łączył narożnikami drut WA z drutem EN, piny 14 i 12 nie miały netu.
+     Drut C1 (pin 2, y ≈ 654) biegł dalej przez górę „14” aż do krawędzi bramki, a pin 2
+     dostawał tylko krótki kawałek zamiast drutu.
+2. **Zgubione krótkie odcinki do pinu** (2-58 M64.12 i M40.3). Odcinek od narożnika do
+   pinu ma ~25 px, mniej niż `MIN_LEN1`, więc nie był „pewną” linią. Numer pinu
+   („12”, „3”) stoi na nim i go dotyka. Składowa „odcinek + cyfra” mieściła się
+   w rozmiarze znaku i była kasowana w całości. Etap: `strip_glyphs`.
+3. **Szewrony portów jeden nad drugim** (2-62 A18/A05, 2-61 x ≈ 1722). Końce ukośnych
+   kresek „>” leżą w jednej kolumnie. Domknięcie (`GAP2`) i mostkowanie sklejały je
+   w pionową „linię” długą na 107 px, choć tusz był pod nią tylko na małej części długości.
+
+**Zmiany (v5):**
+
+- **Kasowanie znaków w trzech przebiegach** (`GLYPH_PASSES = "h v hv"`):
+  - „h” odejmuje tylko pewne linie poziome, więc słupek rozpada się na pojedyncze znaki,
+    które giną;
+  - „v” odejmuje tylko pionowe; pewne linie poziome są wtedy chronione (tekst jest
+    poziomy);
+  - „hv” odejmuje obie orientacje, jak dawniej (znak w narożniku).
+- **Kropki nie są kasowane.** Rozmiar składowej liczę bez pikseli chronionych. Przykład:
+  pion między dwiema kropkami 25 px od siebie (2-65 (766, 1400)) jest po odjęciu kropek
+  okruchem, nie znakiem.
+- **Rdzeń krótkiego drutu** (`CORE_FRAC` = 0,85, `CORE_MIN` = 9, `CORE_REACH` = 6).
+  Z kasowanej składowej zostaje prosty, cienki bieg (wiersz albo kolumna) na ≥ 85 %
+  jej długości, jeśli oba jego końce dochodzą tuszem do jednego z trzech miejsc:
+  - odjętej linii, przez którą bieg przechodzi (skrzyżowanie) albo na której ta linia
+    się kończy (narożnik);
+  - maski bramki;
+  - prostopadłego rdzenia, który sam ma mocny koniec (narożnik C1 na 2-62).
+
+  Samo dotknięcie linii biegnącej dalej w obie strony (znak stojący na drucie) nie
+  wystarcza. Długość składowej liczę bez pół kropki (2-58 M40.1). Uzupełnienia po
+  recenzji opisuje „Poprawka po recenzji (tryb b)”.
+- **`_split_thick` liczy profil po odjęciu skosu** (`SPLIT_DESKEW`). Długi pion ze skosem
+  i kropką (2-66 x ≈ 494–500) miał tusz na ≥ 50 % długości tylko w kolumnach dolnej
+  części, więc górny kawałek drutu ginął. To błąd v4, który wyszedł przy porównaniu.
+- **Pokrycie tuszem** (`MIN_COVER` = 0,6). Odcinek ma licznik tuszu z pikseli składowej
+  przed domknięciem. Przy scalaniu liczniki się sumują, przy mostkowaniu dochodzi tusz
+  z przerwy. Odcinek z tuszem na < 60 % długości jest odrzucany. Liczenie na pikselach
+  składowej nie zależy od skosu; pas wokół osi gubił skośny drut 480 px na P-X3-2 2-9.
+
+**Dyscyplina zbioru.** Mechanizmy stroiłem na stronach spoza wzorca:
+
+- P-R3-2: 2-62 oraz 2-64…2-68 w trybie (a) z bramkami ze stron `data/MJC-400`;
+- 2-69 w trybie (b), bo strona nie ma bramek;
+- P-X3-2 2-1…2-10 w trybie (b).
+
+Oglądałem diff kawałków v4/v5 na powiększeniach.
+
+Wyjątki dotyczą 2-58:
+
+- dwa zgłoszone przypadki (M64.12, M40.3) leżą na wzorcowej 2-58 i diagnozowałem je
+  na jej wycinkach;
+- poprawkę „długość bez pół kropki” znalazłem, bo wcześniejsza wersja v5 zgubiła na
+  2-58 drut M40.1.
+
+2-58 nie jest więc czystym testem v5. Liczby z 2-59…2-61 są tylko kontrolą: niczego na
+nich nie stroiłem.
+
+**Wzorzec, tryb (a) z bramkami wzorca** (`eval-digitize`, 3 px). Kolumny: wireP / wireR /
+wireF1 / wF1geom / juncP / juncR.
+
+| strona | v4 | v5 | pF1cond v4 → v5 |
+|---|---|---|---|
+| 2-58 | .926/.944/.935/.936/1.000/.864 | .927/.948/.937/.938/1.000/.864 | .959 → 1.000 |
+| 2-59 | .787/.785/.786/.791/.800/.800 | .789/.785/.787/.792/.800/.800 | 1.000 → 1.000 |
+| 2-60 | .916/.926/.921/.968/1.000/1.000 | bez zmian | .816 → .816 |
+| 2-61 | .810/.837/.823/.832/.923/.923 | .815/.837/.826/.834/.923/.923 | .977 → .977 |
+
+`pairP` = 1,000 na każdej stronie. Piny z netem: 2-58 73/76 → 76/76, 2-62 46/48 → 48/48.
+Liczby po poprawce z recenzji. Przed nią 2-58 miało .928/.948/.938. Różnica to jeden
+fałszywy kawałek 26 px: dolna kreska cyfry „11” przy kropce (642, 609).
+
+**Przypadki opiekuna (zmierzone skryptem kontrolnym):**
+
+| przypadek | v4 | v5 |
+|---|---|---|
+| 2-62 M24 pin 14 (WA) | bez netu | net drutu od kropki (739, 680), prosto |
+| 2-62 M24 pin 13 (WE) | ok | ok |
+| 2-62 M24 pin 12 (EN) | bez netu | net długiego drutu y ≈ 730 |
+| 2-62 M24 pin 2 (C1) | sam kawałek; drut y ≈ 654 szedł do krawędzi | net narożnika (767, 600–654) i drutu y ≈ 654 |
+| 2-62 M24: piony w kolumnie cyfr x 770–786 | [778, 680–731] | brak |
+| 2-58 M64.D pin 12 | bez netu | = M64.A pin 2 (jak we wzorcu) |
+| 2-58 M40.B pin 3 | bez netu | = M40.A pin 1 (jak we wzorcu) |
+
+**Strony spoza wzorca** (2-62, 2-64…2-69). Porównuję kawałki drutów, które są tylko w v4
+albo tylko w v5 (tolerancja 3 px), i każdy oceniam na powiększeniu skanu:
+
+- **tylko w v4: 72 kawałki.** Wszystkie to tekst, słupki znaków, szewrony portów albo
+  symbole. Jedna z nich, na 2-65 (1020, 579), łączyła piny C i Q jednej bramki.
+- **tylko w v5: 21 kawałków.** Prawdziwe:
+  - druty WA/EN na 2-62 dochodzą teraz prosto do pinu;
+  - pion x ≈ 553 na 2-65, odzyskany dzięki `SPLIT_DESKEW`;
+  - odcinki do pinów z cyfrą (2-64, 2-65, 2-66);
+  - długi pion na 2-67 (430, 547–699).
+
+  Pozostałe ~10 to śmieci w ramkach na 2-67/2-68. YAML tych stron ma tylko część
+  bramek: piny z netem 2/60 i 6/56.
+
+Heurystyka „pływających netów” liczy nety < 150 px bez końca bliżej niż 12 px od bramki.
+Wynik v4 → v5: 132 → 100, w tym 2-62 3 → 0, 2-67 36 → 25, 2-68 31 → 21.
+
+Heurystyka „krótkich wiszących odcinków” (< 40 px, wolny koniec z dala od bramki) daje
+9 → 9. Tej klasy błędu nie łapie, bo fałszywe słupki są długie (50–110 px).
+
+P-X3-2 (tryb b) ma 102 kawałki tylko w v4 i 55 tylko w v5:
+
+- w v4 to głównie kolumny minusów etykiet `-R1/-I1` (2-8), szewrony i słupki etykiet;
+- w v5 to odcinki do pinów z cyfrą i odzyskany drut y ≈ 481 na 2-9 (~360 px);
+- w obu wersjach zostają śmieci w etykietach elementów biernych (`C25 47p`, `R12 0,25`)
+  i we wnętrzach niewykrytych bramek. Różnica jest tam mieszana.
+
+Czas rdzenia na stronę:
+
+- tryb (a): v4 0,12–0,16 s, v5 0,16–0,21 s;
+- tryb (b): v4 0,19–0,32 s, v5 0,20–0,36 s.
+
+**Mutacje v5 na stronach** (P-R3-2, tryb jak wyżej; kawałki utracone (−) albo dodane (+)
+względem v5):
+
+| mutacja | skutek |
+|---|---|
+| `GLYPH_PASSES="hv"` (strip z v4) | wracają słupki: 2-62 +10 (w tym M24 i +L15…), 2-64 +4, 2-65 +6, 2-67 +18, 2-68 +13, 2-69 +3; 2-58/2-59/2-61 +1…3 |
+| `GLYPH_PASSES="h hv"` (bez „v”) | 2-65 +1 (`+ZER`), 2-67 +2, 2-68 +1 |
+| `CORE_FRAC=None` (bez rdzeni) | − 5…45 kawałków na stronę, m.in. 2-58 M64.12, M40.1, M40.3, 2-62 narożnik C1, piony między skrzyżowaniami z cyfrą |
+| bez „skrzyżowania” jako mocnego końca | −2…9 na stronę (piony między drutami z dotykającą cyfrą), 2-62 C1 |
+| „dotknięcie” = mocny koniec | 2-65 łączy piny C i Q (pion (1019, 579–601)), 2-68 zmiany w słupku cyfr |
+| bez ochrony linii poziomych w „v” | 2-67 −17/+2, 2-68 −15, 2-69 −2 |
+| rdzeń prostopadły bez warunku mocnego końca | 2-67 +2 (etykieta `R9-1k`) |
+| długość z pół kropką | 2-58 −1 (drut M40.1) |
+| rozmiar z pikselami kropek | 2-58 −1, 2-65 −1 (pion między kropkami) |
+| `MIN_COVER=None` | szewrony i słupki: 2-61 +1 (78 px), 2-62 +1 (A18/A05, 107 px), 2-67 +10, 2-68 +8 |
+| `SPLIT_DESKEW=False` | 2-65 −3 (pion x ≈ 553), 2-66 −2, 2-67 −2 (pion 152 px) |
+
+**Błędy, które zostają:**
+
+1. **Grube krótkie kreski-symbole** na drucie (2-64 (807, 239–282), 2-65 (982, 812–840)).
+   v4 łączyła je z drutem pod spodem, v5 z drutem nad nimi. Obie wersje się mylą — to
+   symbol, nie drut.
+2. **Znaki pionowe (bez pochylenia) dokładnie jeden nad drugim** wyglądają jak drut
+   przecinający druty, bo ich kreski przechodzą przez drut w tej samej kolumnie. Na P-R3-2
+   szablon jest pochyły, więc to nie występuje. Inne pakiety mogą mieć pismo proste.
+3. **Wąskie szewrony** (≤ 16 px szerokości) nadal mogą dać pion. Strome kreski mają tusz
+   na > 60 % długości. Synteza: pion znika dopiero od ~20 px szerokości szewronu.
+4. **Tryb (b).** Etykiety elementów biernych i wnętrza niewykrytych bramek dalej dają
+   śmieci (klasa 2 z „Poza P-R3-2”). Na 49 stronach recenzji to ~40 % kawałków, które
+   są tylko w v5. Resztki pionów z tekstu liczą się jako przecinane linie i kotwiczą
+   poprzeczki liter (JPP 2-114, SPP 2-133). Na 2-63 słupek etykiet `+RB14/11/13/12`
+   (x 2063, y 826–881) został tylko skrócony.
+5. **Strony z niepełnymi bramkami w YAML-u** (2-67, 2-68) nadal mają dużo śmieci.
+6. **Przebiegi „v” i „hv” osobno nie mają testu, który je wykrywa.** Ich wpływ pokazuje
+   tylko tabela mutacji na stronach. Pozostałe mechanizmy mają testy jednostkowe (zob.
+   „Poprawka po recenzji”).
+
+### Poprawka po recenzji (tryb b)
+
+Recenzja uruchomiła v5 w trybie (b) na 49 stronach innych pakietów:
+
+- SM-POSE11 2-92…102;
+- JPP-16-18 2-111…118;
+- SPP-32-16 2-132…139;
+- PPS-32 2-148…155;
+- I-SK1-1 2-85…91;
+- P-A3-2 i P-M3-2 (po trzy strony);
+- P-R3-2 2-63.
+
+Przebieg „h” kasował tam prawdziwe odcinki w kształcie L: kropka → pion → narożnik →
+krótki odcinek do rezystora. Przykłady: SPP-32-16 2-137 (528, 299–318), SM-POSE11 2-100
+(642, 518–547).
+
+Pion ma ≥ `MIN_LEN1`, więc v4 odejmowała go jako pewną linię. W „h” pion nie jest odejmowany
+i całe L staje się składową w rozmiarze znaku (bez kropki). Rdzeń nie ratował go z czterech
+powodów:
+
+- kropka nie była kotwicą: mała kropka (r ≈ 5) dawała tylko „dotknięcie”, a duża
+  „skrzyżowanie” — wynik zależał od promienia;
+- ramiona L mogły zakotwiczyć się wzajemnie tylko przez warunek „dobrego” rdzenia, a często
+  żadne nie miało mocnego końca;
+- rdzeń kreski falującej zostawał 1-px kolumną i ginął później jako okruch (2-100
+  (740, 543–595));
+- pozioma kreska zaczynała się kolumnę przed jedyną pełną kolumną pionu.
+
+**Zmiany:**
+
+- **Kropka jest mocną kotwicą rdzenia** (maska kropek w `strong`), niezależnie od promienia,
+  ale tylko gdy przez jej środek przechodzi linia odjęta w tym przebiegu (druga poprawka,
+  niżej).
+- **Przyjęcie iteracyjne.** Koniec przy przyjętym albo „dobrym” prostopadłym rdzeniu jest
+  mocny, także gdy ten rdzeń przecina bieg do `CORE_REACH` px od końca w głąb biegu
+  (narożnik L). Narożnik, w którym tylko jedno ramię ma mocny koniec zewnętrzny, przechodzi
+  w całości. Przykład: 2-100 (642, 518), gdzie kropki przy odejściu nie wykryto.
+- **Zostaje cała kreska wokół przyjętego biegu** (±1 px tylko w poprzek biegu), a nie sam
+  bieg.
+- **Koniec na długiej prostopadłej kresce** (≥ `CORE_T_MIN` = 20 px) liczy się jako
+  „dotknięcie”. Przykład: pion od kropki do boku nierozpoznanego rezystora, SM-POSE11
+  2-101 (685, 320–338).
+- **Cienka reszta przy kropce albo chronionym drucie nie jest kasowana** (bok ≤ `THIN_W`).
+  Przykład: blady odcinek od kropki na P-A3-2 2-74 (786, 1334–1372).
+
+Próbowałem też, żeby kotwicą rdzenia była tylko długa linia (≥ 40 albo 60 px). Miało to
+zmniejszyć śmieci trybu (b), w których słupki z resztek tekstu kotwiczą poprzeczki liter.
+Na 49 stronach dodało jednak 70–80 kawałków tylko w v5 i 120–250 tylko w v4, więc tę
+zmianę porzuciłem.
+
+**Pomiar.** 49 stron w trybie (b); kawałki tylko w jednej wersji (tolerancja 3 px,
+≥ 8 px), narzędzia recenzenta:
+
+| | tylko v4 (sztuk / px) | w tym przy kropce | tylko v5 (sztuk / px) |
+|---|---|---|---|
+| v5 przed recenzją | 1664 / 38 732 | 161 | 613 / 20 452 |
+| v5 po poprawce | 1519 / 35 364 | 109 | 652 / 21 065 |
+| v5 po drugiej poprawce | 1521 / 35 428 | 107 | 651 / 21 155 |
+
+- Przypadki recenzenta (10 odcinków na SPP 2-137/2-138, PPS 2-149, SM-POSE11 2-100/2-101):
+  przed poprawką pokrycie 0,0–0,3, po poprawce wszystkie 1,0.
+- „Tylko v4 przy kropce” — 64 wycinki oglądane w trzech próbkach:
+  - prawdziwe straty v5 znalazłem trzy (P-A3-2 2-74, SM-POSE11 2-101 (685, 329),
+    SM-POSE11 2-100 (642, 518)) i wszystkie są naprawione;
+  - w ostatniej próbce 24 wycinków po poprawce nie ma prawdziwej straty;
+  - reszta to tekst, tabliczki, diody i etykiety, które v4 brała za druty.
+- „Tylko v5” — próbka 24 wycinków:
+  - ~15 to prawdziwe druty, których v4 nie miała (odcinki do pinów z cyfrą, odejścia
+    od kropek do rezystorów);
+  - ~9 to śmieci (wnętrza niewykrytych układów, słupki etykiet JPP, tabliczki).
+
+  Szacunek: ~40 % z 652 kawałków, czyli ~250, to śmieci.
+- P-R3-2 bez zmian, z dwoma wyjątkami:
+  - 2-58 +1 fałszywy kawałek (patrz wyżej);
+  - 2-68: słupek cyfr przy bramce spoza YAML-a zamienił się z −4 na +2 kawałki śmieci.
+
+  Przypadki opiekuna nadal są poprawne.
+
+**Mutacje kodu po poprawce.** Każda wywala test:
+
+| mutacja | test |
+|---|---|
+| kropka nie jest kotwicą | strip_pass_dot_anchor_only_on_line[True], …from_dot_into_box_edge |
+| kropka kotwicą bez linii przez środek | strip_pass_dot_anchor_only_on_line[False] |
+| bez przyjęcia iteracyjnego | strip_pass_h_keeps_l_corner_to_gate |
+| bez rdzenia przecinającego koniec (perp_near) | strip_pass_h_keeps_l_corner_to_gate[wobbly] |
+| sam bieg zamiast całej kreski | strip_pass_h_keeps_l_corner_to_gate[wobbly], core_keeps_stroke_only_across_its_run |
+| kreska ±1 px także za końce biegu (3×3) | core_keeps_stroke_only_across_its_run |
+| `CORE_T_MIN=1000` | strip_pass_h_keeps_wire_from_dot_into_box_edge |
+| bez ochrony linii poziomych w „v” | strip_pass_v_protects_horizontal_lines |
+| dotknięcie = mocny koniec | anchored_touch_crossing_corner_free, pin_number_stack…[22] |
+| rdzeń prostopadły bez warunku | core_perpendicular_needs_strong_end, pin_number_stack…[22] |
+| długość z pół kropką | strip_pass_h_keeps_wire_from_dot_into_box_edge |
+
+Pliki recenzenta `test_review_repro.py` przechodzą w 50 z 55 przypadków. Pada 5:
+
+- `pullup_stub_into_gate` z r = 4 i kreską 3 px — kropka mniejsza od kreski;
+- `pullup_stub_dot_corner_to_gate` z pionem 25 px. Tu pomiar `sw` na syntetycznym obrazie
+  bez drutów daje 4,2, a przy `SW=3` test przechodzi.
+
+Wszystkie 5 padają też w v4.
+
+**Druga poprawka (ponowna recenzja, 2-63).**
+
+Problem na 2-63 (tryb a z bramkami wzorca, strona nie była oglądana):
+
+- zamalowane „0” etykiety `+NB0` (1011, 830) detektor brał za kropkę;
+- jako mocna kotwica zakotwiczało kreski liter (1011, 823–875) i (996, 840–902);
+- kreska ±1 px wokół rdzenia wydłużała bieg za jego koniec, więc drut y ≈ 823 wchodził
+  w znak (od x 1011);
+- narożnik z pionem x 1028 stawał się T bez kropki i drut się rozłączał.
+
+Zmiany:
+
+- kropka kotwiczy rdzeń tylko wtedy, gdy przez jej środek (±1 px) przechodzi linia odjęta
+  w tym przebiegu. Linia drugiej orientacji nie wystarcza, bo w „h” bywa nią słupek liter;
+- poszerzenie wokół rdzenia jest tylko w poprzek biegu.
+
+Wynik na 2-63:
+
+- narożnik jest połączony (v4 i v5 przed poprawką: rozłączony);
+- drut y ≈ 823 zaczyna się na narożniku x = 1028;
+- zostaje jedna kreska (996, 840–902) ze słupka „NB3/NB2”. v4 też ma tu kreskę
+  (1002, 822–902). To ta sama klasa co błąd 2 (prawie pionowe znaki jeden nad drugim).
+
+Wzorzec, przypadki opiekuna i strony P-R3-2 są bez zmian.
+
+Na 49 stronach trybu (b) względem pierwszej poprawki ubyło 12 kawałków i przybyło 8.
+Ubyłe to wszystkie kreski liter i wydłużenia drutów w znaki (oglądane).
+
+Test integracyjny recenzenta `filled_glyph_below_corner_keeps_corner` przechodzi także
+przed poprawką, bo synteza nie odtwarza błędu z 2-63. Mechanizmy sprawdzają testy
+jednostkowe `strip_pass_dot_anchor_only_on_line` i
+`core_keeps_stroke_only_across_its_run`.
+
+Zostały dwa odcinki L na SPP-32-16 2-136 (492, 278–300) i 2-137 (816, 681–704). Kleks
+kropki na dole pionu poszerza składową (maska kropki jest przesunięta). Bieg odcinka do
+bramki ma wtedy < 85 % szerokości składowej.
+
+Próba z progiem liczonym od zasięgu składowej w pasie ±2 wiersze wokół biegu odzyskała
+oba odcinki. Dodała jednak ~36 kawałków ze słupków etykiet (JPP 2-115, PPS 2-153, 2-63)
+i zgubiła ~42, więc tę zmianę porzuciłem.
+
+Overlaye całych arkuszy v4/v5 dostał opiekun: 2-62 i 2-58 w trybie (a), SM-POSE11 2-100
+i SPP-32-16 2-137 w trybie (b). Druty są niebieskie, tusz skasowany jako tekst ma czerwony
+kontur. Overlaye nie są w repo, bo zawierają skany.
+
 ### Testy i mutacje
 
-58 testów na syntetycznych obrazach. Druty mają 2–3 px dokładnej szerokości, ramki 5 px,
+105 testów na syntetycznych obrazach (v5: +47, w tym parametryzowane). Znaki są rysowane
+w teście własnym pochyłym szablonem. Testy jednostkowe sprawdzają `_anchored`, `_core`
+i `_strip_pass` na małych tablicach. Druty mają 2–3 px dokładnej szerokości, ramki 5 px,
 kropki promień 4 + szerokość. Testy obejmują:
 
 - przegląd grubości kreski 2–6 px;
@@ -599,7 +923,11 @@ kropki promień 4 + szerokość. Testy obejmują:
   z przerwą, stos z cienką górą;
 - kropki: kółko negacji na skrzyżowaniu, bladą kropkę, szum w kleksie;
 - równoległy drut 10–22 px pod T z kropką (oba ustawienia `T_NEEDS_DOT`);
-- słupek „1” przy bramce i przebudowę grafu przy `SPUR_ITERS=1`.
+- słupek „1” przy bramce i przebudowę grafu przy `SPUR_ITERS=1`;
+- v5: słupki numerów pinów dotykające drutów, etykiety `+L1x` na kolejnych drutach,
+  krótki odcinek z cyfrą do pinu, narożnik wokół cyfry, drut przez kropkę między
+  cyframi, narożnik pod kropką, prosta cyfra między drutami pinów, pion między bliskimi
+  kropkami, szewrony portów, długi pion ze skosem i kropką.
 
 Mutacje parametrów: `CVW_MUTATE="NAZWA=wartość"`. Każda wywala co najmniej jeden test:
 
@@ -618,6 +946,14 @@ Mutacje parametrów: `CVW_MUTATE="NAZWA=wartość"`. Każda wywala co najmniej j
 | `DOT_HOLE=0` | hollow_dot, pale_hollow_dot |
 | `DOT_HOLE_GRAY=255` | negation_bubble_on_crossing |
 | `DOT_FILL_EXTRA=0` | speckle_hole_in_crossing_blot |
+| `GLYPH_PASSES="hv"` (v5) | pin_number_stack_touching_wires[21/22/24], label_stack_on_wires |
+| `CORE_FRAC=None`, `CORE_REACH=0` (v5) | short_stub_with_digit, short_corner_wire_around_digit, wire_through_dot_to_pin |
+| `MIN_COVER=None` (v5) | stacked_port_chevrons |
+| `SPLIT_DESKEW=False` (v5) | skewed_long_wire_with_dot |
+
+Po v5 wszystkie wcześniejsze mutacje z tej tabeli nadal wywalają co najmniej jeden test
+(sprawdzone). `GLYPH_PASSES="h hv"` i `"h v"` nie wywalają żadnego — ich wpływ widać tylko
+na stronach (tabela w „v5: tekst przy drutach”).
 
 Mutacje kodu: `CVW_SCRIPT=<zmieniona kopia>`. Też każda wywala test:
 
@@ -632,6 +968,13 @@ Mutacje kodu: `CVW_SCRIPT=<zmieniona kopia>`. Też każda wywala test:
 | ~~`BOX_WMAX`/`BOX_HMAX` = ∞~~ (parametry usunięte w kr-9p8.3) | ~~oversized_box~~ |
 | ~~`BOX_SIDE_GAP` = ∞~~ (parametr usunięty w kr-9p8.3) | ~~two_bars…, stack…~~ |
 | stary `_odd` | derive_dot_d_nearest_odd |
+| v5: rozmiar składowej z pikselami kropek | **żaden** po drugiej poprawce (pion między kropkami ratuje teraz rdzeń z kropką jako kotwicą) |
+| v5: bez skrzyżowania jako mocnego końca rdzenia | anchored_touch_crossing_corner_free |
+| v5: bez ochrony linii poziomych w „v” | strip_pass_v_protects_horizontal_lines |
+| v5: dotknięcie = mocny koniec | anchored_touch_crossing_corner_free, pin_number_stack…[22] |
+| v5: rdzeń prostopadły bez warunku | core_perpendicular_needs_strong_end |
+| v5: kropka nie jest kotwicą, bez przyjęcia iteracyjnego, bez perp_near, sam bieg | zob. „Poprawka po recenzji (tryb b)” |
+| v5: długość z pół kropką | strip_pass_h_keeps_wire_from_dot_into_box_edge |
 
 Kryterium „grubości pierścienia” wokół dziury (propozycja z recenzji) odrzuciłem: przy
 polu ≤ sw² każda zamalowana dziura i tak ma pierścień grubszy niż swój promień, a mutacja
