@@ -32,9 +32,9 @@ Geometria wycinków (px skanu 200 dpi; stałe `GATE_*`, `PORT_*`, `XREF_*`):
 - skala 1 (natywnie) albo 2 (LANCZOS ×2) — `--scale`.
 
 Prawda (truth) pochodzi ze wzorca; `TRUTH_OVERRIDES` to jawna, krótka lista miejsc, gdzie
-wzorzec nie opisuje tego, co jest NADRUKOWANE na skanie (typ z `package.yaml` różny od
-nadruku; port, przy którym etykieta nie jest wypisana, bo wspólny drut opisano raz). Każda
-pozycja ma powód i powinna zostać obejrzana przez opiekuna.
+wzorzec nie opisuje tego, co jest NADRUKOWANE na skanie (port, przy którym etykieta nie jest
+wypisana, bo wspólny drut opisano raz; pin bramki obecny we wzorcu jako `disconnected`, ale
+nienarysowany). Każda pozycja ma powód i powinna zostać obejrzana przez opiekuna.
 
 Normalizacja przed porównaniem (dokładne dopasowanie po normalizacji):
 usunięcie białych znaków; minusy `−–—‐‑` → `-`; `Ø`/`ø` → `0` (rysownik pisał zero
@@ -151,31 +151,19 @@ SYMBOL_BY_TYPE = {
 # Wszystkie pozycje potwierdzone przez opiekuna na pełnych arkuszach (2026-11-26), poza listą
 # narysowanych wyjść M8 (2-63), o którą nie pytano wprost.
 TRUTH_OVERRIDES: dict[str, dict] = {
-    # typ w package.yaml różny od nadruku w bramce
-    "2-58_G_M55D": {"type": "04", "why": "nadruk '1 04 M55'; package.yaml: M55 ic 170"},
-    "2-58_G_M55F": {"type": "04", "why": "nadruk '1 04 M55'; package.yaml: M55 ic 170"},
-    "2-63_G_M18A": {"type": "174", "why": "nadruk 'R 174 M18'; package.yaml: M18 ic 74"},
     # porty, przy których etykieta nie jest wypisana (wzorzec ma nazwę netu)
     "2-58_P_C41": {"label": "", "why": "wspólny drut z A50; '-BLR' wypisane tylko przy A50"},
     "2-58_P_C48": {"label": "", "why": "wspólny drut z B48; '-RA' wypisane tylko przy B48"},
     "2-58_P_C46": {"label": "", "why": "wspólny drut z B49; '-RB' wypisane tylko przy B49"},
     "2-58_P_C43": {"label": "", "why": "wspólny drut z B47; '-W/R' wypisane tylko przy B47"},
     "2-58_P_C47": {"label": "", "why": "wspólny drut z A49; '-RC' wypisane tylko przy A49"},
-    # etykieta we wzorcu błędna (USER: nadruk '-RC', wzorzec '-PC')
-    "2-58_P_A49": {"label": "-RC", "why": "nadruk '-RC'; wzorzec ma '-PC' (błąd danych)"},
     "2-63_P_D40": {"label": "", "why": "wspólny drut z A86; '-DNB0' wypisane tylko przy A86"},
     "2-63_P_D43": {"label": "", "why": "wspólny drut z B84; '-DNB3' wypisane tylko przy B84"},
-    # piny bramki: wzorzec ma piny nienarysowane / po złej stronie
+    # piny bramki: wzorzec ma piny nienarysowane (disconnected)
     "2-63_G_M30A": {"pins": {"left": [5, 12, 13, 9, 1], "right": [2, 3, 7, 6, 10, 11, 15, 14], "top": []},
                     "why": "pin 4 (A1) nienarysowany (we wzorcu disconnected)"},
-    "2-63_G_M8A": {"type": "175", "pins": {"left": [4, 5, 12, 13, 9, 1], "right": [2, 7, 10, 15], "top": []},
-                   "why": "nadruk 'R 175 M8' (package.yaml: M8 ic 00); wyjścia 3/6/11/14 nienarysowane"},
-    "2-58_G_M52B": {"pins": {"left": [1, 13, 9, 10], "right": [8], "top": []},
-                    "why": "nadruk 1/13/9/10 (jak ic_map 51 B); wzorzec ma 11/12/9/10"},
-    "2-58_G_M7B": {"pins": {"left": [6, 5], "right": [4], "top": []},
-                   "why": "nadruk: 6 nad 5; we wzorcu py pinów 5/6 odwrotnie"},
-    "2-63_G_M19A": {"pins": {"left": [3, 4, 6, 11, 13, 14, 9, 1], "right": [2, 5, 7, 10, 12, 15], "top": []},
-                    "why": "piny 9 (C) i 1 (R) są z lewej, nie u góry"},
+    "2-63_G_M8A": {"pins": {"left": [4, 5, 12, 13, 9, 1], "right": [2, 7, 10, 15], "top": []},
+                   "why": "wyjścia 3/6/11/14 nienarysowane (niepotwierdzone, piny M8 nieruszone w danych)"},
 }
 
 MINUS_RE = re.compile("[−–—‐‑]")

@@ -20,19 +20,31 @@
 #   - 2-59, 2-60, package.yaml: litery bramek M1 (2-59: piny 9→8 = D, 1→2 = A) i M47
 #     (2-60: 74170 ma jedną bramkę A) ustawione z numerów pinów w ic_map; package.yaml:
 #     M1 dostaje bramkę D na 2-59.
+#   - package.yaml: typy z nadruku po decyzji opiekuna 2026-11-26/27: M55 ic 170→04 (2-58),
+#     M18 ic 74→174 (2-63), M8 ic 00→175 (2-63; piny M8 bez zmian).
+#   - 2-58: port A49 '-PC'→'-RC' (nadruk), net '-PC'→'-RC' dla wszystkich końcówek (także
+#     port C47) — po decyzji opiekuna 2026-11-26/27.
+#   - 2-58: M52 bramka B, lewe piny 11/12→1/13 (kolejność 1, 13, 9, 10 jak na rysunku;
+#     pozycje i nety bez zmian) — po decyzji opiekuna 2026-11-26/27.
+#   - 2-58: M7 bramka B, numery pinów 5 i 6 zamienione (6 nad 5; druty i nety zostają na
+#     swoich pozycjach; label_left 5/6→6/5) — po decyzji opiekuna 2026-11-26/27.
+#   - 2-63: M19 piny 9 (C) i 1 (R) z lewej, nie u góry (side top→left, pozycje bez zmian)
+#     — po decyzji opiekuna 2026-11-26/27.
+#   - 2-63: M30 pin 4 nienarysowany na arkuszu — zostaje we wzorcu jako disconnected (plik
+#     bez zmian; prawda bake-offu przez TRUTH_OVERRIDES) — po decyzji opiekuna 2026-11-26/27.
 kronikarz_gold: 1
 frozen_from: data/MJC-400 @ 2f51e23 (+ poprawki opiekuna powyżej)
 packages:
   P-R3-2:
     file: P-R3-2/package.yaml
-    sha256: dad2df0261971f3501226f325f41e2dcab3f4ab6e96f82727a5c90918e2f067b
+    sha256: 49eba1585fc4bb2d4c8eaf5d2ea3cbac03b84860dde1c619f4b2000deea055ab
     note: gate letters M1 (2-59) and M47 (2-60) set from ic_map pin numbers (M1 D na 2-59)
 pages:
   - package: P-R3-2
     page: 2-58
     file: P-R3-2/2-58.sch.yaml
     scope: full
-    sha256: 026da090ea1d34470a217fe702807e6c00e59ba052bcad8a8e7e94da8afb809c
+    sha256: 20f6571bd41b743f9c1593ac5f233c0dd39a25769838fd3f1e2b1cae7a9a22d9
   - package: P-R3-2
     page: 2-59
     file: P-R3-2/2-59.sch.yaml
@@ -56,4 +68,4 @@ pages:
     page: 2-63
     file: P-R3-2/2-63.sch.yaml
     scope: gates_only
-    sha256: 4e925af679d9f6582893bd08d5dde305d788c978dda737b3b30a899ab5e27daf
+    sha256: 65145b34fba82c4a62949109611a11a7d35e74d8ea78f0b61b00d59fca636dc3

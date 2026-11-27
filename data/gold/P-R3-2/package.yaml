@@ -122,7 +122,7 @@ components:
       D:
         page: 2-58
   M55:
-    ic: "170"
+    ic: "04"
     pages:
       - 2-58
     gates:
@@ -412,14 +412,14 @@ components:
       A:
         page: 2-63
   M8:
-    ic: "00"
+    ic: "175"
     gates:
       A:
         page: 2-63
       B:
         page: 2-66
   M18:
-    ic: "74"
+    ic: "174"
     gates:
       A:
         page: 2-63

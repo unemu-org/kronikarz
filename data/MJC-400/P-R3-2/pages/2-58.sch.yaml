@@ -205,7 +205,7 @@ gates:
     pins:
       - num: 9
         side: left
-        net: "-PC"
+        net: "-RC"
         px: 670
         py: 594
       - num: 10
@@ -341,7 +341,7 @@ gates:
         py: 940
       - num: 5
         side: left
-        net: "-PC"
+        net: "-RC"
         px: 671
         py: 993
       - num: 6
@@ -385,7 +385,7 @@ gates:
     pins:
       - num: 9
         side: left
-        net: "-PC"
+        net: "-RC"
         px: 937
         py: 1016
       - num: 10
@@ -425,7 +425,7 @@ gates:
     pins:
       - num: 9
         side: left
-        net: "-PC"
+        net: "-RC"
         px: 674
         py: 1101
       - num: 8
@@ -474,7 +474,7 @@ gates:
         py: 1066
       - num: 2
         side: left
-        net: "-PC"
+        net: "-RC"
         px: 936
         py: 1097
       - num: 13
@@ -536,12 +536,12 @@ gates:
         net: NET_M52_B_12
         px: 1148
         py: 1066
-      - num: 11
+      - num: 1
         side: left
         net: +STROBA
         px: 1148
         py: 989
-      - num: 12
+      - num: 13
         side: left
         net: NET_M52_B_12
         px: 1148
@@ -630,12 +630,12 @@ gates:
     "y": 1298
     rotation: 0
     pins:
-      - num: 5
+      - num: 6
         side: left
         net: +A52
         px: 412
         py: 1284
-      - num: 6
+      - num: 5
         side: left
         net: "-STROB1"
         px: 412
@@ -648,7 +648,7 @@ gates:
         cross:
           page: "7"
           label: +STROB B
-    label_left: 5/6
+    label_left: 6/5
     label_right: "4"
     verified: true
     note: null
@@ -775,14 +775,14 @@ ports:
     pin: 43
   - connector: C
     label: null
-    net: "-PC"
+    net: "-RC"
     x: 148
     "y": 1047
     side: left
     pin: 47
   - connector: A
-    label: "-PC"
-    net: "-PC"
+    label: "-RC"
+    net: "-RC"
     x: 148
     "y": 1101
     side: left
@@ -1652,7 +1652,7 @@ nets:
         - 413
         - 1447
     junctions: null
-  "-PC":
+  "-RC":
     pins: []
     segments:
       - - 224

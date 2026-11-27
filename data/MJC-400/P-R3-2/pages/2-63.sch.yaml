@@ -702,12 +702,12 @@ gates:
         px: 1870
         py: 954.9732111345654
       - num: 1
-        side: top
+        side: left
         net: ""
         px: 1767
         py: 1034.9732111345656
       - num: 9
-        side: top
+        side: left
         net: ""
         px: 1767
         py: 1004.9732111345654
