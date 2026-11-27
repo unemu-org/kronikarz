@@ -77,6 +77,14 @@ GLYPHS = {  # pochyłe znaki szablonowe (własny rysunek): łamane w polu 0..0.7
           [(0.3, 0.5), (0.6, 0.65), (0.6, 0.9), (0.3, 1.0), (0.0, 0.9), (0.0, 0.65), (0.3, 0.5)]],
     "9": [[(0.6, 0.4), (0.3, 0.5), (0.05, 0.4), (0.05, 0.15), (0.3, 0.0), (0.6, 0.15), (0.6, 0.7),
            (0.4, 1.0), (0.05, 0.95)]],
+    # v6
+    "B": [[(0.05, 1.0), (0.05, 0.0), (0.45, 0.0), (0.6, 0.15), (0.55, 0.4), (0.3, 0.5), (0.05, 0.5)],
+          [(0.3, 0.5), (0.6, 0.62), (0.6, 0.88), (0.45, 1.0), (0.05, 1.0)]],
+    "N": [[(0.0, 1.0), (0.0, 0.0), (0.6, 1.0), (0.6, 0.0)]],
+    "D": [[(0.05, 0.0), (0.05, 1.0), (0.4, 1.0), (0.6, 0.75), (0.6, 0.25), (0.4, 0.0), (0.05, 0.0)]],
+    "T": [[(0.0, 0.0), (0.7, 0.0)], [(0.35, 0.0), (0.35, 1.0)]],
+    "Y": [[(0.0, 0.0), (0.35, 0.5), (0.7, 0.0)], [(0.35, 0.5), (0.35, 1.0)]],
+    "-": [[(0.1, 0.55), (0.55, 0.55)]],
 }
 
 
@@ -581,9 +589,11 @@ def test_stacked_port_chevrons_are_not_a_wire():
         for x in (282, 330):                               # lewy i prawy szewron portu
             cv2.polylines(img, [np.array([(x, y0), (x + 20, y0 + 20), (x, y0 + 40)], np.int32)],
                           False, 0, 3)
-    res = run(img, [])
+    # profil osi (v6, AXIS_RUN) też usuwa ten pion — wyłączony, żeby test sprawdzał MIN_COVER
+    res = run(img, [], AXIS_RUN=None)
     vert = [p for n in res["nets"] for p in n["pieces"] if p[0] == p[2]]
     assert vert == [], vert
+    assert [p for n in run(img, [])["nets"] for p in n["pieces"] if p[0] == p[2]] == []
 
 
 def test_skewed_long_wire_with_dot_is_not_split():
@@ -847,7 +857,8 @@ def test_gate_frame_beyond_yaml_rect_is_not_a_wire():
     img = blank()
     frame(img, 200, 143, 260, 300)  # ramka zaczyna się 7 px nad prostokątem z YAML-a
     hline(img, 60, 200, 220)
-    res = run(img, [gate(200, 150, 260, 300)])
+    # BOX_EDGE_FRAC (v6) też usuwa resztę ramki — wyłączony, żeby test sprawdzał BOX_SEARCH
+    res = run(img, [gate(200, 150, 260, 300)], BOX_EDGE_FRAC=None)
     assert net_at(res, (230, 145)) is None
     assert len(res["nets"]) == 1
 
@@ -935,7 +946,311 @@ def test_mode_b_thick_wires_are_not_gates():
     assert len(res["nets"]) >= 4
 
 
-@pytest.mark.parametrize("sw,dot_d", [(2.09, 7), (2.58, 7), (2.97, 9), (6.0, 15)])
+# --------------------------------------------------------------------------- v6 (kr-9p8.23)
+
+V6_OFF = {"AXIS_RUN": None, "ISO_TEXT_FRAC": None, "BRIDGE_TEXT": False}
+
+
+def _label_stack(img, x=150, ys=(200, 226, 252), h=22):
+    """2-63 „+NB0/+NB3/+NB2”: etykiety na kolejnych drutach, „B” jedno nad drugim."""
+    for y in ys:
+        hline(img, 40, 380, y)
+        text(img, "+NB", x, y - 1, h=h)
+
+
+@pytest.mark.parametrize("off", [{}, {"AXIS_RUN": None, "ISO_TEXT_FRAC": None}])
+def test_stacked_letters_across_wires_are_not_a_wire(off):
+    # pion z kresek „B” przecina trzy druty bez kropek — wizualnie skleja trzy sygnały
+    img = blank()
+    _label_stack(img)
+    res = run(img, [], **off)
+    vert = [p for n in res["nets"] for p in n["pieces"] if p[0] == p[2]]
+    assert vert == [], vert
+    assert len(res["nets"]) == 3
+
+
+def test_stacked_letters_fixture_reproduces_column():
+    # bez mechanizmów v6 synteza daje pion przez druty (inaczej test wyżej niczego nie sprawdza)
+    img = blank()
+    _label_stack(img)
+    res = run(img, [], **V6_OFF)
+    assert [p for n in res["nets"] for p in n["pieces"] if p[0] == p[2]]
+
+
+def _port(img, xt, yw, label, th=4):
+    """Port jak na SM-POSE11 2-100: „<” napis „>”, drut od czubka prawego szewronu."""
+    for tip, s in ((xt, 1), (xt - 94, -1)):
+        cv2.polylines(img, [np.array([(tip - 14 * s, yw - 16), (tip, yw), (tip - 14 * s, yw + 16)],
+                                     np.int32)], False, 0, 3)
+    if label:
+        text(img, label, xt - 70, yw + 10, h=20, th=th)
+
+
+@pytest.mark.parametrize("label", ["Y52", "Y85", "Y22"])
+def test_wire_does_not_run_through_port_label(label):
+    # SM-POSE11 2-100 „<Y50>”: wierzchołki / spody liter etykiety portu dawały poziome „druty”
+    img = blank()
+    for yw in (120, 200, 280):
+        _port(img, 150, yw, label)
+        hline(img, 150, 380, yw)
+    res = run(img, [])
+    hs = [p for n in res["nets"] for p in n["pieces"] if p[1] == p[3]]
+    assert len(hs) == 3 and all(min(p[0], p[2]) >= 140 for p in hs), hs
+
+
+@pytest.mark.parametrize("off", [{}, {"AXIS_RUN": None}])
+def test_isolated_short_stroke_flanked_by_text_is_not_a_wire(off):
+    # samotna krótka kreska obłożona tekstem z obu stron, ale nie przecinana (dół / spód
+    # słowa, SM-POSE11 2-100 „<Y50”): ani wolne końce, ani profil osi jej nie usuwają
+    img = blank()
+    hline(img, 40, 380, 320)                 # długi drut: pomiar grubości
+    hline(img, 100, 150, 200)
+    text(img, "DD", 100, 198, h=20)          # litery stojące na kresce (lewa połowa)
+    text(img, "DD", 127, 223, h=20)          # litery wiszące pod nią (prawa połowa)
+    res = run(img, [], **off)
+    hs = [p for n in res["nets"] for p in n["pieces"] if p[1] == p[3] and abs(p[1] - 200) <= 3]
+    assert hs == [], hs
+
+
+def test_axis_profile_letter_crossing_vs_label_touching():
+    # kreska przecinająca oś = tusz tuż za pasem po obu stronach; cyfra dotykająca drutu od
+    # dołu z 1 px przerwą (słupek etykiet na kolejnych drutach) to nie przecięcie
+    P = cvw.derive({**cvw.PARAMS}, 2.0)
+    bw = np.zeros((60, 200), np.uint8)
+    bw[29:32, 10:190] = 1                    # drut y 30
+    bw[20:41, 50:54] = 1                     # kreska litery przez drut
+    bw[18:29, 100:104] = 1                   # znak stojący na drucie
+    bw[34:44, 100:104] = 1                   # znak pod drutem, przerwa 2 px
+    s = cvw.Seg("h", 10, 189, 30)
+    on, cross, flank = cvw.axis_profile(s, bw, P)
+    assert on.all()
+    assert cross[50 - 10 : 54 - 10].all()
+    assert not cross[100 - 10 : 104 - 10].any()
+    assert flank[100 - 10 : 104 - 10].all() and not flank[150 - 10]
+
+
+def test_trim_text_ends_drops_letter_run_behind_empty_gap_only():
+    # krótki bieg na końcu za PUSTĄ przerwą (kreska litery przed szewronem, „Y62”) odpada;
+    # przerwa pełna tuszu (kleks niewykrytej kropki, P-A3-2 2-70) nie dzieli drutu
+    P = cvw.derive({**cvw.PARAMS}, 2.0)
+    bw = np.zeros((60, 200), np.uint8)
+    bw[29:32, 20:34] = 1                     # 14 px „litery”
+    bw[29:32, 50:190] = 1                    # drut od x 50, pusta przerwa 16 px
+    out = cvw.trim_text_ends([cvw.Seg("h", 20, 189, 30)], bw, P)
+    assert len(out) == 1 and out[0].a0 >= 48, [(t.a0, t.a1) for t in out]
+    bw[25:36, 34:50] = 1                     # przerwa zalana kleksem (po obu stronach osi)
+    out = cvw.trim_text_ends([cvw.Seg("h", 20, 189, 30)], bw, P)
+    assert len(out) == 1 and out[0].a0 <= 22, [(t.a0, t.a1) for t in out]
+
+
+def test_trim_text_ends_keeps_gate_end():
+    # koniec przy bramce (pin) nie jest przycinany — numery pinów dotykają drutu z obu stron
+    P = cvw.derive({**cvw.PARAMS, "TITLE": None}, 2.0)
+    bw = np.zeros((60, 200), np.uint8)
+    bw[29:32, 10:150] = 1
+    for x in range(120, 148, 6):
+        bw[20:41, x : x + 3] = 1             # kreski „cyfr” przez drut tuż przy bramce
+    s = cvw.Seg("h", 10, 149, 30)
+    box = (150.0, 0.0, 190.0, 59.0)
+    assert cvw.trim_text_ends([s], bw, P)[0].a1 < 140
+    assert cvw.trim_text_ends([cvw.Seg("h", 10, 149, 30)], bw, P, None, [box])[0].a1 == 149
+
+
+@pytest.mark.parametrize("hole,dot_at,cut", [(True, False, True), (False, False, False),
+                                              (True, True, False)])
+def test_cut_glyph_overhang(hole, dot_at, cut):
+    # SM-POSE11 2-100 (606, 1212–1264): pion biegnie za drutem, który się na nim kończy
+    # (1237), w literę pod drutem — przez pustą przerwę w tuszu na osi; kropka w styku = T
+    P = cvw.derive({**cvw.PARAMS}, 2.0)
+    s = cvw.Seg("v", 10, 64, 100)
+    t = cvw.Seg("h", 98, 200, 37)            # kończy się na pionie
+    on = np.ones(55, bool)
+    if hole:
+        on[29:33] = False
+    flank = np.zeros(55, bool)
+    hold = np.zeros((80, 220), np.uint8)
+    if dot_at:
+        hold[37, 100] = 1
+    a0, a1 = cvw._cut_glyph_overhang(s, 10.0, 64.0, [s, t], on, flank, 10, hold, P, (False, False))
+    assert (a1 == 37.0) == cut and a0 == 10.0
+
+
+def test_cut_glyph_overhang_skips_crossings():
+    # skrzyżowanie bez kropki po drodze nie jest stykiem — cięcie przy drucie, który się kończy
+    P = cvw.derive({**cvw.PARAMS}, 2.0)
+    s = cvw.Seg("v", 10, 64, 100)
+    segs = [s, cvw.Seg("h", 98, 200, 37), cvw.Seg("h", 40, 200, 50)]
+    on = np.ones(55, bool)
+    on[29:33] = False
+    a0, a1 = cvw._cut_glyph_overhang(s, 10.0, 64.0, segs, on, np.zeros(55, bool), 10, None, P,
+                                     (False, False))
+    assert a1 == 37.0
+    # krótka kreska (<= TEXT_MAX) kończąca się na odcinku to znak, nie drut (2-66 „Q07”)
+    segs = [s, cvw.Seg("h", 98, 120, 37)]
+    a0, a1 = cvw._cut_glyph_overhang(s, 10.0, 64.0, segs, on, np.zeros(55, bool), 10, None, P,
+                                     (False, False))
+    assert a1 == 64.0
+
+
+def test_trim_text_ends_ignores_crossing_wire_ink():
+    # tusz długiego drutu drugiej orientacji nie jest kreską litery: koniec 10 px za
+    # skrzyżowaniem bez kropki nie może się przyciąć do skrzyżowania (zrobiłby się T/narożnik)
+    P = cvw.derive({**cvw.PARAMS}, 2.0)
+    bw = np.zeros((160, 200), np.uint8)
+    bw[29:32, 10:111] = 1
+    bw[0:150, 99:102] = 1
+    out = cvw.trim_text_ends([cvw.Seg("h", 10, 110, 30), cvw.Seg("v", 0, 149, 100)], bw, P)
+    assert [t.a1 for t in out if t.o == "h"] == [110.0]
+
+
+def test_connected_short_wire_under_label_is_kept():
+    # krótki drut od narożnika z etykietą stojącą na nim (2-100 „-DDT1”) nie jest „samotny”
+    img = blank()
+    vline(img, 200, 40, 200)
+    hline(img, 200, 245, 200)
+    text(img, "DDT", 203, 198, h=20, th=4)
+    res = run(img, [])
+    assert net_at(res, (240, 200)) is not None and net_at(res, (240, 200)) == net_at(res, (200, 100))
+
+
+
+@pytest.mark.parametrize("letters,axis_dot,kept", [(52, "default", True), (52, None, False),
+                                                   (44, "default", False)])
+def test_trim_text_ends_keeps_t_stem_at_dot(letters, axis_dot, kept):
+    # recenzja v6, F1: kleks kropki (większy niż maska kropek) i litery obok trzonu T czytały
+    # się jak kreski przez oś — trzon był przycinany 8–20 px przed kropką i złącze się
+    # rozłączało (P-R3-2 2-65 (505, 546)). B2: ochrona tylko dla krótkiego przycięcia
+    # (AXIS_DOT_MAX) — dłuższe (25 px) to napis przy fałszywej „kropce” w literze, przez który
+    # drut portu dochodził do sąsiedniego pionu (JPP-16-18 2-116 (1131, 503))
+    P = cvw.derive({**cvw.PARAMS} if axis_dot == "default" else {**cvw.PARAMS, "AXIS_DOT": None}, 2.0)
+    bw = np.zeros((120, 220), np.uint8)
+    bw[10:70, 99:102] = 1                    # trzon T
+    bw[66:69, 20:200] = 1                    # drut, na którym trzon się kończy
+    cv2.circle(bw, (100, 67), 8, 1, -1)      # kropka
+    bw[letters : letters + 12, 88:112] = 1   # litery po obu stronach trzonu nad kropką
+    hold = np.zeros_like(bw)
+    cv2.circle(hold, (100, 67), 5, 1, -1)    # maska kropki mniejsza niż kleks
+    out = cvw.trim_text_ends([cvw.Seg("v", 10, 67, 100), cvw.Seg("h", 20, 199, 67)], bw, P, hold)
+    a1 = [t.a1 for t in out if t.o == "v"]
+    assert (a1 == [67.0]) == kept, a1
+
+
+def test_overhang_ignores_short_junk_perpendicular():
+    # recenzja v6, F3: pion-śmieć (kreski etykiety, bieg < AXIS_CORNER) „kończący się” na
+    # drucie portu nie jest narożnikiem — drut nie może być ucinany do niego
+    P = cvw.derive({**cvw.PARAMS}, 2.0)
+    bw = np.zeros((260, 320), np.uint8)
+    bw[199:202, 60:300] = 1                  # drut portu
+    for y in range(202, 232, 6):
+        bw[y : y + 4, 79:82] = 1             # pion z kresek liter pod drutem
+    bw[186:199, 62:78] = 1                   # litery na lewym końcu drutu
+    out = cvw.trim_text_ends([cvw.Seg("h", 60, 299, 200), cvw.Seg("v", 200, 231, 80)], bw, P)
+    assert [t.a0 for t in out if t.o == "h"] == [60.0]
+
+
+@pytest.mark.parametrize("kind", ["strokes", "clean", "step"])
+def test_short_bracket_between_parallel_wires(kind):
+    # recenzja v6, F2: krótki pion z narożnikami bez kropek na dwóch drutach w tę samą stronę
+    # („⊐”) z kresek cyfr etykiet (bez czystego biegu drutu, tu: przerywany) zwierał druty
+    # portów (PPS-32 2-150 (263, 983–1010)); B1: czysta pętla do pinu / wyprowadzenie
+    # kondensatora (P-A3-2 2-78 (1121, 391–417)) i schodek zostają połączone
+    img = blank()
+    hline(img, 100, 380, 200)
+    hline(img, 20 if kind == "step" else 100, 100 if kind == "step" else 380, 225)
+    hline(img, 40, 380, 320)                 # długi drut: pomiar grubości
+    if kind in ("strokes", "step"):          # schodek też przerywany: chroni go tylko strona
+        for y in range(202, 224, 8):
+            vline(img, 100, y, min(223, y + 4))
+    else:
+        vline(img, 100, 200, 225)
+    res = run(img, [])
+    a, b = net_at(res, (300, 200)), net_at(res, (40 if kind == "step" else 300, 225))
+    assert a is not None and b is not None and (a != b) == (kind == "strokes"), res["nets"]
+
+
+def test_short_flanked_wire_with_dot_joint_is_not_isolated():
+    # strażnik reguły samotnego odcinka (recenzja v6, F8): oba końce wolne i tekst wokół, ale
+    # w środku T z kropką — odcinek ma połączenie, więc nie jest „samotny” i zostaje
+    img = blank()
+    hline(img, 40, 380, 320)                 # długi drut: pomiar grubości
+    hline(img, 100, 150, 200)
+    text(img, "DD", 127, 198, h=20)          # litery stojące na prawej połowie
+    text(img, "DD", 100, 223, h=20)          # litery wiszące pod lewą połową
+    vline(img, 120, 200, 300)
+    dot(img, 120, 200)
+    res = run(img, [])
+    a = net_at(res, (105, 199))
+    assert a is not None and a == net_at(res, (120, 280)), res["nets"]
+
+
+def test_text_bridge_needs_two_contacts_and_short_overhang():
+    P = cvw.derive({**cvw.PARAMS}, 2.0)
+    hs = [cvw.Seg("h", 0, 300, y) for y in (100, 126, 152)]
+    assert cvw._text_bridge(hs + [cvw.Seg("v", 90, 155, 150)], 3, P)
+    assert not cvw._text_bridge(hs + [cvw.Seg("v", 40, 155, 150)], 3, P)   # wystaje 60 px
+    assert not cvw._text_bridge(hs[:1] + [cvw.Seg("v", 90, 110, 150)], 1, P)
+
+
+def test_drop_box_edges():
+    # SM-POSE11 2-100 H1: prawy bok ramki ze skosem poza maską był pionowym „drutem”
+    P = cvw.derive({**cvw.PARAMS}, 2.0)
+    box = (200.0, 120.0, 260.0, 320.0)
+    segs = [cvw.Seg("v", 120, 200, 264), cvw.Seg("v", 60, 360, 272), cvw.Seg("h", 266, 380, 150)]
+    out = cvw.drop_box_edges(segs, [box], P)
+    assert [(t.o, t.cmid()) for t in out] == [("v", 272.0), ("h", 150.0)]
+
+
+@pytest.mark.parametrize("ext", [None, False])
+def test_pin_band_keeps_wire_entering_band_from_outside(ext):
+    # SM-POSE11 2-100 T1 pin 3: pion (737, 980–1085) z góry, tylko końcówka 30 px w pasie;
+    # ext=None — domyślne PARAMS (BAND_EXT), False — v5 (pion w pasie skasowany)
+    P = {**cvw.PARAMS} if ext is None else {**cvw.PARAMS, "BAND_EXT": ext}
+    img = np.zeros((300, 120), np.uint8)
+    img[40:191, 80:83] = 1
+    img[175:190, 90:93] = 1                  # cyfra w pasie
+    cvw.clear_pin_band(img, (160, 300, 75, 100), 0, P)
+    assert img[160:191, 80:83].all() == (ext is None)
+    assert not img[175:190, 90:93].any()
+
+
+@pytest.mark.parametrize("corner", ["default", None])
+def test_trim_text_ends_keeps_corner_end(corner):
+    # SM-POSE11 2-98 (1964, 877): zaokrąglony róg grubej kreski z jednej strony i litera
+    # z drugiej dają „przecięcie” tuż przy narożniku — koniec w narożniku z długim drutem zostaje
+    P = cvw.derive({**cvw.PARAMS} if corner == "default" else {**cvw.PARAMS, "AXIS_CORNER": None}, 2.0)
+    bw = np.zeros((160, 200), np.uint8)
+    bw[29:32, 10:102] = 1                    # drut poziomy do narożnika
+    bw[29:150, 99:102] = 1                   # długi pion w dół od narożnika
+    bw[18:29, 86:98] = 1                     # litera nad końcem drutu
+    bw[32:36, 86:97] = 1                     # zgrubienie rogu pod końcem
+    out = cvw.trim_text_ends([cvw.Seg("h", 10, 100, 30), cvw.Seg("v", 30, 149, 100)], bw, P)
+    a1 = [t.a1 for t in out if t.o == "h"]
+    assert (a1 == [100.0]) == (corner is not None), a1
+
+
+def test_trim_text_ends_cuts_overhang_into_letter_below_corner():
+    # SM-POSE11 2-100 Y71: pion schodzi do drutu, który się na nim kończy, a domknięcie
+    # przedłuża go przez 4 px przerwy w „D” etykiety pod drutem — T bez kropki zamiast narożnika
+    P = cvw.derive({**cvw.PARAMS}, 2.0)
+    bw = np.zeros((120, 220), np.uint8)
+    bw[10:39, 99:102] = 1                    # pion do drutu
+    bw[36:39, 99:200] = 1                    # drut w prawo od narożnika (y 37)
+    bw[43:65, 99:102] = 1                    # pionowa kreska „D” pod drutem
+    v, h = cvw.Seg("v", 10, 64, 100), cvw.Seg("h", 99, 199, 37)
+    out = cvw.trim_text_ends([v, h], bw, P)
+    assert [(t.o, t.a1) for t in out if t.o == "v"] == [("v", 37.0)]
+
+
+def test_cross_center_short_segment_ignores_glued_label():
+    # SM-POSE11 2-100 (606, 1212–1236): etykieta „-DDT3” przyklejona do krótkiego pionu
+    # przesuwała medianę o 7 px i narożnik się rozłączał
+    P = {**cvw.PARAMS}
+    cr = np.array([100] * 30 + [101] * 30 + [99] * 20 + list(range(103, 112)) * 12)
+    assert abs(cvw._cross_center(cr, P, 30) - 100) <= 1
+    assert cvw._cross_center(cr, P, 200) == float(np.median(cr))   # długi: skos, mediana
+
+
+@pytest.mark.parametrize("sw,dot_d",[(2.09, 7), (2.58, 7), (2.97, 9), (6.0, 15)])
 def test_derive_dot_d_nearest_odd(sw, dot_d):
     # DOT_D = najbliższa nieparzysta od 7 + 2 (sw - SW_REF); 7,76 -> 7, nie 9
     assert cvw.derive(cvw.PARAMS, sw)["DOT_D"] == dot_d

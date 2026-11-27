@@ -68,6 +68,14 @@ Potok:
      w kropce przycinany do jej środka (DOT_TRIM_TOL) — SNAP liczony od środka kropki.
      Odcinek z tuszem pod sobą na < MIN_COVER długości (sklejony z końców ukośnych kresek,
      np. szewrony portów jeden nad drugim) jest odrzucany.
+     v6 (kr-9p8.23): odcinek wzdłuż boku ramki bramki (BOX_EDGE*) odrzucany; profil osi
+     (AXIS_*): koniec przycinany do pierwszego biegu „drutu” (tusz na osi bez kreski litery
+     przecinającej oś), odcinek bez takiego biegu odrzucany; koniec przy bramce, w kropce
+     (AXIS_DOT) albo w narożniku z długim drutem nie jest przycinany; koniec za drutem (po
+     przycięciu, z długim biegiem), który się na nim kończy, wchodzący w znak (OVERHANG_TEXT)
+     ucinany do styku. Krótki odcinek (SEG_MODE) bierze współrzędną
+     poprzeczną z najgęstszego pasa, nie z mediany (etykieta przyklejona z boku). Pas pinów
+     liczy bieg także poza pasem (BAND_EXT).
   5. Spójność H×V: oba końce przy sobie (<= SNAP) = narożnik = połączone; skrzyżowanie
      wnętrz = połączone tylko z kropką (<= DOT_R); T = połączone tylko z kropką, jeśli
      T_NEEDS_DOT (domyślnie; konwencja rysunku — każde prawdziwe złącze wzorca leżące na
@@ -75,7 +83,11 @@ Potok:
      współrzędnych — reguła viewera „>= 3 końce w punkcie” daje kropkę na T i na
      skrzyżowaniu z kropką. Krótkie odgałęzienia (< SPUR_LEN) z wolnym końcem, który nie
      wchodzi prostopadle w bramkę = kreski tekstu, usuwane iteracyjnie (graf budowany od
-     nowa po ostatnim usunięciu).
+     nowa po ostatnim usunięciu). v6: samotny krótki odcinek (oba końce wolne, bez połączeń,
+     < ISO_TEXT_LEN) obłożony tekstem (ISO_TEXT_FRAC) albo przecinający >= 2 druty bez kropek
+     z krótkimi wystającymi końcami (BRIDGE_TEXT — słupek liter jeden nad drugim) też odpada,
+     podobnie krótka „klamra” z narożnikami bez kropek na dwóch drutach w tę samą stronę
+     (BRACKET_TEXT).
   6. Nety = składowe spójne (union-find). Wolne końce dociągane do krawędzi bramki
      (<= EXT_GATE px — kółko negacji odsuwa drut od krawędzi). Odrzucane: nety bez wolnego
      końca (zamknięte ramki) i samotne krótkie odcinki (< MIN_ISOLATED px).
@@ -84,7 +96,8 @@ Potok:
      u kandydata = pomarańczowy (nadmiarowe), wspólne = zielony (tolerancja 3 px).
 
 Parametry v1–v4 strojone na 2-58 i 2-59 (2-60, 2-61 = held-out); v5 (tekst przy drutach)
-na stronach spoza wzorca (2-62, 2-64…2-69, P-X3-2). Wersje i liczby:
+na stronach spoza wzorca (2-62, 2-64…2-69, P-X3-2); v6 (tekst przy portach, słupki liter
+przez druty) na SM-POSE11 2-100 i 49 stronach trybu (b). Wersje i liczby:
 docs/auto-digitalizacja.md.
 """
 from __future__ import annotations
@@ -148,6 +161,7 @@ PARAMS = dict(
     PIN_BAND=25,         # pas numerów pinów (2-61: słupek „1” 22 px od krawędzi; kasowane
                          #  są tylko krótkie kreski, więc drut 24 px od krawędzi zostaje)
     BAND_RUN=32,         # w pasie kasowane kreski równoległe krótsze niż BAND_RUN
+    BAND_EXT=True,       # v6: bieg liczony także poza pasem (wzdłuż krawędzi bramki)
     SPUR_LEN=30,         # krótsze odgałęzienie z wolnym końcem z dala od bramki = tekst
     SPUR_ITERS=5,
     MIN_ISOLATED=40,     # samotny odcinek krótszy = śmieć (tekst)
@@ -167,6 +181,33 @@ PARAMS = dict(
     SPLIT_FRAC=0.5,      # rozdzielanie: wiersz-linia ma tusz na >= tej części długości
     SPLIT_DESKEW=True,   # ... profil po odjęciu skosu (dopasowana prosta, |k| <= MAX_SLOPE)
     MIN_COVER=0.6,       # odcinek: tusz pod nim na >= tej części długości (None = bez)
+    SEG_MODE=60,         # v6: odcinek do tylu px: współrzędna poprzeczna = najgęstszy pas, nie
+                         #  mediana (znaki z boku); dłuższe — mediana (skos skanu); None = zawsze mediana
+    SEG_MODE_MIN=2,      # ... tylko gdy różnica z medianą większa (px)
+    AXIS_RUN=12,         # v6: odcinek przycięty do biegów tuszu na osi >= tylu px; bez nich
+                         #  odrzucony — linia przez napis (None = bez)
+    AXIS_GAP=2,          # ... przerwy w biegu domykane (px)
+    AXIS_TRIM=8,         # ... krótszej końcówki nie ucinamy
+    AXIS_DOT=3,          # ... koniec <= tylu px od maski kropek nie jest przycinany (None = bez)
+    AXIS_DOT_MAX=17,     # ... o ile przycięcie byłoby <= tylu px (trzon T 8–20 px przed kropką)
+    AXIS_CORNER=36,      # ... koniec w narożniku z odcinkiem o biegu tuszu >= tylu px nie jest
+                         #  przycinany (None = bez)
+    AXIS_GAP2=10,        # ... bieg krótszy niż 2 AXIS_RUN na końcu, za pustą przerwą > tyle px = litera
+    AXIS_BAND=None,      # ... pas wokół osi: round(sw / 2) + 1
+    AXIS_SIDE=4,         # ... tusz tuż obok pasu po obu stronach = kreska litery przez oś
+    AXIS_SEARCH=6,       # ... oś szukana +- tyle px od mediany odcinka (skos)
+    ISO_TEXT_LEN=80,     # v6: samotny odcinek krótszy, z oboma końcami wolnymi (nie przy
+    ISO_TEXT_FRAC=0.6,   #  bramce) i tuszem tuż obok (AXIS_SIDE) na >= tej części długości =
+                         #  kreska napisu (słupek liter, wierzchołki słowa); None = bez
+    OVERHANG_TEXT=True,  # v6: koniec za drutem kończącym się na odcinku (<= TEXT_MAX, litera obok)
+                         #  ucinany do styku — narożnik zamiast T bez kropki
+    BRACKET_TEXT=True,   # v6: krótki pion z narożnikami bez kropek na dwóch drutach w tę samą
+                         #  stronę („⊐”, kreski cyfr etykiet) odrzucany, jeśli ...
+    BRACKET_RUN=12,      # ... jego najdłuższy czysty bieg drutu na osi < tylu px (pętla do pinu
+                         #  ma bieg na całej długości)
+    BRIDGE_TEXT=True,    # v6: samotny krótki odcinek, który przecina albo dotyka (T) >= 2 druty
+                         #  bez kropek i wystaje za skrajne z nich najwyżej TEXT_MAX = słupek
+                         #  znaków między drutami (2-63 „+NB0/+NB3/+NB2”), odrzucany
     FIT_MIN_LEN=60,      # --fit: krótszy odcinek bierze medianę
     MAX_SLOPE=0.02,      # --fit: większy skos = mediana
     DOT_ON_WIRE=4,       # kropka w raporcie/overlayu tylko <= tyle px od drutu
@@ -178,10 +219,13 @@ PARAMS = dict(
     BOX_SEARCH=6,        # dociąganie boku bramki do narysowanej ramki (+- px)
     BOX_INSET=6,         # ... pomiar ramki z pominięciem narożników
     BOX_FRAC=0.6,        # ... wiersz/kolumna ramki: udział tuszu wzdłuż boku
+    BOX_EDGE=None,       # v6: odcinek równoległy do boku bramki najwyżej tyle px od niego
+                         #  (PAD + BOX_T) ...
+    BOX_EDGE_FRAC=0.8,   # ... na >= tej części długości = reszta ramki (None = bez)
 )
 
 DERIVED = ("DOT_D", "DOT_DT", "DOT_MAX_SIDE", "DOT_HOLE", "DOT_R", "SNAP", "END_SNAP", "BOX_T", "PAD",
-           "MAX_THICK", "THIN_W", "PAR_OFF")
+           "MAX_THICK", "THIN_W", "PAR_OFF", "AXIS_BAND", "BOX_EDGE")
 
 
 def _odd(v: float) -> int:
@@ -206,6 +250,9 @@ def derive(P: dict, sw: float) -> dict:
     d["MAX_THICK"] = int(round(2 * sw + 4))
     d["THIN_W"] = int(round(sw + 1.6))
     d["PAR_OFF"] = int(round(2 * sw + 1))
+    d["AXIS_BAND"] = int(round(sw / 2)) + 1
+    d["BOX_EDGE"] = (P["PAD"] if P["PAD"] is not None else d["PAD"]) + (
+        P["BOX_T"] if P["BOX_T"] is not None else d["BOX_T"])
     for k in DERIVED:
         if P.get(k) is None:
             P[k] = d[k]
@@ -725,22 +772,31 @@ def clear_pin_band(img: np.ndarray, region, along_axis: int, P: dict) -> None:
     y0, y1, x0, x1 = region
     if y1 <= y0 or x1 <= x0:
         return
-    crop = img[y0:y1, x0:x1]
+    H, W = img.shape
+    # bieg mierzony także poza pasem wzdłuż krawędzi (v6, BAND_EXT): pion, który dochodzi
+    # z góry do narożnika obok bramki i tylko końcówką wchodzi w pas, nie jest cyfrą
+    # (SM-POSE11 2-100 T1 pin 3: pion (737, 980–1085) tracił 30 px w pasie)
+    e = P["BAND_RUN"] if P["BAND_EXT"] else 0
+    if along_axis == 0:
+        ey0, ey1, ex0, ex1 = max(0, y0 - e), min(H, y1 + e), x0, x1
+    else:
+        ey0, ey1, ex0, ex1 = y0, y1, max(0, x0 - e), min(W, x1 + e)
+    big = img[ey0:ey1, ex0:ex1]
     k = (P["WOBBLE"], 1) if along_axis == 0 else (1, P["WOBBLE"])
-    d = cv2.dilate(crop, cv2.getStructuringElement(cv2.MORPH_RECT, k))
+    d = cv2.dilate(big, cv2.getStructuringElement(cv2.MORPH_RECT, k))
     a = d if along_axis == 0 else d.T
     keep = np.zeros_like(a)
     for c in range(a.shape[1]):
         col = a[:, c].astype(np.int8)
         dd = np.diff(np.concatenate([[0], col, [0]]))
-        for s, e in zip(np.nonzero(dd == 1)[0], np.nonzero(dd == -1)[0]):
-            if e - s >= P["BAND_RUN"]:
-                keep[s:e, c] = 1
+        for s, e_ in zip(np.nonzero(dd == 1)[0], np.nonzero(dd == -1)[0]):
+            if e_ - s >= P["BAND_RUN"]:
+                keep[s:e_, c] = 1
     if along_axis != 0:
         keep = keep.T
     # zostaw piksele długich biegów (z marginesem WOBBLE) i nic poza tym
     keep = cv2.dilate(keep, cv2.getStructuringElement(cv2.MORPH_RECT, k))
-    crop &= keep
+    img[y0:y1, x0:x1] &= keep[y0 - ey0 : y1 - ey0, x0 - ex0 : x1 - ex0]
 
 
 # --------------------------------------------------------------------------- odcinki
@@ -811,6 +867,27 @@ def _split_thick(along: np.ndarray, cross: np.ndarray, P: dict):
     return out
 
 
+def _cross_center(cr: np.ndarray, P: dict, length: float) -> float:
+    """Współrzędna poprzeczna odcinka. v1–v5: mediana pikseli składowej. Znaki przyklejone
+    z jednej strony (etykieta „-DDT3” tuż przy pionie, SM-POSE11 2-100 (606, 1212–1236))
+    przesuwają medianę o kilka px. v6 (SEG_MODE): na krótkim odcinku (długi ma skos skanu —
+    2-59, 2-61 traciły na tym wireP) środek najgęstszego pasa 3 wierszy/kolumn (drut ma
+    piksele na całej długości, litery tylko na części), jeśli odbiega od mediany o więcej niż
+    SEG_MODE_MIN px."""
+    med = float(np.median(cr))
+    if not P.get("SEG_MODE") or length > P["SEG_MODE"]:
+        return med
+    c_lo = int(cr.min())
+    cnt = np.bincount(cr - c_lo).astype(float)
+    if len(cnt) < 3:
+        return med
+    sm = np.convolve(cnt, np.ones(3), mode="same")
+    k = int(np.argmax(sm))
+    w = cnt[max(0, k - 1) : k + 2]
+    mode = c_lo + max(0, k - 1) + float((w * np.arange(len(w))).sum() / w.sum())
+    return mode if abs(mode - med) > P["SEG_MODE_MIN"] else med
+
+
 def extract_lines(bw: np.ndarray, horizontal: bool, P: dict, ortho: bool = True,
                   hold: np.ndarray | None = None) -> list[Seg]:
     m = line_mask(bw, horizontal, P["GAP2"], P["MIN_LEN"], P, hold)
@@ -825,7 +902,7 @@ def extract_lines(bw: np.ndarray, horizontal: bool, P: dict, ortho: bool = True,
         along, cross = (xs, ys) if horizontal else (ys, xs)
         for al, cr in _split_thick(along, cross, P):
             a0, a1 = float(al.min()), float(al.max())
-            med = float(np.median(cr))
+            med = _cross_center(cr, P, a1 - a0)
             c0 = c1 = med
             if not ortho and a1 - a0 >= P["FIT_MIN_LEN"]:
                 k, b = np.polyfit(al.astype(float), cr.astype(float), 1)
@@ -938,6 +1015,277 @@ def drop_uncovered(segs: list[Seg], P: dict) -> list[Seg]:
     if not P["MIN_COVER"]:
         return segs
     return [s for s in segs if s.ink is None or s.ink >= P["MIN_COVER"] * (s.a1 - s.a0 + 1)]
+
+
+def axis_profile(s: Seg, bw: np.ndarray, P: dict, hold: np.ndarray | None = None):
+    """Profile wzdłuż odcinka (v6), dla każdej pozycji a0..a1: (on, cross, flank) — tusz `bw`
+    w pasie +-AXIS_BAND px wokół osi; kreska przecinająca oś (tusz w wierszu tuż za pasem po
+    obu stronach); tusz obok pasa (do AXIS_SIDE px) po którejkolwiek stronie. „Drut” = on
+    i nie cross. Kreska litery przecina oś (tusz po obu stronach); napis stojący na drucie dotyka go
+    z jednej strony. Kropki (`hold`) nie liczą się jako tusz z boku. Oś = prosta dopasowana do
+    środków cienkich przekrojów (sam drut, bez liter; skos skanu do MAX_SLOPE), szukanych
+    +-AXIS_SEARCH px od mediany odcinka; bez nich mediana."""
+    H, W = bw.shape
+    lim_a, lim_c = (W, H) if s.o == "h" else (H, W)
+    a0, a1 = max(0, int(round(s.a0))), min(lim_a - 1, int(round(s.a1)))
+    if a1 < a0:
+        z = np.zeros(0, bool)
+        return z, z, z
+    S, b, D = P["AXIS_SEARCH"], P["AXIS_BAND"], P["AXIS_SIDE"]
+    cm = int(round(s.cmid()))
+    lo, hi = max(0, cm - S - b - D), min(lim_c, cm + S + b + D + 1)
+    sub = bw[lo:hi, a0 : a1 + 1] if s.o == "h" else bw[a0 : a1 + 1, lo:hi].T
+    side = sub
+    if hold is not None:
+        hs = hold[lo:hi, a0 : a1 + 1] if s.o == "h" else hold[a0 : a1 + 1, lo:hi].T
+        side = sub & (1 - hs)
+    n = a1 - a0 + 1
+    # środki cienkich przekrojów w oknie +-S wokół mediany
+    w0, w1 = max(0, cm - S - lo), min(hi - lo, cm + S + 1 - lo)
+    xs, cs = [], []
+    win = sub[w0:w1]
+    for k in range(n):
+        r = np.nonzero(win[:, k])[0]
+        if len(r) and r[-1] - r[0] + 1 == len(r) and len(r) <= 2 * b + 2:
+            xs.append(k)
+            cs.append(w0 + (r[0] + r[-1]) / 2)
+    if len(xs) >= 10:
+        kk, bb = np.polyfit(np.array(xs, float), np.array(cs, float), 1)
+        if abs(kk) > P["MAX_SLOPE"]:
+            kk, bb = 0.0, float(np.median(cs))
+    elif xs:
+        kk, bb = 0.0, float(np.median(cs))
+    else:
+        kk, bb = 0.0, float(cm - lo)
+    ax = np.round(kk * np.arange(n) + bb).astype(int)
+    rows = np.arange(sub.shape[0])[:, None]
+    d = rows - ax[None, :]
+    on = (sub & (np.abs(d) <= b)).any(axis=0)
+    flank = (side & (np.abs(d) > b) & (np.abs(d) <= b + D)).any(axis=0)
+    # kreska przecina oś: tusz w wierszach tuż za pasem po obu stronach (3 kolumny — skośna
+    # kreska); cyfra stojąca na drucie niżej i prawie dotykająca go od dołu (słupek etykiet
+    # na kolejnych drutach) zostawia przerwę
+    s3 = cv2.dilate(np.ascontiguousarray(side, np.uint8), np.ones((1, 3), np.uint8))
+    up = (s3 & (d == -b - 1)).any(axis=0)
+    dn = (s3 & (d == b + 1)).any(axis=0)
+    return on, on & up & dn, flank
+
+
+def _runs_1d(p: np.ndarray, gap: int) -> list[tuple[int, int]]:
+    """Biegi jedynek (początek, koniec włącznie) po domknięciu przerw <= gap."""
+    idx = np.nonzero(p)[0]
+    if not len(idx):
+        return []
+    out, s, e = [], int(idx[0]), int(idx[0])
+    for i in idx[1:]:
+        if i - e - 1 <= gap:
+            e = int(i)
+        else:
+            out.append((s, e))
+            s = e = int(i)
+    out.append((s, e))
+    return out
+
+
+def text_profiles(segs: list[Seg], bw: np.ndarray, P: dict,
+                  hold: np.ndarray | None = None, only=None) -> list[tuple]:
+    """`axis_profile` każdego odcinka. Tusz długich (> TEXT_MAX) odcinków drugiej orientacji
+    i kropek nie liczy się jako kreska litery z boku (narożnik drutu pod napisem: litera nad
+    drutem, pion drutu pod nim)."""
+    perp = {}
+    for o in ("h", "v"):
+        m = np.zeros(bw.shape, np.uint8)
+        for t in segs:
+            if t.o != o and t.length() > P["TEXT_MAX"]:
+                cv2.line(m, _ipt(t.pt(t.a0)), _ipt(t.pt(t.a1)), 1, 2 * P["AXIS_BAND"] + 3)
+        perp[o] = m if hold is None else (m | hold)
+    idx = range(len(segs)) if only is None else only
+    return [axis_profile(segs[k], bw, P, perp[segs[k].o]) for k in idx]
+
+
+def _cut_glyph_overhang(s: Seg, a0: float, a1: float, segs: list[Seg], on: np.ndarray,
+                        flank: np.ndarray, base: int, hold, P: dict,
+                        gate: tuple[bool, bool]) -> tuple[float, float]:
+    """Koniec odcinka wchodzi w znak za drutem, który się na nim kończy (v6): drut poziomy
+    kończy się na pionie, a pion biegnie dalej <= TEXT_MAX px przez literę stojącą przy nim
+    (SM-POSE11 2-100: pion (606, 1212–1237) wchodzi w „D” etykiety „-DDT4” pod drutem;
+    zasięg TEXT_MAX + SNAP).
+    Narożnik staje się wtedy T bez kropki i drut się rozłącza. Końcówkę za drutem z tuszem
+    obok na >= ISO_TEXT_FRAC długości (litera) albo z przerwą w tuszu na osi > AXIS_GAP
+    (domknięcie przeskoczyło na znak), bez kropki w punkcie styku, bez innego drutu kończącego
+    się na niej (skrzyżowania bez kropki nie łączą) i nie wchodzącą w bramkę, ucinamy do punktu
+    styku (narożnik). Drut kończący się na odcinku musi być dłuższy niż TEXT_MAX (kreska znaku
+    stojącego na drucie nie jest stykiem). `segs` to druty już po przycięciu profilem osi,
+    z biegiem >= AXIS_CORNER (trim_text_ends) — pion-śmieć nie ucina drutu portu."""
+    snap = P["SNAP"]
+    perp = []
+    for t in segs:
+        if t.o == s.o:
+            continue
+        p = t.cmid()
+        if not (a0 - snap <= p <= a1 + snap):
+            continue
+        c = s.c(p)
+        if t.length() <= P["TEXT_MAX"]:
+            # krótka kreska kończąca się na odcinku to zwykle kreska znaku (2-66 „Q07” przy
+            # porcie: pion „0” ucinał drut 32 px przed szewronem), nie drut — nie jest stykiem
+            continue
+        e_end = min(abs(t.a0 - c), abs(t.a1 - c)) <= snap
+        inside = t.a0 - snap <= c <= t.a1 + snap
+        if inside:
+            perp.append((p, e_end))
+    if not perp:
+        return a0, a1
+    for end in (0, 1):
+        if gate[end]:
+            continue
+        a = a0 if end == 0 else a1
+        # najbliższy drut kończący się na odcinku; skrzyżowania po drodze nie łączą (bez kropki)
+        cand = sorted((q for q in perp if q[1]), key=lambda q: abs(q[0] - a))
+        if not cand:
+            continue
+        p = cand[0][0]
+        d = abs(p - a)
+        if d <= snap or d > P["TEXT_MAX"] + snap:
+            continue
+        x, y = _ipt(s.pt(p))
+        if hold is not None and hold[min(hold.shape[0] - 1, max(0, y)), min(hold.shape[1] - 1, max(0, x))]:
+            continue
+        i0, i1 = (int(a) - base, int(p) - 1 - base) if end == 0 else (int(p) + 1 - base, int(a) - base)
+        seg = flank[max(0, i0) : max(0, i1) + 1]
+        gap = _runs_1d(~on[max(0, i0) : max(0, i1) + 1], 0)
+        hole = any(e - st + 1 > P["AXIS_GAP"] for st, e in gap)
+        frac = P["ISO_TEXT_FRAC"] or 2.0  # None = tylko przerwa
+        if len(seg) and (float(seg.mean()) >= frac or hole):
+            if end == 0:
+                a0 = float(p)
+            else:
+                a1 = float(p)
+    return a0, a1
+
+
+def trim_text_ends(segs: list[Seg], bw: np.ndarray, P: dict,
+                   hold: np.ndarray | None = None, boxes=()) -> list[Seg]:
+    """Odcinek sklejony z tekstu (v6, kr-9p8.23). Drut ma na osi ciągły tusz; „linia” przez
+    napis (wierzchołki liter „<Y50”, minus + belki liter „-DDT2”, środek etykiety portu „Y62”
+    przed szewronem, SM-POSE11 2-100) ma na osi tylko krótkie kawałki — przekroje kresek liter.
+    Koniec odcinka przycinany do początku pierwszego biegu tuszu na osi >= AXIS_RUN px (przerwy
+    <= AXIS_GAP domknięte), jeśli ucięta część ma > AXIS_TRIM px; odcinek bez takiego biegu
+    jest odrzucany. Koniec wchodzący w bramkę (pin) nie jest przycinany: numery pinów stoją na
+    drucie i dotykają go też od dołu (słupek 14/13/12 przy M24 na 2-62). Tak samo koniec
+    w narożniku z odcinkiem o biegu drutu >= AXIS_CORNER i koniec w kropce (AXIS_DOT).
+    AXIS_RUN=None = bez."""
+    if not P.get("AXIS_RUN"):
+        return segs
+    profs = text_profiles(segs, bw, P, hold)
+    # najdłuższy bieg „drutu” każdego odcinka: narożnik z odcinkiem, który ma długi bieg
+    # (AXIS_CORNER), chroni koniec przed przycięciem — zaokrąglony róg grubej kreski i litera
+    # obok dają „przecięcie” tuż przy narożniku (SM-POSE11 2-98 (1964, 877))
+    best = []
+    for on, cross, _f in profs:
+        r = _runs_1d(on & ~cross, P["AXIS_GAP"])
+        best.append(max((b - a + 1 for a, b in r), default=0))
+    snap = P["SNAP"]
+
+    def corner(s, a):
+        c = s.c(a)
+        for t, bt in zip(segs, best):
+            if (t.o != s.o and bt >= P["AXIS_CORNER"] and abs(t.cmid() - a) <= snap
+                    and min(abs(t.a0 - c), abs(t.a1 - c)) <= snap):
+                return True
+        return False
+
+    kept = []
+    for s, (on, cross, _flank), b_s in zip(segs, profs, best):
+        prof = on & ~cross
+        runs = [(a, b) for a, b in _runs_1d(prof, P["AXIS_GAP"]) if b - a + 1 >= P["AXIS_RUN"]]
+        # krótki bieg na końcu oddzielony od reszty pustą przerwą (bez tuszu na osi) > AXIS_GAP2
+        # = kreska litery (ukośna kreska „2” w „Y62” przed szewronem), nie początek drutu;
+        # przerwa z tuszem (kleks niewykrytej kropki, P-A3-2 2-70 (362, 1204)) się nie liczy
+        R2, G2 = 2 * P["AXIS_RUN"], P["AXIS_GAP2"]
+
+        def empty(i, j):
+            return int((~on[i + 1 : j]).sum()) > G2
+
+        while len(runs) >= 2 and runs[0][1] - runs[0][0] + 1 < R2 and empty(runs[0][1], runs[1][0]):
+            runs = runs[1:]
+        while len(runs) >= 2 and runs[-1][1] - runs[-1][0] + 1 < R2 and empty(runs[-2][1], runs[-1][0]):
+            runs = runs[:-1]
+        base = max(0, int(round(s.a0)))
+        near = P["EXT_GATE"] + P["PAD"] + P["ENTER_TOL"]
+        gate0 = any(_enters_box(s, 0, bx, near, P["ENTER_TOL"]) for bx in boxes)
+        gate1 = any(_enters_box(s, 1, bx, near, P["ENTER_TOL"]) for bx in boxes)
+        if P["AXIS_CORNER"]:
+            gate0 = gate0 or corner(s, s.a0)
+            gate1 = gate1 or corner(s, s.a1)
+        if not runs and (gate0 or gate1):
+            runs = [(int(round(s.a0)) - base, int(round(s.a1)) - base)]  # pin: bez odrzucenia
+        if not runs:
+            continue
+        # koniec w kropce (trzon T, AXIS_DOT): kleks kropki czyta się jak kreska litery przez
+        # oś, a przycięcie zostawiało trzon 8–20 px przed kropką (P-R3-2 2-65 (505, 546),
+        # P-A3-2 2-70 (677, 1387)); tylko przy przycinaniu, nie przy końcówce za narożnikiem
+        dot0, dot1 = _at_dot(s, s.a0, hold, P), _at_dot(s, s.a1, hold, P)
+        lo, hi = runs[0][0] + base, runs[-1][1] + base
+        # ... ale tylko krótkie przycięcie (<= AXIS_DOT_MAX): fałszywa „kropka” w literze
+        # etykiety przedłużała drut portu przez napis do sąsiedniego pionu (JPP-16-18 2-116
+        # (1131, 503/529), P-A3-2 2-70 (1794, 885–912), SM-POSE11 2-96 (650, 405))
+        dot0 = dot0 and lo - s.a0 <= P["AXIS_DOT_MAX"]
+        dot1 = dot1 and s.a1 - hi <= P["AXIS_DOT_MAX"]
+        a0 = float(lo) if lo - s.a0 > P["AXIS_TRIM"] and not (gate0 or dot0) else s.a0
+        a1 = float(hi) if s.a1 - hi > P["AXIS_TRIM"] and not (gate1 or dot1) else s.a1
+        kept.append((s, a0, a1, on, _flank, base, (gate0, gate1), b_s))
+    # końcówka za narożnikiem (OVERHANG_TEXT) dopiero względem odcinków po przycięciu i tylko
+    # przy drutach z długim biegiem: pion-śmieć wchodzący w etykietę „kończył się” na drucie
+    # portu, drut był ucinany, a sam pion potem znikał (SM-POSE11 2-101 (201–234, 1316))
+    trimmed = [Seg(s.o, a0, a1, s.c(a0), s.c(a1), s.ink) for s, a0, a1, *_ in kept]
+    wires = [t for t, (*_r, bt) in zip(trimmed, kept)
+             if bt >= (P["AXIS_CORNER"] or 0) and t.length() > P["TEXT_MAX"]]
+    out = []
+    for s, a0, a1, on, flank, base, gates, _bt in kept:
+        if P["OVERHANG_TEXT"]:
+            a0, a1 = _cut_glyph_overhang(s, a0, a1, wires, on, flank, base, hold, P, gates)
+        if a0 != s.a0 or a1 != s.a1:
+            c0, c1 = s.c(a0), s.c(a1)
+            ink = None if s.ink is None else min(s.ink, int(a1 - a0 + 1))
+            s = Seg(s.o, a0, a1, c0, c1, ink)
+        out.append(s)
+    return out
+
+
+def _at_dot(s: Seg, a: float, hold, P: dict) -> bool:
+    """Koniec odcinka (współrzędna wzdłuż `a`) leży najwyżej AXIS_DOT px od maski kropek."""
+    if hold is None or P["AXIS_DOT"] is None:
+        return False
+    x, y = _ipt(s.pt(a))
+    r = P["AXIS_DOT"]
+    H, W = hold.shape
+    return bool(hold[max(0, y - r) : min(H, y + r + 1), max(0, x - r) : min(W, x + r + 1)].any())
+
+
+def drop_box_edges(segs: list[Seg], boxes, P: dict) -> list[Seg]:
+    """Odcinek wzdłuż boku ramki bramki (v6): równoległy do boku, najwyżej BOX_EDGE px od
+    niego i leżący przy nim na >= BOX_EDGE_FRAC długości = reszta ramki poza maską (skos
+    skanu; SM-POSE11 2-100 H1: prawy bok przy SE/SO (750, 105–195) był pionowym „drutem”,
+    do którego dochodziły druty pinów 9 i 6). Drut biegnący wzdłuż bramki w pasie pinów
+    leży dalej (>= 12 px)."""
+    if not P["BOX_EDGE_FRAC"] or not boxes:
+        return segs
+    e = P["BOX_EDGE"]
+    out = []
+    for s in segs:
+        drop = False
+        for x0, y0, x1, y1 in boxes:
+            sides, lo, hi = ((x0, x1), y0, y1) if s.o == "v" else ((y0, y1), x0, x1)
+            if not any(abs(s.cmid() - c) <= e for c in sides):
+                continue
+            over = min(s.a1, hi + e) - max(s.a0, lo - e)
+            if over >= P["BOX_EDGE_FRAC"] * max(1.0, s.length()):
+                drop = True
+                break
+        if not drop:
+            out.append(s)
+    return out
 
 
 def trim_to_dots(segs: list[Seg], dots, P: dict) -> list[Seg]:
@@ -1087,6 +1435,54 @@ def _extend(pts, s: Seg, end: int, boxes, P):
         return
 
 
+def _text_bridge(segs: list[Seg], k: int, P: dict) -> bool:
+    """Odcinek `k` (samotny: żadne jego zetknięcie nie jest połączeniem) styka się z >= 2
+    prostopadłymi odcinkami (skrzyżowanie albo T, SNAP) i wystaje za skrajne zetknięcia
+    najwyżej TEXT_MAX z każdej strony — mostek przez kolejne druty bez kropek, czyli kreski
+    znaków stojących jeden nad drugim (2-63 „+NB0/+NB3/+NB2”: pion (996, 840–902) przez trzy
+    druty). Drut przecinający dwa druty bez połączenia i bez końcówki dalej nie ma sensu."""
+    s, snap = segs[k], P["SNAP"]
+    hits = []
+    for t in segs:
+        if t.o == s.o:
+            continue
+        a = t.cmid()  # współrzędna t w poprzek = położenie na s wzdłuż
+        if not (s.a0 - snap <= a <= s.a1 + snap):
+            continue
+        c = s.c(a)
+        if t.a0 - snap <= c <= t.a1 + snap:
+            hits.append(a)
+    if len(hits) < 2:
+        return False
+    return min(hits) - s.a0 <= P["TEXT_MAX"] and s.a1 - max(hits) <= P["TEXT_MAX"]
+
+
+def _text_bracket(segs: list[Seg], k: int, nds, dots: DotIndex, P: dict) -> bool:
+    """Klamra z kresek znaków (v6, BRACKET_TEXT): odcinek <= TEXT_MAX + SNAP, którego oba
+    końce są narożnikami bez kropki z drutami biegnącymi w tę samą stronę („⊐”), i nic więcej
+    się na nim nie łączy. Prawe kreski cyfr etykiet jedna nad drugą (po SEG_MODE z gęstszą
+    współrzędną) zwierały dwa sąsiednie druty portów: PPS-32 2-150 (263, 983–1010) „-DT14” /
+    „-DT15”, 2-154 (380, 527–552) „+S1” / „+S0”. Odrzucany tylko, gdy nie ma czystego biegu
+    drutu >= BRACKET_RUN (sprawdzane w pętli odgałęzień): prawdziwe pętle „⊐” do pinów
+    i wyprowadzeń kondensatorów (P-A3-2 2-78, SM-POSE11 2-92/2-93) mają go na całej długości."""
+    s, snap = segs[k], P["SNAP"]
+    if s.length() > P["TEXT_MAX"] + snap or len(nds) != 2:
+        return False
+    sides = []
+    for a in (s.a0, s.a1):
+        x, y = s.pt(a)
+        if dots.any_within(x, y, P["DOT_R"]):
+            return False
+        c = s.c(a)
+        part = [t for t in segs if t.o != s.o and abs(t.cmid() - a) <= snap
+                and min(abs(t.a0 - c), abs(t.a1 - c)) <= snap]
+        if len(part) != 1:
+            return False
+        t = part[0]
+        sides.append(1 if (t.a0 + t.a1) / 2 > c else -1)
+    return sides[0] == sides[1]
+
+
 def digitize(gray: np.ndarray, gates: list[dict] | None, P: dict | None = None, ortho=True):
     """Rdzeń: skan (uint8) -> dict(nets, dots, boxes, params, t_rejected)."""
     P = {**PARAMS, **(P or {})}
@@ -1130,19 +1526,45 @@ def digitize(gray: np.ndarray, gates: list[dict] | None, P: dict | None = None, 
     segs = extract_lines(bw_h, True, P, ortho, hold) + extract_lines(bw_v, False, P, ortho, hold)
     segs = bridge_gaps(segs, bw_raw, P)
     segs = drop_uncovered(segs, P)
+    segs = drop_box_edges(segs, boxes, P)
+    segs = trim_text_ends(segs, bw_raw, P, hold, boxes)
     segs = trim_to_dots(segs, dots, P)
 
     # krótkie odgałęzienia z wolnym końcem, który nie wchodzi w bramkę = kreski tekstu
     near = P["EXT_GATE"] + P["PAD"] + P["ENTER_TOL"]
+    iso_on = bool(P["ISO_TEXT_FRAC"] or P["BRIDGE_TEXT"])
     for _ in range(P["SPUR_ITERS"]):
         dsu, nodes, t_rej = build_graph(segs, dindex, P)
         drop = set()
+        iso, brk = [], []
         for k, s in enumerate(segs):
-            if s.length() >= P["SPUR_LEN"]:
+            if s.length() >= max(P["SPUR_LEN"], P["ISO_TEXT_LEN"] if iso_on else 0):
                 continue
             _, f0, f1 = chain(s, nodes[k], P)
-            for end, free in ((0, f0), (1, f1)):
-                if free and not any(_enters_box(s, end, bx, near, P["ENTER_TOL"]) for bx in boxes):
+            outer = [free and not any(_enters_box(s, end, bx, near, P["ENTER_TOL"]) for bx in boxes)
+                     for end, free in ((0, f0), (1, f1))]
+            if s.length() < P["SPUR_LEN"] and any(outer):
+                drop.add(k)
+            elif all(outer) and not nodes[k]:
+                iso.append(k)
+            elif P["BRACKET_TEXT"] and _text_bracket(segs, k, nodes[k], dindex, P):
+                brk.append(k)
+        if iso:
+            # samotny krótki odcinek obłożony tekstem: słupek liter jeden nad drugim (2-63
+            # „+NB0/+NB3/+NB2” — kreski „B” przecinają trzy druty, bez kropek), wierzchołki
+            # albo spody słowa („<Y50”), belki liter „-DDT2” (SM-POSE11 2-100)
+            for k, (_on, _cross, flank) in zip(iso, text_profiles(segs, bw_raw, P, hold, iso)):
+                if P["ISO_TEXT_FRAC"] and len(flank) and float(flank.mean()) >= P["ISO_TEXT_FRAC"]:
+                    drop.add(k)
+                elif P["BRIDGE_TEXT"] and _text_bridge(segs, k, P):
+                    drop.add(k)
+        if brk:
+            # klamra z kresek znaków nie ma czystego biegu drutu na osi (najdłuższy 1–4 px);
+            # prawdziwa pętla do pinu albo wyprowadzenie kondensatora ma go na całej długości
+            # (24–29 px; P-A3-2 2-78 (1121, 391–417), SM-POSE11 2-92 (1478, 467–495))
+            for k, (on, cross, _f) in zip(brk, text_profiles(segs, bw_raw, P, hold, brk)):
+                r = _runs_1d(on & ~cross, P["AXIS_GAP"])
+                if max((b - a + 1 for a, b in r), default=0) < P["BRACKET_RUN"]:
                     drop.add(k)
         if not drop:
             break

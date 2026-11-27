@@ -366,6 +366,11 @@ v5 (kr-9p8.22) usuwa fałszywe piony ze słupków tekstu i szewronów portów or
 krótkie odcinki do pinów z cyfrą. Liczby wzorca nie spadły na żadnej stronie (zob.
 „v5: tekst przy drutach”).
 
+v6 (kr-9p8.23) usuwa słupki liter przecinające kolejne druty (2-63 „+NB0/+NB3/+NB2”),
+linie sklejone z napisów przy portach i minusów etykiet (SM-POSE11 2-100) oraz resztki ramek
+bramek. Wzorzec bez zmian poza 2-61 wireR 0,837 → 0,836 (zob. „v6: słupki liter i napisy przy
+portach”).
+
 Hipoteza w liczbach `eval-digitize` nie jest spełniona. Ślepy wynik held-out (v1) to wireR
 0,84 na 2-60 i 0,36 na 2-61; późniejsze wersje stroiłem już po obejrzeniu tych stron.
 
@@ -911,9 +916,316 @@ Overlaye całych arkuszy v4/v5 dostał opiekun: 2-62 i 2-58 w trybie (a), SM-POS
 i SPP-32-16 2-137 w trybie (b). Druty są niebieskie, tusz skasowany jako tekst ma czerwony
 kontur. Overlaye nie są w repo, bo zawierają skany.
 
+### v6: słupki liter i napisy przy portach (kr-9p8.23)
+
+Opiekun zgłosił po v5 (w kolejności ważności):
+
+1. **Zwarcie na 2-63** — etykiety „+NB0 / +NB3 / +NB2” nad trzema drutami do portów. Kreski
+   „B” stoją jedna nad drugą i dają pion (996, 840–902), który przecina wszystkie trzy druty.
+2. **Minusy przed etykietami** „-DDTx” przy szewronach portów (SM-POSE11 2-100, C5, A5/B5).
+   Druty do portów biegną przez litery i mieszają się z etykietami.
+3. **Inne przypadki na 2-100**: linia przez „-DBK” (E4); brak drutu z góry do pinu 3 (E)
+   układu T1 (D5); prawy bok ramki H1 przy SE/SO jako pionowy drut (C2).
+4. Ile śmieci na 2-100 znika w trybie (a), z bramkami z kroku ①.
+5. Resztki z kr-9p8.22: odcinki L na SPP-32-16 2-136/2-137 i grube krótkie kreski-symbole.
+
+**Przyczyny (zmierzone):**
+
+- **2-63.** W grafie v5 pion był **osobnym netem**. Oba końce to T bez kropki, a skrzyżowanie
+  w środku nie miało kropki. Pliku YAML nie łączył więc trzech sygnałów (`pairP` = 1,000), ale
+  na rysunku i dla każdego późniejszego kroku wyglądał jak zwarcie. Pion przeżywał kasowanie
+  znaków: każda kreska „B” kończy się na drucie, a za drutem dalej jest tusz (następne „B”).
+  `_anchored` uznawało to za „skrzyżowanie” (mocny koniec), więc rdzeń zostawał.
+- **Napisy przy portach (2-100).** Słowa z grubych, stykających się liter („<Y50>”, „-DDT2”)
+  są większe od znaku (`TEXT_MAX`) i nie są kasowane. Domknięcie (`GAP2`) robi z wierzchołków,
+  środków albo spodów liter linie dłuższe od `MIN_LEN`, a `MIN_COVER` je przepuszcza. Drut
+  Y62 zaczynał się w napisie „Y62” (x 535), nie w czubku szewronu (x ≈ 583). Belki „-DDT2”
+  (583–632, y 1144) z narożnikiem przez „2” zamieniały narożnik drutu Y68 w T bez kropki.
+  Y68 nie miał połączenia z pinem 10.
+- **Y71 (2-100, (606, 1212–1237)).** Etykieta „-DDT3” przyklejona z prawej do krótkiego pionu
+  przesuwała jego medianę o 7 px (613 zamiast 606). Do tego domknięcie przedłużało pion przez
+  4 px przerwy w „D” etykiety pod drutem. Narożnik stawał się T bez kropki.
+- **E4 „-DBK”** to ta sama klasa (linia przez napis).
+- **D5.** Pion (737, 980–1085) schodzi do narożnika 22 px przed T1. Ostatnie 30 px leży
+  w pasie numerów pinów (`PIN_BAND`), a `clear_pin_band` mierzyło bieg tylko wewnątrz pasa
+  (30 < `BAND_RUN` 32) i go kasowało.
+- **C2.** Prawy bok H1 ma skos ~4 px. U góry wystaje poza maskę (prostokąt + `PAD`), więc
+  (750, 105–195) był pionem, do którego dochodziły druty SE i SO jako T.
+
+**Zmiany (v6), każda z parametrem:**
+
+- **Profil osi odcinka** (`AXIS_*`, `axis_profile`, `trim_text_ends`). Dla każdej pozycji
+  wzdłuż odcinka sprawdzam trzy rzeczy:
+  - tusz w pasie ±`AXIS_BAND` (round(sw/2) + 1) wokół osi; oś to prosta dopasowana do
+    cienkich przekrojów (sam drut), szukana ±`AXIS_SEARCH`;
+  - „przecięcie”: tusz w wierszu tuż za pasem po obu stronach (3 kolumny, bo kreska bywa
+    skośna). Kreska litery przecina oś. Znak stojący na drucie dotyka tylko z jednej strony,
+    a cyfra wisząca pod drutem z przerwą 1–2 px nie przecina;
+  - „obłożenie”: tusz obok pasa (do `AXIS_SIDE` = 4 px) po którejkolwiek stronie.
+
+  Tusz długich odcinków drugiej orientacji i kropek nie liczy się jako litera.
+
+  Koniec odcinka przycinam do początku pierwszego biegu „drutu” (tusz, bez przecięcia)
+  ≥ `AXIS_RUN` = 12 px; przerwy ≤ `AXIS_GAP` = 2 są domykane. Odcinek bez takiego biegu
+  odpada. Dodatkowo:
+  - krótki bieg (< 2 `AXIS_RUN`) na końcu za **pustą** przerwą > `AXIS_GAP2` = 10 px też
+    odpada (ukośna kreska „2” przed szewronem Y62). Przerwa wypełniona tuszem się nie liczy
+    (kleks niewykrytej kropki, P-A3-2 2-70 (362, 1204));
+  - końca przy bramce (pin) nie przycinam — numery pinów dotykają drutu z obu stron (słupek
+    14/13/12 przy M24);
+  - końca w narożniku z odcinkiem o biegu ≥ `AXIS_CORNER` = 36 px też nie przycinam.
+    Zaokrąglony róg grubej kreski i litera obok dają tam „przecięcie” (SM-POSE11 2-98
+    (1964, 877)).
+- **Koniec w znaku za narożnikiem** (`OVERHANG_TEXT`, `_cut_glyph_overhang`). Gdy drut
+  dłuższy niż `TEXT_MAX` kończy się na odcinku, a odcinek biegnie dalej najwyżej
+  `TEXT_MAX + SNAP` px, końcówkę ucinam do punktu styku (narożnik zamiast T). Warunki:
+  - końcówka ma obłożenie ≥ `ISO_TEXT_FRAC` albo pustą przerwę na osi > `AXIS_GAP`;
+  - w styku nie ma kropki;
+  - koniec nie wchodzi w bramkę.
+
+  Skrzyżowania po drodze się nie liczą. Krótka kreska kończąca się na odcinku to znak, nie
+  drut. Bez tego warunku pion „0” w „Q07” ucinał na 2-66 drut 32 px przed szewronem.
+- **Samotny odcinek z tekstem** (`ISO_TEXT_LEN` = 80, `ISO_TEXT_FRAC` = 0,6). Odcinek
+  krótszy niż 80 px, bez żadnego połączenia, z oboma końcami wolnymi (nie przy bramce)
+  i z obłożeniem na ≥ 60 % długości odpada w pętli odgałęzień.
+- **Mostek przez druty** (`BRIDGE_TEXT`, `_text_bridge`). Samotny krótki odcinek, który
+  przecina albo dotyka (T) ≥ 2 prostopadłe druty i wystaje za skrajne z nich najwyżej
+  `TEXT_MAX`, odpada. Drut, który przecina dwa druty bez połączenia i nigdzie dalej nie
+  prowadzi, nie ma sensu. To bezpośrednia reguła na przypadek 1.
+- **Bok ramki bramki** (`BOX_EDGE` = `PAD` + `BOX_T`, `BOX_EDGE_FRAC` = 0,8). Odcinek
+  równoległy do boku maski, najwyżej `BOX_EDGE` px od niego, leżący przy nim na ≥ 80 %
+  długości, odpada. Drut w pasie pinów leży ≥ 12 px od boku.
+- **Pas pinów liczy bieg także poza pasem** (`BAND_EXT`). Pion, który wchodzi do pasu
+  z zewnątrz, nie jest cyfrą.
+- **Krótki odcinek bierze współrzędną poprzeczną z najgęstszego pasa 3 wierszy**, nie
+  z mediany (`SEG_MODE` = 60 px, `SEG_MODE_MIN` = 2 px). Dotyczy to tylko odcinków ≤ 60 px.
+  Na długich mediana zostaje, bo skos skanu: wersja „zawsze” obniżała 2-59 wireP .789 → .780
+  i 2-61 juncP .923 → .846.
+
+**Wzorzec, tryb (a) z bramkami wzorca** (wireP / wireR / wireF1 / wF1geom / juncP / juncR):
+
+| strona | v5 | v6 |
+|---|---|---|
+| 2-58 | .927/.948/.937/.938/1.000/.864 | bez zmian |
+| 2-59 | .789/.785/.787/.792/.800/.800 | bez zmian |
+| 2-60 | .916/.926/.921/.968/1.000/1.000 | bez zmian |
+| 2-61 | .815/.837/.826/.834/.923/.923 | .815/.836/.826/.834/.923/.923 |
+
+- `pairP` = 1,000 i `pF1cond` bez zmian (1.000 / 1.000 / .816 / .977).
+- 2-61: drut kończy się teraz w czubku szewronu portu (1635, 813), nie 9 px w nim.
+- Piny z netem: bez zmian na 2-58 76/76, 2-62 48/48, 2-60 47/48, 2-61 50/51, 2-66 81/86,
+  2-63 101/119.
+- Piny z netem, zmiany: 2-64 89 → 91/106, 2-65 77 → 79/88 (narożniki obok bramki,
+  `BAND_EXT`), 2-67 2 → 1/60. Na 2-67 piny z YAML-a leżą obok bramki, a „net” pinu 15 v5
+  był linią przez cyfry „15”.
+
+Gotowych netów ludzkich do porównania nie ma (strony 2-62…2-68 w `data/` mają bramki, nety
+prawie puste), więc `pairP` liczę tylko na wzorcu.
+
+**Przypadki opiekuna** (skrypt kontrolny: net w punktach, tryb (b) dla 2-100, (a) dla 2-63):
+
+| przypadek | v5 | v6 |
+|---|---|---|
+| 2-63 pion „B” (996, 840–902) przez +NB0/+NB3/+NB2 | jest | brak; trzy druty osobno |
+| 2-63 (tryb b) piony „+RB14/11/13/12” (2057/2064, 825–881) | dwa | jeden: (2057, 852–881) wisi na fałszywej kropce (2059, 852) w „B” i przecina drut 877 bez połączenia |
+| 2-100 Y62: drut od czubka szewronu | od x 535 (przez „Y62”) | od x 586 |
+| 2-100 Y65, „<Y50>”, „-DDT8”: linie przez napisy | są | brak |
+| 2-100 „-DDT2”: belki liter (583–632, y 1144) | są | brak |
+| 2-100 Y68 → pin 10 | rozłączony (T bez kropki) | połączony narożnikiem (632, 1157) |
+| 2-100 Y71 → pin 11 | rozłączony (pion x 613) | połączony (606, 1212–1237) |
+| 2-100 E4 linia przez „-DBK” | jest | brak |
+| 2-100 D5 pin 3 T1 z góry | brak 30 px pionu i odcinka | narożnik (737, 1086) → pin |
+| 2-100 C2 bok H1 (750, 105–195) | drut, T z SE/SO | brak; SE i SO osobno |
+
+**Licznik „mostków bez kropek”** (skrypt pomocniczy poza repo). Ciąg współliniowych
+kawałków jednego netu ≤ 100 px, który dotyka (skrzyżowanie albo T, 4 px) odcinków ≥ 2 innych
+netów, bez kropki (8 px) przy żadnym styku:
+
+| zbiór | v5 | v6 |
+|---|---|---|
+| 49 stron trybu (b) | 458 | 91 |
+| P-R3-2 2-62, 2-64…2-68 (a), 2-69 (b) | 9 | 3 |
+| P-X3-2 2-1…2-10 (b) | 22 | 5 |
+| wzorzec 2-58…2-61 (a) | 2 | 2 |
+| 2-63 (a) | 3 | 0 |
+
+Dwa na wzorcu (2-60 (633–733, 926), 2-61 (690–790, 860)) to prawdziwe druty 100 px, które
+przecinają dwa inne bez połączenia. To fałszywe trafienia licznika.
+
+**Tryb (b), 49 stron recenzji** (kawałki tylko w jednej wersji, tolerancja 3 px, ≥ 8 px):
+
+- v5: 4228 netów / 9840 kawałków; v6: 3505 / 9005;
+- tylko v5: 1713 kawałków / 63 840 px, w tym 101 przy kropce;
+- tylko v6: 155 / 4088 px.
+
+Obejrzane próbki (montaże v5 | v6):
+
+- **tylko v5**: 4 próbki po 24–30 wycinków, z czego 2 losowe i 2 przy kropce, w kolejnych
+  wersjach roboczych. To słupki liter, linie w napisach i tabliczkach, płytki kondensatorów,
+  linie przerywane konturów, wnętrza symboli (diody, tranzystory) i reszty ramek.
+  Prawdziwe straty znalazłem cztery:
+  - P-A3-2 2-70: pion między kropką a kleksem — naprawione (pusta przerwa);
+  - 2-66: drut przed szewronem przy „Q07” — naprawione (krótka kreska nie jest stykiem);
+  - SM-POSE11 2-98 (1964, 877): narożnik — naprawione (`AXIS_CORNER`). Okazało się, że to
+    ramka niewykrytego układu, która teraz odpada jako zamknięta;
+  - I-SK1-1 2-86 (888, 416–432): 16 px bladego końca drutu z przerwami — **zostaje**.
+
+  W ostatniej próbce (30 + 24 wycinków, wersja końcowa) prawdziwej straty nie ma.
+- **tylko v6**, próbka 24: ~22 to prawdziwe narożniki L tuż przed bramką (`BAND_EXT`),
+  ~2 to śmieci w napisach.
+
+**Strony strojenia P-R3-2** (tryb a, v5 → v6, kawałki tylko w jednej wersji):
+
+- 2-62: bez zmian;
+- 2-64: −3 / +2 — znika linia przez „+UST”, dochodzą odcinek do pinu 12 i odcinek do kółka
+  negacji;
+- 2-65: −2 / +1 — znikają dwa piony przez cyfry „13” i „1”. Pierwszy z nich (809, 970–996)
+  w v5 zabierał wolne końce drutów pinów 1 i 13 M15.B, więc oba piny nie miały netu. W v6
+  oba mają ten sam net przez pion x 766, który jest w obu wersjach. Dochodzi pion obok bramki;
+- 2-66: −1 (koniec drutu 10 px w szewronie);
+- 2-67/2-68/2-69: −28/−29/−9, same śmieci (linie w tekście, tabela, kondensatory, linia
+  przerywana).
+
+P-X3-2: −84 / +11 kawałków.
+
+**Tryb (a) na 2-100** (bramki z kroku ①, 76 ramek, `auto.py --step gates`, potem `wires`,
+`--draft`, kopia danych w scratchpadzie):
+
+| | v5 | v6 |
+|---|---|---|
+| tryb (a): nety / odcinki | 161 / 340 | 117 / 374 |
+| tryb (b): nety / odcinki | 158 / 420 | 118 / 382 |
+
+Tryb (a) z bramkami z kroku ① **prawie nie zmienia** obrazu względem trybu (b). Tryb (b) też
+bierze ramki z `cv-gates.py`, a śmieci na 2-100 to tekst (etykiety portów, wartości
+rezystorów), nie bramki. Overlaye obu trybów są praktycznie identyczne.
+
+Czas rdzenia na stronę: v5 do 0,84 s, v6 do 0,60 s (tryb b, 49 stron). Mniej odcinków
+w grafie.
+
+**Mutacje** — każdy nowy mechanizm wywala co najmniej jeden test (zob. „Testy i mutacje”).
+
+**Poprawka po recenzji v6.** Recenzja znalazła trzy błędy v6 na 49 stronach trybu (b):
+
+- **F1 (blokujący).** Profil osi przycinał trzon prawdziwego T 8–20 px przed kropką: kleks
+  kropki większy niż maska czytał się jak kreska litery przez oś, więc złącze się
+  rozłączało. Przykłady: P-A3-2 2-70 (677, 1387), PPS-32 2-151 (591, 1480), 2-153
+  (455, 968), SPP-32-16 2-132 (1559, 552), 2-133 (946, 1107), I-SK1-1 2-86 (916, 299)
+  i w trybie (a) P-R3-2 2-65 (505, 546), gdzie pin M35.B.4 tracił drut.
+
+  Poprawka: koniec ≤ `AXIS_DOT` = 3 px od maski kropek nie jest przycinany, o ile
+  przycięcie byłoby ≤ `AXIS_DOT_MAX` = 17 px. Działa to tylko przy przycinaniu, nie przy
+  końcówce za narożnikiem: tam fałszywa kropka w „D” na 2-100 (601, 1258) cofała naprawę
+  Y71.
+
+  Granicę `AXIS_DOT_MAX` dodała druga recenzja. Bez niej fałszywe „kropki” w literach
+  etykiet przedłużały druty portów przez napis do sąsiedniego pionu — trzy zwarcia:
+  - JPP-16-18 2-116, druty „21” (y 507) i „2” (y 532) przez „A9”/„A10” do pionu x 1131;
+  - P-A3-2 2-70 (1794, 885–912): trzon „9” zwierał druty „10” i „9”;
+  - SM-POSE11 2-96 (650, 405): drut „5” przez „B1” do krawędzi tabeli.
+
+  Do tego ~35 kawałków śmieci, np. kolumna „-NB0…-NB3” na PPS-32 2-152.
+
+  Kontrola na 13 kropkach z recenzji:
+  - 7 prawdziwych złączy ma znowu 3 ramiona w jednym necie, jak w v5;
+  - JPP-16-18 2-116 (2214, 1137) zostaje rozłączone (błąd niżej);
+  - 3 to fałszywe kropki w literach (zwarcia wyżej) — teraz rozłączone;
+  - 2 to tabliczka: „W” w „Wchodzi” na PPS-32 2-154 i pismo odręczne na PPS-32 2-150.
+    v5 brała je za kropki, v6 nie rysuje tam drutów.
+- **F2.** Przez `SEG_MODE` prawe kreski cyfr etykiet jedna nad drugą dawały krótki pion
+  z narożnikami na dwóch sąsiednich drutach portów — fałszywe zwarcie. Przykłady: PPS-32
+  2-150 (263, 983–1010) „-DT14”/„-DT15”, 2-154 (380, 527–552) „+S1”/„+S0”. Pion ma
+  połączenia, więc `BRIDGE_TEXT` i `ISO_TEXT_*` go nie łapały.
+
+  Poprawka `BRACKET_TEXT` (`_text_bracket`). Odpada odcinek, który spełnia wszystkie
+  warunki:
+  - ma ≤ `TEXT_MAX + SNAP`;
+  - oba jego końce są narożnikami bez kropki, każdy z dokładnie jednym drutem;
+  - oba druty biegną w tę samą stronę („⊐”);
+  - jego najdłuższy czysty bieg drutu na osi (tusz bez przecięcia) jest krótszy niż
+    `BRACKET_RUN` = 12 px.
+
+  Schodek (druty w przeciwne strony) zostaje. Oba zwarcia znikły.
+
+  Warunek biegu dodała druga recenzja. Bez niego reguła usuwała 9 prawdziwych pętli do pinów
+  i wyprowadzeń kondensatorów: P-A3-2 2-78 (1121, 391–417), (1118, 708–734), SPP-32-16 2-133
+  (1413, 490–514), SM-POSE11 2-92 (1478, 467–495) i pięć na 2-93. Klamry z kresek znaków mają
+  czysty bieg 1 i 4 px, prawdziwe pętle 24–29 px, czyli całą długość. Wszystkie 9 pętli jest
+  znowu połączonych.
+- **F3.** `OVERHANG_TEXT` ucinał prawdziwe końce drutów portów o 11–32 px. Pion-śmieć
+  wchodzący w etykietę „kończył się” na drucie, drut był przycinany do niego, a sam pion
+  potem i tak znikał. Przykłady: SM-POSE11 2-101 (201–234, 1316), P-M3-2 2-20 (1973, 225),
+  2-100 Y67 (571, 1313).
+
+  Poprawka: końcówkę za narożnikiem liczę dopiero względem odcinków po przycięciu profilem
+  osi i tylko przy drutach z biegiem ≥ `AXIS_CORNER`. Efekty:
+  - wszystkie 13 końców z recenzji znowu są pokryte;
+  - liczba cięć na 49 stronach spadła ze 147 do 47;
+  - wszystkie 47 obejrzałem na montażu: cięcia kresek w napisach, wnętrza tranzystorów,
+    ramki tabliczek, belka symbolu na P-M3-2 2-20 i zamierzone Y71. Szkodliwego cięcia nie
+    znalazłem.
+
+Liczby po obu recenzjach:
+
+- wzorzec, piny z netem i przypadki opiekuna (14/14): bez zmian względem tabel wyżej;
+- 13 końców z F3: wszystkie pokryte; cięć `OVERHANG_TEXT` na 49 stronach jest 46;
+- mostki bez kropek: 49 stron 458 → 90; P-R3-2 9 → 3; P-X3-2 22 → 5; 2-63 (a) 3 → 0;
+- 49 stron trybu (b):
+  - v5 4228 netów / 9840 kawałków, v6 3500 / 9008;
+  - tylko v5: 1691 kawałków, w tym 98 przy kropce; tylko v6: 153;
+- czas: mediana 0,51 s, najwolniej 0,93 s na stronę.
+
+Testy: +8. Sprawdzają:
+- trzon T przy kropce, także z granicą `AXIS_DOT_MAX` dla napisu przy fałszywej kropce;
+- krótki pion-śmieć a narożnik;
+- klamrę z kresek, czystą pętlę i schodek;
+- strażnik samotnego odcinka.
+
+**Błędy, które zostają (v6):**
+
+0. **Po recenzjach.** JPP-16-18 2-116 (2214, 1137): złącze z kropką rozłączone, bo
+   przycięcie trzonu przekracza `AXIS_DOT_MAX`. Zostają też trzy drobne sklejenia śmieci:
+   I-SK1-1 2-90 (1406, 690), JPP-16-18 2-113 (1006, 666) i PPS-32 2-153 (1523, 1278).
+
+1. **Górna krawędź słowa.** Belki stykających się liter („TTTT”, „DDTT”) dają samotną linię
+   55 px z długim biegiem na osi i obłożeniem ~30 %. Ani profil osi, ani `ISO_TEXT_*` jej
+   nie usuwają. Test `isolated_short_stroke_flanked_by_text` sprawdza tylko kreskę obłożoną
+   gęsto.
+2. **Blady drut z przerwami.** Na końcu takiego drutu biegi bywają < 12 px i koniec jest
+   przycinany: I-SK1-1 2-86 (888, 416–432) traci 16 px, bez zmiany połączeń.
+3. **Fałszywe kropki w literach** chronią teraz koniec przed przycięciem (`AXIS_DOT`).
+   Przykłady:
+   - 2-63 (b): pion (2057, 852–881) z „B” zostaje;
+   - 2-100 A5: pion x ≈ 222 znowu łączy się przez „kropkę” (226, 1107) — róg „D” w „-DDT9” —
+     z drutem Y50, jak w v5.
+4. **Resztki z kr-9p8.22** (odcinki L na SPP-32-16 2-136/2-137, grube kreski-symbole na
+   2-64/2-65) — nie ruszane.
+5. **Lewa kolumna 2-100 (A5/B5).** Wiązka wejść S1 z „-DDT9 … -DDT11” zostaje niepewna.
+   Pion x ≈ 222 v5 łączyła kropką (226, 1107) z drutem Y50. Ta „kropka” to róg litery „D”,
+   więc v6 ucina pion do 1115 i rozłącza. Moim zdaniem to poprawne (inaczej DDT9 = DDT11),
+   ale nie jest potwierdzone.
+6. **Tryb (b) poza P-R3-2.** Wnętrza niewykrytych układów i tabliczki dalej dają śmieci,
+   choć mniej (49 stron: −15 % netów).
+7. **Ramki w trybie (b)** (recenzja, F4) dalej scalają druty: PPS-32 2-154 (971, 291),
+   SPP-32-16 2-136 (1188, 220–273), PPS-32 2-150 (972/998, 300–636), I-SK1-1 2-87 (1529, 671).
+8. **Zgubione krótkie odcinki z jednym końcem** (recenzja, F5): SPP-32-16 2-132
+   (491, 690–714), JPP-16-18 2-113 (1724, 965–984), P-R3-2 2-67 (651, 1335).
+9. **Zgłoszenia opiekuna do 2-100 po v6** (zrzuty w scratchpadzie sesji, nie naprawiane):
+   - brak kropek tam, gdzie szyny DT12–DT15 spotykają druty wejść J1;
+   - fałszywy pion między R7 a R11 przy N1;
+   - brak krótkich odcinków od lewych końców rezystorów do lewej szyny;
+   - śmieciowy poziom na „-DDT6”;
+   - brak drutu Y72 pod „-DDT4”;
+   - plątanina w kolumnie Y47…Y59 → S1;
+   - pionowy rezystor R4-1k (przy M19, do +5V) nie jest wykryty jako bramka, więc drut
+     przechodzi przez jego korpus.
+
+Overlaye dla opiekuna (całe arkusze v5/v6 i powiększenia v5 | v6) są w scratchpadzie sesji,
+nie w repo (skany).
+
 ### Testy i mutacje
 
-105 testów na syntetycznych obrazach (v5: +47, w tym parametryzowane). Znaki są rysowane
+138 testów na syntetycznych obrazach (v5: +47, v6: +33, w tym parametryzowane). Znaki są rysowane
 w teście własnym pochyłym szablonem. Testy jednostkowe sprawdzają `_anchored`, `_core`
 i `_strip_pass` na małych tablicach. Druty mają 2–3 px dokładnej szerokości, ramki 5 px,
 kropki promień 4 + szerokość. Testy obejmują:
@@ -927,7 +1239,21 @@ kropki promień 4 + szerokość. Testy obejmują:
 - v5: słupki numerów pinów dotykające drutów, etykiety `+L1x` na kolejnych drutach,
   krótki odcinek z cyfrą do pinu, narożnik wokół cyfry, drut przez kropkę między
   cyframi, narożnik pod kropką, prosta cyfra między drutami pinów, pion między bliskimi
-  kropkami, szewrony portów, długi pion ze skosem i kropką.
+  kropkami, szewrony portów, długi pion ze skosem i kropką;
+- v6: słupek „+NB” na trzech drutach (i kontrola, że bez mechanizmów v6 synteza daje pion),
+  etykiety portów „<Y52>” przy drucie od szewronu, samotna kreska obłożona tekstem, krótki
+  drut z etykietą od narożnika; jednostkowo `axis_profile` (przecięcie a dotknięcie),
+  `trim_text_ends` (pusta przerwa a kleks, koniec przy bramce, narożnik, skrzyżowanie bez
+  kropki, końcówka w literze za narożnikiem), `_cut_glyph_overhang`, `_text_bridge`,
+  `drop_box_edges`, `clear_pin_band` (`BAND_EXT`), `_cross_center`.
+
+Testy v5 `gate_frame_beyond_yaml_rect` i `stacked_port_chevrons` uruchamiają się teraz
+z wyłączonym odpowiednio `BOX_EDGE_FRAC` i `AXIS_RUN`. Oba mechanizmy v6 też usuwają te
+śmieci, więc bez tego mutacje `BOX_SEARCH=0` i `MIN_COVER=None` nie wywalały żadnego testu.
+`stacked_port_chevrons` sprawdza dodatkowo wynik z domyślnymi parametrami.
+
+Testy v6 z ramką portu dla minusa „-DDT” na syntezie przechodzą także w v5 (synteza nie
+odtwarza błędu), więc ich nie dodałem. Minus i belki liter sprawdzałem tylko na 2-100.
 
 Mutacje parametrów: `CVW_MUTATE="NAZWA=wartość"`. Każda wywala co najmniej jeden test:
 
@@ -950,9 +1276,23 @@ Mutacje parametrów: `CVW_MUTATE="NAZWA=wartość"`. Każda wywala co najmniej j
 | `CORE_FRAC=None`, `CORE_REACH=0` (v5) | short_stub_with_digit, short_corner_wire_around_digit, wire_through_dot_to_pin |
 | `MIN_COVER=None` (v5) | stacked_port_chevrons |
 | `SPLIT_DESKEW=False` (v5) | skewed_long_wire_with_dot |
+| `AXIS_RUN=None` (v6) | wire_does_not_run_through_port_label, trim_text_ends_* |
+| `AXIS_GAP2=1000`, `AXIS_GAP2=-1` (v6) | trim_text_ends_drops_letter_run_behind_empty_gap_only |
+| `AXIS_SIDE=0` (v6) | axis_profile_letter_crossing_vs_label_touching, isolated_short_stroke…[off1] |
+| `ISO_TEXT_FRAC=None` (v6) | isolated_short_stroke_flanked_by_text_is_not_a_wire[off1] |
+| `BRIDGE_TEXT=False` (v6) | stacked_letters_across_wires_are_not_a_wire |
+| `OVERHANG_TEXT=False` (v6) | trim_text_ends_cuts_overhang_into_letter_below_corner |
+| `BOX_EDGE_FRAC=None` (v6) | drop_box_edges |
+| `BAND_EXT=False` (v6) | pin_band_keeps_wire_entering_band_from_outside |
+| `SEG_MODE=None`, `SEG_MODE_MIN=100` (v6) | cross_center_short_segment_ignores_glued_label, connected_short_wire_under_label |
+| `AXIS_DOT=None` (v6) | trim_text_ends_keeps_t_stem_at_dot[52-default-True] |
+| `AXIS_DOT_MAX=1000` (v6) | trim_text_ends_keeps_t_stem_at_dot[44-default-False] |
+| `BRACKET_TEXT=False`, `BRACKET_RUN=0` (v6) | short_bracket_between_parallel_wires[strokes] |
+| `BRACKET_RUN=1000` (v6) | short_bracket_between_parallel_wires[clean] |
+| `AXIS_CORNER=None` (v6) | trim_text_ends_keeps_corner_end, overhang_ignores_short_junk_perpendicular |
 
-Po v5 wszystkie wcześniejsze mutacje z tej tabeli nadal wywalają co najmniej jeden test
-(sprawdzone). `GLYPH_PASSES="h hv"` i `"h v"` nie wywalają żadnego — ich wpływ widać tylko
+Po v5 i po v6 wszystkie wcześniejsze mutacje z tej tabeli nadal wywalają co najmniej jeden
+test (sprawdzone). `GLYPH_PASSES="h hv"` i `"h v"` nie wywalają żadnego — ich wpływ widać tylko
 na stronach (tabela w „v5: tekst przy drutach”).
 
 Mutacje kodu: `CVW_SCRIPT=<zmieniona kopia>`. Też każda wywala test:
@@ -975,6 +1315,18 @@ Mutacje kodu: `CVW_SCRIPT=<zmieniona kopia>`. Też każda wywala test:
 | v5: rdzeń prostopadły bez warunku | core_perpendicular_needs_strong_end |
 | v5: kropka nie jest kotwicą, bez przyjęcia iteracyjnego, bez perp_near, sam bieg | zob. „Poprawka po recenzji (tryb b)” |
 | v5: długość z pół kropką | strip_pass_h_keeps_wire_from_dot_into_box_edge |
+| v6: przecięcie = tusz po jednej ALBO drugiej stronie | axis_profile_letter_crossing_vs_label_touching, text_between_parallel_wires…, skewed_long_wire_with_dot, connected_short_wire_under_label |
+| v6: bez wyłączenia tuszu drutów drugiej orientacji | trim_text_ends_ignores_crossing_wire_ink |
+| v6: oś = mediana, bez dopasowania | skewed_long_wire_with_dot |
+| v6: przycinanie także końca przy bramce | pin_number_stack_touching_wires[21/22/24], trim_text_ends_keeps_gate_end |
+| v6: mostek bez warunku wystawania | text_bridge_needs_two_contacts_and_short_overhang |
+| v6: końcówka za narożnikiem mimo kropki w styku | cut_glyph_overhang[True-True-False] |
+| v6: styk także na skrzyżowaniu | cut_glyph_overhang_skips_crossings |
+| v6: bok ramki bez warunku pokrycia boku | pullup_stub_from_dot_into_gate (18 przypadków) |
+| v6: samotny odcinek także z połączeniem w środku | short_flanked_wire_with_dot_joint_is_not_isolated |
+| v6: końcówka za narożnikiem względem odcinków przed przycięciem | overhang_ignores_short_junk_perpendicular |
+| v6: końcówka za narożnikiem przy drucie bez długiego biegu | overhang_ignores_short_junk_perpendicular |
+| v6: klamra także dla drutów w przeciwne strony (schodek) | short_bracket_between_parallel_wires[step] |
 
 Kryterium „grubości pierścienia” wokół dziury (propozycja z recenzji) odrzuciłem: przy
 polu ≤ sw² każda zamalowana dziura i tak ma pierścień grubszy niż swój promień, a mutacja
