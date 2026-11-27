@@ -70,6 +70,104 @@ skan ──► 1. preprocessing (binaryzacja, odszumienie)
 Zasada nadrzędna: pipeline **nigdy nie nadpisuje** elementów `verified: true` ani ręcznie
 narysowanych drutów. Pisze do nowych stron albo scala (zob. beady o bezpiecznym zapisie).
 
+## Pipeline etapowy z punktem kontroli (projekt, kr-9p8.17)
+
+Decyzje opiekuna (2026-11-27): każdy krok pipeline'u uruchamia się z przeglądarki (bez
+przeskakiwania do terminala; CLI zostaje do pracy wsadowej i testów), jego wynik od razu
+widać w viewerze, opiekun go poprawia i zatwierdza, a następny krok bierze **poprawiony** wynik
+jako wejście. W viewerze nie ma przycisku „Vision”. Zatwierdzone strony są danymi do uczenia.
+Makieta GUI zaakceptowana (pasek kroków, kolejka przeglądu, kolory stanów); eksport KiCad to
+krok ⑥ (podgląd arkusza), a projekt KiCad całego pakietu powstaje z widoku pakietu.
+
+### Kroki
+
+| Krok | Nazwa w CLI | Wejście (zatwierdzone) | Wynik | Narzędzie | Co poprawia człowiek |
+|---|---|---|---|---|---|
+| ① | `gates` | skan | prostokąty bramek (bez tekstu) | `cv-gates.py` | dodaje / usuwa / zmienia ramki |
+| ② | `text` | ① | ref, typ, litera, numery i strony pinów | VLM na wycinkach + `ic_map` + rejestr pakietu | tekst, piny |
+| ③ | `wires` | ①② | odcinki, kropki, wolne końce | `cv-wires.py` (ramki z ① wymazane) | rysuje / usuwa druty i kropki |
+| ④ | `labels` | ③ | porty (złącze, pin, etykieta) i odsyłacze (etykieta, arkusze) na wolnych końcach | VLM na wycinkach | etykiety, typ końca |
+| ⑤ | `nets` | ①–④ | nety: piny, porty, odsyłacze, nazwy | składanie grafu (kr-9p8.5) + samokorekta (kr-9p8.6) + walidator | błędy walidacji kroku |
+| ⑥ | — | ⑤ wszystkich stron pakietu dla eksportu | podgląd `.kicad_sch` arkusza | eksporter (kr-4rq) | nic — tylko podgląd |
+
+### Gdzie jest wynik i status
+
+- Wynik każdego kroku trafia do tego samego `*.sch.yaml`, który edytuje viewer — jedno źródło prawdy.
+- Każdy element ma pole `src`: `auto` (z pipeline'u, nieruszony), `edited` (zmieniony albo dodany
+  przez człowieka). Brak pola = `edited` (dane sprzed pipeline'u są ręczne).
+- Strona ma sekcję `steps` ze stanem każdego kroku:
+  `steps: {gates: {status: approved, run: <id>, at: <ISO>}, text: {status: auto, …}, …}`.
+  Stany: `todo` → `auto` (krok przebiegł, czeka na przegląd) → `approved`; `stale`, gdy po
+  zatwierdzeniu zmieniono wcześniejszy krok.
+- **Zatwierdzenie kroku** w viewerze: wszystkie elementy tego kroku na stronie są uznane za
+  sprawdzone (`verified: true` dla bramek; dla reszty wystarcza status kroku). Krok ⑤ można
+  zatwierdzić tylko bez błędów walidacji.
+- Surowy wynik każdego przebiegu (przed poprawkami) zapisuje się osobno jako niezmienny
+  snapshot w `data/.auto/<pakiet>/<strona>/<krok>-<run>.yaml` (ignorowany przez git). Różnica
+  snapshot → zatwierdzona strona to dane do uczenia (kr-9p8.10).
+
+### Ponowne uruchomienie kroku
+
+- Krok `approved` → odmowa bez `--force`; z `--force` krok wraca do `auto`.
+- Krok przebiega tylko, gdy poprzedni jest `approved` (wyjątek: `--draft` do prób).
+- Zastępuje wyłącznie elementy `src: auto` tego kroku; elementy `edited` zostają. Nigdy nie
+  rusza elementów innych kroków.
+- Zmiana zatwierdzonego kroku (w viewerze albo z `--force`) oznacza późniejsze zatwierdzone
+  kroki jako `stale`; viewer to pokazuje, a opiekun decyduje: zatwierdzić ponownie albo
+  przepuścić krok jeszcze raz.
+- Zapis przez `_safe_write` (atomowo, `.bak`). Krok uruchomiony z viewera: viewer najpierw
+  robi flush zapisów, serwer blokuje stronę na czas przebiegu, po zakończeniu viewer
+  przeładowuje stronę (jak dziś `runRewrite`). Krok uruchomiony z CLI przy otwartej stronie:
+  ETag sprawia, że viewer nie nadpisze nowego wyniku (409 „plik zmieniony poza tą kartą”) —
+  trzeba przeładować stronę.
+
+### Uruchamianie
+
+W viewerze: przycisk „Uruchom krok” przy bieżącym kroku na pasku kroków (z opcją „wymuś”
+dla kroku zatwierdzonego) i „Uruchom następny krok na wszystkich stronach” w widoku pakietu.
+Serwer: jeden endpoint (np. `POST /auto {pkg, page, step, force}`) przez wspólny `runScript`
+z timeoutem, przerwaniem i blokadą per strona (kr-0sn.7); viewer pokazuje postęp i log
+przebiegu. Krok z płatnym VLM pokazuje przed startem szacowany koszt i wymaga potwierdzenia;
+limit budżetu w ustawieniach.
+
+Ten sam kod z CLI (praca wsadowa, testy):
+
+```bash
+just auto PKG=P-R3-2 PAGE=2-58 STEP=gates      # jeden krok jednej strony
+just auto PKG=P-R3-2 PAGE=all STEP=next        # na każdej stronie następny krok, którego poprzednik jest zatwierdzony
+just auto PKG=P-R3-2 PAGE=2-58 STEP=text --force
+```
+
+Każdy przebieg wypisuje: strony, krok, liczbę elementów `auto`, liczbę niepewnych, czas, koszt
+(przy płatnym VLM — tylko za zgodą opiekuna i w ustalonym budżecie).
+
+### Viewer
+
+- Pasek kroków ①–⑥ nad płótnem ze stanem każdego kroku; wybór kroku ogranicza widoczne
+  warstwy i narzędzia do tego kroku; warstwy innych kroków domyślnie wyszarzone, z przełącznikiem
+  „ukryj” (USER).
+- Prawy panel = kolejka przeglądu kroku: najpierw elementy niepewne (pewność, niezgodność dwóch
+  odczytów, sprzeczność z `ic_map` / rejestrem / walidatorem), klawisze „zatwierdź” / „popraw” /
+  „następny”; przycisk „Zatwierdź krok”.
+- Kolory: `auto` (niebieski), `edited` (pomarańczowy), krok zatwierdzony (zielony).
+- Walidacja na dole filtrowana do bieżącego kroku.
+- Lista stron i widok pakietu pokazują stan kroków każdej strony (①–⑥).
+- Przycisk „Vision”, okno AI (R) i narzędzie stref (Z) znikają (kr-9p8.16). Zostają
+  „cleanup nets” (ratunek, gdy nety się rozsypią) i symbole +5V/+0V (podciąganie
+  rezystorów i potencjometrów) — USER.
+
+### Dane do uczenia z każdego kroku
+
+| Krok | Para do uczenia |
+|---|---|
+| ① | skan + poprawione ramki → detektor bramek (YOLO), progi CV |
+| ② | wycinek bramki / pinu + poprawiony tekst → słownik, few-shot, LoRA VLM |
+| ③ | skan + poprawione druty i kropki → parametry `cv-wires.py` (Optuna), ewentualnie segmentacja |
+| ④ | wycinek etykiety + poprawiona etykieta → słownik sygnałów (kr-wuy.1), few-shot |
+| ⑤ | poprawki netów → reguły składania i samokorekty |
+
+`data/gold` nie jest używany do uczenia (zob. „Pętla uczenia”).
+
 ## Pomiar zamiast wiary
 
 Wszystko powyżej to hipotezy. Najpierw powstaje zestaw wzorcowy i skrypt oceny; każdy etap
