@@ -12,7 +12,7 @@ import {
   scanFilePath,
   useDocStore,
 } from './store.ts';
-import { connectPins, renameNet } from './netOps.ts';
+import { connectPins, moveNetPoint, renameNet, withNetPointMoved } from './netOps.ts';
 
 interface Req { method: string; url: string; body: string; ifMatch: string | null }
 const reqs: Req[] = [];
@@ -146,6 +146,35 @@ test('net ops through editPage: one undo step restores the page exactly', async 
   assert.equal(JSON.stringify(useDocStore.getState().page), before);
   useDocStore.getState().editPage((p) => { connectPins(p, { gateIdx: 0, pinIdx: 0 }, { gateIdx: 0, pinIdx: 1 }, 'X'); });
   assert.equal(useDocStore.getState().page!.gates[0]!.pins[1]!.net, 'A');
+  useDocStore.getState().undo();
+  assert.equal(JSON.stringify(useDocStore.getState().page), before);
+  await flushSaves();
+});
+
+test('net point drag (NetLayer): preview never touches the store, drag end = one undo step', async () => {
+  const pg = mkPage('2-1');
+  pg.nets = { A: { pins: [], segments: [[0, 0, 10, 0], [10, 0, 10, 10]], junctions: [[10, 0]] } };
+  useDocStore.getState().setPage(pg, PATH_A);
+  const stored = useDocStore.getState().page!;
+  const before = JSON.stringify(stored);
+  // What NetLayer does on every onDragMove: render a preview of the net.
+  const from = { x: 10, y: 0 };
+  let to = from;
+  for (let i = 1; i <= 80; i++) {
+    to = { x: 10 + i, y: i % 7 };
+    withNetPointMoved(stored.nets.A!, from, to);
+  }
+  assert.equal(useDocStore.getState().page, stored);
+  assert.equal(useDocStore.getState().past.length, 0);
+  await flushSaves();
+  assert.deepEqual(puts(), [], 'no auto-save while dragging');
+  // onDragEnd: one commit.
+  useDocStore.getState().editPage((p) => { moveNetPoint(p.nets.A!, from, to); });
+  assert.equal(useDocStore.getState().past.length, 1);
+  assert.deepEqual(useDocStore.getState().page!.nets.A!.segments, [[0, 0, 90, 3], [90, 3, 10, 10]]);
+  assert.deepEqual(useDocStore.getState().page!.nets.A!.junctions, [[90, 3]]);
+  await flushSaves();
+  assert.equal(puts().length, 1);
   useDocStore.getState().undo();
   assert.equal(JSON.stringify(useDocStore.getState().page), before);
   await flushSaves();

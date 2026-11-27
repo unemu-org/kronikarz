@@ -221,3 +221,36 @@ export function connectPins(
   rec.segments = [...(rec.segments ?? []), [pa.px, pa.py, pb.px, pb.py]];
   return { ...plan, applied: true };
 }
+
+// Dragging one point of a net's geometry (NetLayer: segment-end handle,
+// auto-junction dot): every segment end and junction of the net at `from`
+// moves to `to`, so a junction moves as one piece. While the mouse moves the
+// drag is only previewed (withNetPointMoved at render time: the page is not
+// touched — no undo entry, no auto-save, no validation); the drag end
+// commits it once with moveNetPoint inside editPage = one undo step.
+export interface NetPoint {
+  x: number;
+  y: number;
+}
+
+/** Move every segment end / junction of `net` at `from` to `to` (in place). */
+export function moveNetPoint(net: Net, from: NetPoint, to: NetPoint): void {
+  for (const s of net.segments ?? []) {
+    if (s[0] === from.x && s[1] === from.y) { s[0] = to.x; s[1] = to.y; }
+    if (s[2] === from.x && s[3] === from.y) { s[2] = to.x; s[3] = to.y; }
+  }
+  for (const j of net.junctions ?? []) {
+    if (j[0] === from.x && j[1] === from.y) { j[0] = to.x; j[1] = to.y; }
+  }
+}
+
+/** Copy of `net` with moveNetPoint applied; `net` is not changed (drag preview). */
+export function withNetPointMoved(net: Net, from: NetPoint, to: NetPoint): Net {
+  const copy: Net = {
+    ...net,
+    segments: net.segments ? net.segments.map((s) => [...s] as [number, number, number, number]) : null,
+    junctions: net.junctions ? net.junctions.map((j) => [...j] as [number, number]) : null,
+  };
+  moveNetPoint(copy, from, to);
+  return copy;
+}

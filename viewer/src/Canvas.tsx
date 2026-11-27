@@ -13,6 +13,8 @@ import {
   type VisionZone,
   type ZoneRole,
 } from './store.ts';
+import { useEvent } from './useEvent.ts';
+import { chordAction, plainKey, toolForKey } from './hotkeys.ts';
 import { createZonesSync, type ZonesLoadState, type ZonesSync } from './zonesSync.ts';
 import { apiWrite } from './api.ts';
 import { ImageLayer } from './layers/ImageLayer.tsx';
@@ -238,7 +240,7 @@ export function Canvas(): JSX.Element {
     setZoom(view.scale);
   }, [view.scale, setZoom]);
 
-  function fitToScreen() {
+  const fitToScreen = useEvent(() => {
     if (!page) return;
     const [sw, sh] = page.scan_size;
     const scale = Math.min(size.w / sw, size.h / sh) * 0.95;
@@ -247,232 +249,232 @@ export function Canvas(): JSX.Element {
       y: (size.h - sh * scale) / 2,
       scale,
     });
-  }
+  });
 
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
-      if (e.code === 'Space') {
-        setSpaceDown(true);
+  // Window-level handlers below are useEvent callbacks: registered once, and
+  // every call sees the current render's state (view, wireDraft, placing*,
+  // page, pkg, selection, tool…) — no dependency list to keep in sync.
+  const onKeyDown = useEvent((e: KeyboardEvent) => {
+    const t = e.target as HTMLElement | null;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+    if (e.code === 'Space') {
+      setSpaceDown(true);
+      e.preventDefault();
+    }
+    // Single-key hotkeys: null while Ctrl/Cmd/Alt is held (chords below).
+    const key = plainKey(e);
+    const chord = chordAction(e);
+    if (key === '0') fitToScreen();
+    if (key === '1') setView({ x: 0, y: 0, scale: 1 });
+    if (key === '2') setView({ x: 0, y: 0, scale: 2 });
+    if (key === '[') setOpacity(Math.max(0, opacity - 0.1));
+    if (key === ']') setOpacity(Math.min(1, opacity + 0.1));
+    if (key === '\\') setOpacity(opacity > 0 ? 0 : 0.7);
+    if (e.key === 'Escape') {
+      if (placingGate) setPlacingGate(false);
+      else if (placingXref) setPlacingXref(false);
+      else if (placingPort) setPlacingPort(false);
+      else if (placingAnn) setPlacingAnn(false);
+      else if (placingDeco) { setPlacingDeco(null); setDecoDraft(null); decoDragRef.current = null; }
+      else if (placingPower) setPlacingPower(null);
+      else if (wireDraft) { setWireDraft(null); setWireCursor(null); }
+      else setSelection(null);
+    }
+    if (e.key === 'Backspace' && wireDraft && wireDraft.vertices.length > 0) {
+      e.preventDefault();
+      setWireDraft({ ...wireDraft, vertices: wireDraft.vertices.slice(0, -1) });
+    }
+    if (key === 'c') {
+      if (tool === 'edit') setPlacingGate(true);
+    }
+    const nextTool = toolForKey(e);
+    if (nextTool) setTool(nextTool);
+    if (tool === 'zones' && zonesEditable && zoneSelected >= 0 && (e.key === 'Delete' || e.key === 'Backspace')) {
+      e.preventDefault();
+      setZones((prev) => prev.filter((_, i) => i !== zoneSelected));
+      setZoneSelected(-1);
+    }
+    if (key === 'h') setOverlaysVisible(!useDocStore.getState().overlaysVisible);
+    if (key === 'k') {
+      if (selection?.kind === 'gate') {
+        const idx = selection.idx;
+        editPage((p) => {
+          const g = p.gates[idx];
+          if (g) g.verified = !g.verified;
+        });
+      }
+    }
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (tool === 'edit' && selection?.kind === 'gate') {
+        const idx = selection.idx;
+        editPage((p) => { p.gates.splice(idx, 1); });
+        setSelection(null);
+      } else if (tool === 'edit' && selection?.kind === 'segment') {
+        const { netName, segmentIdx } = selection;
+        editPage((p) => {
+          const segs = p.nets[netName]?.segments;
+          if (segs) segs.splice(segmentIdx, 1);
+        });
+        setSelection({ kind: 'net', name: netName });
+      } else if (tool === 'edit' && selection?.kind === 'power') {
+        const idx = selection.idx;
+        editPage((p) => { p.power.splice(idx, 1); });
+        setSelection(null);
+      } else if (tool === 'edit' && selection?.kind === 'annotation') {
+        const idx = selection.idx;
+        editPage((p) => { p.annotations?.splice(idx, 1); });
+        setSelection(null);
+      } else if (tool === 'edit' && selection?.kind === 'decoration') {
+        const idx = selection.idx;
+        editPage((p) => { p.decorations?.splice(idx, 1); });
+        setSelection(null);
+      } else if (tool === 'edit' && selection?.kind === 'port') {
+        const idx = selection.idx;
+        editPage((p) => { p.ports?.splice(idx, 1); });
+        setSelection(null);
+      } else if (tool === 'edit' && selection?.kind === 'cross_ref') {
+        const idx = selection.idx;
+        editPage((p) => { p.cross_refs?.splice(idx, 1); });
+        setSelection(null);
+      }
+    }
+    if (chord === 'undo') {
+      e.preventDefault();
+      undo();
+    }
+    // Copy/paste annotation lub decoration (Ctrl+C / Ctrl+V)
+    if (chord === 'copy' && page) {
+      if (selection?.kind === 'annotation') {
         e.preventDefault();
-      }
-      if (e.key === '0') fitToScreen();
-      if (e.key === '1') setView({ x: 0, y: 0, scale: 1 });
-      if (e.key === '2') setView({ x: 0, y: 0, scale: 2 });
-      if (e.key === '[') setOpacity(Math.max(0, opacity - 0.1));
-      if (e.key === ']') setOpacity(Math.min(1, opacity + 0.1));
-      if (e.key === '\\') setOpacity(opacity > 0 ? 0 : 0.7);
-      if (e.key === 'Escape') {
-        if (placingGate) setPlacingGate(false);
-        else if (placingXref) setPlacingXref(false);
-        else if (placingPort) setPlacingPort(false);
-        else if (placingAnn) setPlacingAnn(false);
-        else if (placingDeco) { setPlacingDeco(null); setDecoDraft(null); decoDragRef.current = null; }
-        else if (placingPower) setPlacingPower(null);
-        else if (wireDraft) { setWireDraft(null); setWireCursor(null); }
-        else setSelection(null);
-      }
-      if (e.key === 'Backspace' && wireDraft && wireDraft.vertices.length > 0) {
+        const a = page.annotations?.[selection.idx];
+        if (a) localStorage.setItem('kronikarz:clip', JSON.stringify({ kind: 'annotation', data: a }));
+      } else if (selection?.kind === 'decoration') {
         e.preventDefault();
-        setWireDraft({ ...wireDraft, vertices: wireDraft.vertices.slice(0, -1) });
-      }
-      if (e.key === 'c' || e.key === 'C') {
-        if (tool === 'edit') setPlacingGate(true);
-      }
-      if (e.key === 'v' || e.key === 'V') setTool('select');
-      if (e.key === 'e' || e.key === 'E') setTool('edit');
-      if (e.key === 'r' || e.key === 'R') setTool('roi');
-      if (e.key === 'w' || e.key === 'W') setTool('wire');
-      if (e.key === 'z' || e.key === 'Z') setTool('zones');
-      if (tool === 'zones' && zonesEditable && zoneSelected >= 0 && (e.key === 'Delete' || e.key === 'Backspace')) {
+        const d = page.decorations?.[selection.idx];
+        if (d) localStorage.setItem('kronikarz:clip', JSON.stringify({ kind: 'decoration', data: d }));
+      } else if (selection?.kind === 'gate') {
         e.preventDefault();
-        setZones((prev) => prev.filter((_, i) => i !== zoneSelected));
-        setZoneSelected(-1);
+        const g = page.gates[selection.idx];
+        if (g) localStorage.setItem('kronikarz:clip', JSON.stringify({ kind: 'gate', data: g }));
       }
-      if (e.key === 'h' || e.key === 'H') setOverlaysVisible(!useDocStore.getState().overlaysVisible);
-      if (e.key === 'k' || e.key === 'K') {
-        if (selection?.kind === 'gate') {
-          const idx = selection.idx;
+    }
+    if (chord === 'paste' && tool === 'edit' && page) {
+      const raw = localStorage.getItem('kronikarz:clip');
+      if (raw) {
+        try {
+          const clip = JSON.parse(raw);
+          // Mouse position in scan coords for paste-at-cursor
+          const stage = stageRef.current;
+          const ptr = stage?.getPointerPosition();
+          const mouseX = ptr ? Math.round((ptr.x - view.x) / view.scale) : null;
+          const mouseY = ptr ? Math.round((ptr.y - view.y) / view.scale) : null;
+          let newIdx = -1;
+          let newKind: 'annotation' | 'decoration' | 'gate' | null = null;
           editPage((p) => {
-            const g = p.gates[idx];
-            if (g) g.verified = !g.verified;
-          });
-        }
-      }
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (tool === 'edit' && selection?.kind === 'gate') {
-          const idx = selection.idx;
-          editPage((p) => { p.gates.splice(idx, 1); });
-          setSelection(null);
-        } else if (tool === 'edit' && selection?.kind === 'segment') {
-          const { netName, segmentIdx } = selection;
-          editPage((p) => {
-            const segs = p.nets[netName]?.segments;
-            if (segs) segs.splice(segmentIdx, 1);
-          });
-          setSelection({ kind: 'net', name: netName });
-        } else if (tool === 'edit' && selection?.kind === 'power') {
-          const idx = selection.idx;
-          editPage((p) => { p.power.splice(idx, 1); });
-          setSelection(null);
-        } else if (tool === 'edit' && selection?.kind === 'annotation') {
-          const idx = selection.idx;
-          editPage((p) => { p.annotations?.splice(idx, 1); });
-          setSelection(null);
-        } else if (tool === 'edit' && selection?.kind === 'decoration') {
-          const idx = selection.idx;
-          editPage((p) => { p.decorations?.splice(idx, 1); });
-          setSelection(null);
-        } else if (tool === 'edit' && selection?.kind === 'port') {
-          const idx = selection.idx;
-          editPage((p) => { p.ports?.splice(idx, 1); });
-          setSelection(null);
-        } else if (tool === 'edit' && selection?.kind === 'cross_ref') {
-          const idx = selection.idx;
-          editPage((p) => { p.cross_refs?.splice(idx, 1); });
-          setSelection(null);
-        }
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        undo();
-      }
-      // Copy/paste annotation lub decoration (Ctrl+C / Ctrl+V)
-      if ((e.ctrlKey || e.metaKey) && e.key === 'c' && page) {
-        if (selection?.kind === 'annotation') {
-          e.preventDefault();
-          const a = page.annotations?.[selection.idx];
-          if (a) localStorage.setItem('kronikarz:clip', JSON.stringify({ kind: 'annotation', data: a }));
-        } else if (selection?.kind === 'decoration') {
-          e.preventDefault();
-          const d = page.decorations?.[selection.idx];
-          if (d) localStorage.setItem('kronikarz:clip', JSON.stringify({ kind: 'decoration', data: d }));
-        } else if (selection?.kind === 'gate') {
-          e.preventDefault();
-          const g = page.gates[selection.idx];
-          if (g) localStorage.setItem('kronikarz:clip', JSON.stringify({ kind: 'gate', data: g }));
-        }
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'v' && tool === 'edit' && page) {
-        const raw = localStorage.getItem('kronikarz:clip');
-        if (raw) {
-          try {
-            const clip = JSON.parse(raw);
-            // Mouse position in scan coords for paste-at-cursor
-            const stage = stageRef.current;
-            const ptr = stage?.getPointerPosition();
-            const mouseX = ptr ? Math.round((ptr.x - view.x) / view.scale) : null;
-            const mouseY = ptr ? Math.round((ptr.y - view.y) / view.scale) : null;
-            let newIdx = -1;
-            let newKind: 'annotation' | 'decoration' | 'gate' | null = null;
-            editPage((p) => {
-              if (clip.kind === 'annotation') {
-                const arr = (p.annotations ??= []);
-                const a = { ...clip.data };
-                if (mouseX !== null && mouseY !== null) { a.x = mouseX; a.y = mouseY; }
-                arr.push(a);
-                newIdx = arr.length - 1;
-                newKind = 'annotation';
-              } else if (clip.kind === 'decoration') {
-                const arr = (p.decorations ??= []);
-                const d = { ...clip.data };
-                if (mouseX !== null && mouseY !== null) {
-                  if (d.kind === 'line') {
-                    const dx = mouseX - (d.x1 + d.x2) / 2;
-                    const dy = mouseY - (d.y1 + d.y2) / 2;
-                    d.x1 += dx; d.x2 += dx; d.y1 += dy; d.y2 += dy;
-                  } else if (d.kind === 'rect') {
-                    d.x = mouseX - d.w / 2; d.y = mouseY - d.h / 2;
-                  } else if (d.kind === 'ellipse') {
-                    d.x = mouseX; d.y = mouseY;
-                  }
+            if (clip.kind === 'annotation') {
+              const arr = (p.annotations ??= []);
+              const a = { ...clip.data };
+              if (mouseX !== null && mouseY !== null) { a.x = mouseX; a.y = mouseY; }
+              arr.push(a);
+              newIdx = arr.length - 1;
+              newKind = 'annotation';
+            } else if (clip.kind === 'decoration') {
+              const arr = (p.decorations ??= []);
+              const d = { ...clip.data };
+              if (mouseX !== null && mouseY !== null) {
+                if (d.kind === 'line') {
+                  const dx = mouseX - (d.x1 + d.x2) / 2;
+                  const dy = mouseY - (d.y1 + d.y2) / 2;
+                  d.x1 += dx; d.x2 += dx; d.y1 += dy; d.y2 += dy;
+                } else if (d.kind === 'rect') {
+                  d.x = mouseX - d.w / 2; d.y = mouseY - d.h / 2;
+                } else if (d.kind === 'ellipse') {
+                  d.x = mouseX; d.y = mouseY;
                 }
-                arr.push(d);
-                newIdx = arr.length - 1;
-                newKind = 'decoration';
-              } else if (clip.kind === 'gate') {
-                const src = clip.data;
-                const tx = mouseX !== null ? mouseX : src.x + 60;
-                const ty = mouseY !== null ? mouseY : src.y + 60;
-                const dx = tx - src.x;
-                const dy = ty - src.y;
-                // For passives: auto-pick next free ref + clone PassiveComponent
-                let newRef: string = src.ref;
-                const srcComp = pkg?.components[src.ref];
-                if (srcComp && srcComp.ic === null) {
-                  newRef = nextFreeRef(pkg, src.ref);
-                  editPackage((pp) => {
-                    pp.components[newRef] = JSON.parse(JSON.stringify(srcComp));
-                    const c = pp.components[newRef];
-                    if (c && c.ic === null) {
-                      const pid = p.page;
-                      if (!c.pages.includes(pid)) c.pages.push(pid);
-                    }
-                  });
-                }
-                const copy = {
-                  ...src,
-                  ref: newRef,
-                  x: tx,
-                  y: ty,
-                  pins: (src.pins ?? []).map((pn: { px: number; py: number } & object) => ({
-                    ...pn,
-                    px: pn.px + dx,
-                    py: pn.py + dy,
-                    net: '',
-                  })),
-                  verified: false,
-                };
-                p.gates.push(copy);
-                newIdx = p.gates.length - 1;
-                newKind = 'gate';
               }
-            });
-            if (newIdx >= 0 && newKind) setSelection({ kind: newKind, idx: newIdx });
-          } catch { /* ignore */ }
-        }
+              arr.push(d);
+              newIdx = arr.length - 1;
+              newKind = 'decoration';
+            } else if (clip.kind === 'gate') {
+              const src = clip.data;
+              const tx = mouseX !== null ? mouseX : src.x + 60;
+              const ty = mouseY !== null ? mouseY : src.y + 60;
+              const dx = tx - src.x;
+              const dy = ty - src.y;
+              // For passives: auto-pick next free ref + clone PassiveComponent
+              let newRef: string = src.ref;
+              const srcComp = pkg?.components[src.ref];
+              if (srcComp && srcComp.ic === null) {
+                newRef = nextFreeRef(pkg, src.ref);
+                editPackage((pp) => {
+                  pp.components[newRef] = JSON.parse(JSON.stringify(srcComp));
+                  const c = pp.components[newRef];
+                  if (c && c.ic === null) {
+                    const pid = p.page;
+                    if (!c.pages.includes(pid)) c.pages.push(pid);
+                  }
+                });
+              }
+              const copy = {
+                ...src,
+                ref: newRef,
+                x: tx,
+                y: ty,
+                pins: (src.pins ?? []).map((pn: { px: number; py: number } & object) => ({
+                  ...pn,
+                  px: pn.px + dx,
+                  py: pn.py + dy,
+                  net: '',
+                })),
+                verified: false,
+              };
+              p.gates.push(copy);
+              newIdx = p.gates.length - 1;
+              newKind = 'gate';
+            }
+          });
+          if (newIdx >= 0 && newKind) setSelection({ kind: newKind, idx: newIdx });
+        } catch { /* ignore */ }
       }
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) {
-        e.preventDefault();
-        redo();
-      }
-    };
+    }
+    if (chord === 'redo') {
+      e.preventDefault();
+      redo();
+    }
+  });
+
+  // Keyboard + toolbar events. Registered once: onKeyDown is a useEvent
+  // callback, the rest read live state (store getState, refs, setters).
+  useEffect(() => {
+    const editing = () => useDocStore.getState().tool === 'edit';
     const up = (e: KeyboardEvent) => {
       if (e.code === 'Space') setSpaceDown(false);
     };
     const onPlaceEvent = () => {
-      if (tool === 'edit') setPlacingGate(true);
+      if (editing()) setPlacingGate(true);
     };
     const onPlaceXrefEvent = () => {
-      if (tool === 'edit') setPlacingXref(true);
+      if (editing()) setPlacingXref(true);
     };
     const onPlacePortEvent = () => {
-      if (tool === 'edit') setPlacingPort(true);
+      if (editing()) setPlacingPort(true);
     };
     const onPlaceAnnEvent = () => {
-      if (tool === 'edit') setPlacingAnn(true);
+      if (editing()) setPlacingAnn(true);
     };
     const onPlaceDecoEvent = (ev: Event) => {
-      if (tool !== 'edit') return;
+      if (!editing()) return;
       const ce = ev as CustomEvent<{ kind: 'line' | 'rect' | 'ellipse' }>;
       setPlacingDeco(ce.detail?.kind ?? 'line');
     };
     const onPlacePowerEvent = (ev: Event) => {
-      if (tool !== 'edit') return;
+      if (!editing()) return;
       const ce = ev as CustomEvent<{ type: string }>;
       setPlacingPower(ce.detail?.type ?? '+5V');
     };
-    window.addEventListener('keydown', down);
-    window.addEventListener('keyup', up);
-    window.addEventListener('kronikarz:place-gate', onPlaceEvent);
-    window.addEventListener('kronikarz:place-cross-ref', onPlaceXrefEvent);
-    window.addEventListener('kronikarz:place-port', onPlacePortEvent);
-    window.addEventListener('kronikarz:place-annotation', onPlaceAnnEvent);
-    window.addEventListener('kronikarz:place-decoration', onPlaceDecoEvent as EventListener);
-    window.addEventListener('kronikarz:place-power', onPlacePowerEvent as EventListener);
     const onExportPng = (ev: Event) => {
       const stage = stageRef.current;
+      const page = useDocStore.getState().page;
       if (!stage || !page) return;
       const ce = ev as CustomEvent<{ pixelRatio?: number; withScan?: boolean }>;
       const pixelRatio = ce.detail?.pixelRatio ?? 3;
@@ -502,9 +504,17 @@ export function Canvas(): JSX.Element {
       a.download = `${page.package}-${page.page}${withScan ? '' : '-bare'}.png`;
       a.click();
     };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', up);
+    window.addEventListener('kronikarz:place-gate', onPlaceEvent);
+    window.addEventListener('kronikarz:place-cross-ref', onPlaceXrefEvent);
+    window.addEventListener('kronikarz:place-port', onPlacePortEvent);
+    window.addEventListener('kronikarz:place-annotation', onPlaceAnnEvent);
+    window.addEventListener('kronikarz:place-decoration', onPlaceDecoEvent as EventListener);
+    window.addEventListener('kronikarz:place-power', onPlacePowerEvent as EventListener);
     window.addEventListener('kronikarz:export-png', onExportPng as EventListener);
     return () => {
-      window.removeEventListener('keydown', down);
+      window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', up);
       window.removeEventListener('kronikarz:place-gate', onPlaceEvent);
       window.removeEventListener('kronikarz:place-cross-ref', onPlaceXrefEvent);
@@ -514,13 +524,13 @@ export function Canvas(): JSX.Element {
       window.removeEventListener('kronikarz:place-power', onPlacePowerEvent as EventListener);
       window.removeEventListener('kronikarz:export-png', onExportPng as EventListener);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, size.w, size.h, opacity, selection, tool, placingGate, zoneSelected, zonesEditable]);
+  }, [onKeyDown]);
 
+  // Fit when another page is opened or the canvas is resized (not on edits).
+  const pageId = page?.page;
   useEffect(() => {
-    if (page) fitToScreen();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page?.page, size.w, size.h]);
+    if (pageId !== undefined) fitToScreen();
+  }, [pageId, size.w, size.h, fitToScreen]);
 
   // <page>.zones.yaml next to the file the page was loaded from: load on page
   // change; every zones change is reported, zonesSync decides what is saved.
@@ -925,27 +935,26 @@ export function Canvas(): JSX.Element {
     setWireCursor(null);
   }
 
-  useEffect(() => {
-    function onWireEndpoint(ev: Event): void {
-      const ce = ev as CustomEvent<{ x: number; y: number; netName: string; autoNet?: string }>;
-      if (tool !== 'wire' || !page) return;
-      const { x, y, netName, autoNet } = ce.detail;
-      if (!wireDraft) {
-        setWireDraft({
-          netName: (netName && netName.trim()) ? netName : (autoNet ?? `NET_${Date.now()}`),
-          startX: x,
-          startY: y,
-          vertices: [],
-        });
-        setWireCursor({ x, y });
-      } else {
-        commitWire({ x, y, netName });
-      }
+  const onWireEndpoint = useEvent((ev: Event): void => {
+    const ce = ev as CustomEvent<{ x: number; y: number; netName: string; autoNet?: string }>;
+    if (tool !== 'wire' || !page) return;
+    const { x, y, netName, autoNet } = ce.detail;
+    if (!wireDraft) {
+      setWireDraft({
+        netName: (netName && netName.trim()) ? netName : (autoNet ?? `NET_${Date.now()}`),
+        startX: x,
+        startY: y,
+        vertices: [],
+      });
+      setWireCursor({ x, y });
+    } else {
+      commitWire({ x, y, netName });
     }
+  });
+  useEffect(() => {
     window.addEventListener('kronikarz:wire-endpoint-click', onWireEndpoint);
     return () => window.removeEventListener('kronikarz:wire-endpoint-click', onWireEndpoint);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, page, wireDraft]);
+  }, [onWireEndpoint]);
 
   const ZONE_COLORS: Record<ZoneRole, string> = {
     gates: '#22c55e',

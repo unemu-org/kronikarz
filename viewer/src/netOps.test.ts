@@ -9,6 +9,7 @@ import {
   disconnectEndpoint,
   isNetLive,
   mergeDropsCross,
+  moveNetPoint,
   planConnect,
   renameNeedsConfirm,
   netEndpoints,
@@ -17,6 +18,7 @@ import {
   pruneNetIfDead,
   renameNet,
   uniqueNetName,
+  withNetPointMoved,
 } from './netOps.ts';
 
 const pin = (num: number, net: string, px = num * 10, py = 0): Pin => ({ num, side: 'left', px, py, net });
@@ -378,4 +380,35 @@ test('merge: both nets have cross → target\'s kept, mergeDropsCross names the 
 test('validatePage: a nets entry without pins[] does not crash', () => {
   const p = mkPage({ A: { segments: null, junctions: null } as unknown as Net });
   assert.doesNotThrow(() => validatePage(p));
+});
+
+test('moveNetPoint: every segment end and junction at the point moves, nothing else', () => {
+  const net: Net = {
+    pins: [],
+    segments: [[0, 0, 10, 0], [10, 0, 10, 10], [10, 0, 20, 0], [20, 0, 30, 0]],
+    junctions: [[10, 0], [20, 0]],
+  };
+  moveNetPoint(net, { x: 10, y: 0 }, { x: 12, y: 3 });
+  assert.deepEqual(net.segments, [[0, 0, 12, 3], [12, 3, 10, 10], [12, 3, 20, 0], [20, 0, 30, 0]]);
+  assert.deepEqual(net.junctions, [[12, 3], [20, 0]]);
+  const bare: Net = { pins: [], segments: null, junctions: null };
+  moveNetPoint(bare, { x: 0, y: 0 }, { x: 1, y: 1 });
+  assert.deepEqual(bare, { pins: [], segments: null, junctions: null });
+});
+
+test('withNetPointMoved: preview copy, the stored net is untouched', () => {
+  const net: Net = { pins: ['U1.1'], segments: [[0, 0, 10, 0]], junctions: [[0, 0]] };
+  const before = JSON.stringify(net);
+  const moved = withNetPointMoved(net, { x: 0, y: 0 }, { x: 5, y: 5 });
+  assert.equal(JSON.stringify(net), before);
+  assert.deepEqual(moved.segments, [[5, 5, 10, 0]]);
+  assert.deepEqual(moved.junctions, [[5, 5]]);
+  assert.deepEqual(moved.pins, ['U1.1']);
+  // Always from the drag-start point, not from the previous preview: passing
+  // over another point of the net does not pick it up.
+  const two: Net = { pins: [], segments: [[0, 0, 10, 0], [20, 0, 30, 0]], junctions: null };
+  const p1 = withNetPointMoved(two, { x: 0, y: 0 }, { x: 20, y: 0 });
+  const p2 = withNetPointMoved(two, { x: 0, y: 0 }, { x: 25, y: 5 });
+  assert.deepEqual(p1.segments, [[20, 0, 10, 0], [20, 0, 30, 0]]);
+  assert.deepEqual(p2.segments, [[25, 5, 10, 0], [20, 0, 30, 0]]);
 });

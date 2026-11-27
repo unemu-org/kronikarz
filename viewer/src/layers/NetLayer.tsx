@@ -1,8 +1,11 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Layer, Line, Circle } from 'react-konva';
 import type Konva from 'konva';
 import type { Page, Gate, Port } from '@kronikarz/shared';
 import { useDocStore } from '../store.ts';
+import { moveNetPoint, withNetPointMoved, type NetPoint } from '../netOps.ts';
+import { createPointDragSession, type PointDrag, type PointDragSession } from '../netPointDrag.ts';
+import { useEvent } from '../useEvent.ts';
 import { gateBox } from './box.ts';
 
 // Push a point out of any gate body it lands on. Operates in scan coords.
@@ -136,47 +139,49 @@ export function NetLayer({ page, zoom }: Props): JSX.Element {
     }
   }
 
-  // Trzymamy oryginalne koordy startu draga – wszystkie inne endpointy/junctions
-  // tego netu majace TE SAME koordy beda przesuniete razem (zeby junction sie nie rozsypal).
-  const dragOrigRef = useRef<{ x: number; y: number } | null>(null);
+  // Drag of a net point (segment-end handle, auto-junction dot): every
+  // endpoint/junction of that net at the drag-start point moves with it (so a
+  // junction does not fall apart). While dragging only `pointDrag` changes —
+  // the page is rendered with the preview (withNetPointMoved), the store is
+  // not touched (no undo entry, auto-save or validation per mouse move). The
+  // drag end commits one editPage = one undo step (netPointDrag.ts).
+  // onDragMove/onDragEnd must keep one identity across renders: react-konva
+  // off()s a changed handler BEFORE setAttrs, so when `draggable` flips
+  // (tool leaves edit mid-drag) Konva's stopDrag would fire dragend with no
+  // listener and the preview would stick. Hence the session lives in a ref
+  // and the handlers are useEvent callbacks.
+  const [pointDrag, setPointDrag] = useState<PointDrag | null>(null);
+  const sessionRef = useRef<PointDragSession | null>(null);
+  sessionRef.current ??= createPointDragSession({
+    preview: setPointDrag,
+    commit: (netName, from, to) => {
+      useDocStore.getState().editPage((p) => {
+        const net = p.nets[netName];
+        if (net) moveNetPoint(net, from, to);
+      });
+    },
+  });
+  const session = sessionRef.current;
+  const dragPos = (e: Konva.KonvaEventObject<DragEvent>): NetPoint => ({
+    x: Math.round(e.target.x()),
+    y: Math.round(e.target.y()),
+  });
 
-  const onSegmentDragStart = (
-    netName: string,
-    segmentIdx: number,
-    endIdx: 0 | 1,
-  ) => {
-    const seg = page.nets[netName]?.segments?.[segmentIdx];
-    if (!seg) return;
-    dragOrigRef.current = { x: seg[endIdx * 2]!, y: seg[endIdx * 2 + 1]! };
+  const onPointDragStart = (netName: string, x: number, y: number): void => {
+    session.start(netName, { x, y });
   };
+  const onPointDragMove = useEvent((e: Konva.KonvaEventObject<DragEvent>): void => {
+    session.move(dragPos(e));
+  });
+  const onPointDragEnd = useEvent((e: Konva.KonvaEventObject<DragEvent>): void => {
+    session.end(dragPos(e));
+  });
 
-  const onSegmentDrag = (
-    netName: string,
-    _segmentIdx: number,
-    _endIdx: 0 | 1,
-    e: Konva.KonvaEventObject<DragEvent>,
-  ) => {
-    const orig = dragOrigRef.current;
-    if (!orig) return;
-    const nx = Math.round(e.target.x());
-    const ny = Math.round(e.target.y());
-    editPage((p) => {
-      const net = p.nets[netName];
-      if (!net) return;
-      if (net.segments) {
-        for (const s of net.segments) {
-          if (s[0] === orig.x && s[1] === orig.y) { s[0] = nx; s[1] = ny; }
-          if (s[2] === orig.x && s[3] === orig.y) { s[2] = nx; s[3] = ny; }
-        }
-      }
-      if (net.junctions) {
-        for (const j of net.junctions) {
-          if (j[0] === orig.x && j[1] === orig.y) { j[0] = nx; j[1] = ny; }
-        }
-      }
-    });
-    dragOrigRef.current = { x: nx, y: ny };
-  };
+  // Tool left edit mode during a drag: finish it at the last previewed point
+  // (commit if it moved), even if Konva's dragend never reaches us.
+  useEffect(() => {
+    if (!editing) session.end();
+  }, [editing, session]);
 
   // Build full net set: declared in page.nets + any net referenced by pins/ports/refs.
   // Skip empty/whitespace names — those represent un-routed pins, not a real net.
@@ -188,7 +193,10 @@ export function NetLayer({ page, zoom }: Props): JSX.Element {
   return (
     <Layer>
       {Array.from(allNetNames).map((name) => {
-        const net = page.nets[name] ?? { pins: [], segments: null, junctions: null };
+        const storedNet = page.nets[name] ?? { pins: [], segments: null, junctions: null };
+        const net = pointDrag && pointDrag.net === name
+          ? withNetPointMoved(storedNet, pointDrag.from, pointDrag.to)
+          : storedNet;
         const isActive = active.has(name);
         const isBad = badNets.has(name);
         const color = isBad ? '#ff3838' : isActive ? COLOR_ACTIVE : COLOR_NET;
@@ -372,29 +380,9 @@ export function NetLayer({ page, zoom }: Props): JSX.Element {
                     radius={Math.max(4, 5 / zoom)}
                     fill={color}
                     draggable={editing}
-                    onDragStart={() => { dragOrigRef.current = { x: j[0], y: j[1] }; }}
-                    onDragMove={(e) => {
-                      const orig = dragOrigRef.current;
-                      if (!orig) return;
-                      const nx = Math.round(e.target.x());
-                      const ny = Math.round(e.target.y());
-                      editPage((p) => {
-                        const nt = p.nets[name];
-                        if (!nt) return;
-                        if (nt.segments) {
-                          for (const s of nt.segments) {
-                            if (s[0] === orig.x && s[1] === orig.y) { s[0] = nx; s[1] = ny; }
-                            if (s[2] === orig.x && s[3] === orig.y) { s[2] = nx; s[3] = ny; }
-                          }
-                        }
-                        if (nt.junctions) {
-                          for (const jj of nt.junctions) {
-                            if (jj[0] === orig.x && jj[1] === orig.y) { jj[0] = nx; jj[1] = ny; }
-                          }
-                        }
-                      });
-                      dragOrigRef.current = { x: nx, y: ny };
-                    }}
+                    onDragStart={() => onPointDragStart(name, j[0], j[1])}
+                    onDragMove={onPointDragMove}
+                    onDragEnd={onPointDragEnd}
                     onClick={(e) => {
                       e.cancelBubble = true;
                       if (tool === 'wire') {
@@ -495,12 +483,9 @@ export function NetLayer({ page, zoom }: Props): JSX.Element {
                     stroke="#39ff14"
                     strokeWidth={1 / zoom}
                     draggable
-                    onDragStart={() =>
-                      onSegmentDragStart(name, selectedSegment, endIdx as 0 | 1)
-                    }
-                    onDragMove={(e) =>
-                      onSegmentDrag(name, selectedSegment, endIdx as 0 | 1, e)
-                    }
+                    onDragStart={() => onPointDragStart(name, s[endIdx * 2]!, s[endIdx * 2 + 1]!)}
+                    onDragMove={onPointDragMove}
+                    onDragEnd={onPointDragEnd}
                     onClick={(e) => {
                       e.cancelBubble = true;
                       setSelection({ kind: 'segment', netName: name, segmentIdx: selectedSegment });
