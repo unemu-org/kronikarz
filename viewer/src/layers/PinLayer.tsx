@@ -4,6 +4,7 @@ import type Konva from 'konva';
 import type { Gate } from '@kronikarz/shared';
 import { useDocStore } from '../store.ts';
 import { snapPinToEdge } from './box.ts';
+import { connectPins, mergeDropsCross, planConnect } from '../netOps.ts';
 
 interface Props {
   gates: Gate[];
@@ -78,41 +79,46 @@ export function PinLayer({ gates }: Props): JSX.Element {
       setSelection(null);
       return;
     }
-    // Two pins → create a segment in the first pin's net + ensure both share net name
+    // Two pins → both on one net (a's, else b's, else a fresh NET_<b>) + a
+    // segment a→b. Only these two pins change net; rules live in netOps.
     const a = gates[armedPin.g]?.pins[armedPin.p];
-    const b = gates[gi]?.pins[pi];
-    if (!a || !b) {
+    const gb = gates[gi];
+    const b = gb?.pins[pi];
+    if (!a || !gb || !b) {
       setSelection(null);
       return;
     }
-    const netA = a.net;
-    const netB = b.net;
-    editPage((page) => {
-      // Unify nets: rename netB → netA on the target pin (only that pin),
-      // or merge entire net if names already match.
-      const targetGate = page.gates[gi];
-      const targetPin = targetGate?.pins[pi];
-      if (targetPin) targetPin.net = netA;
-
-      // Move pin reference in nets map if needed
-      const netRecord = page.nets[netA] ?? { pins: [], segments: null, junctions: null };
-      const pidB = `${gates[gi]!.ref}${gates[gi]!.gate ? `.${gates[gi]!.gate}` : ''}.${b.num}`;
-      if (!netRecord.pins.includes(pidB)) netRecord.pins.push(pidB);
-      page.nets[netA] = netRecord;
-
-      // Remove pin from old netB
-      if (netB && netB !== netA && page.nets[netB]) {
-        const oldNet = page.nets[netB]!;
-        oldNet.pins = oldNet.pins.filter((p) => p !== pidB);
-        if (oldNet.pins.length === 0) delete page.nets[netB];
+    const fallback = `NET_${gb.ref}${gb.gate ? `_${gb.gate}` : ''}_${b.num}`;
+    const pa = { gateIdx: armedPin.g, pinIdx: armedPin.p };
+    const pb = { gateIdx: gi, pinIdx: pi };
+    const cur = useDocStore.getState().page;
+    if (!cur) return;
+    const plan = planConnect(cur, pa, pb, fallback);
+    if (plan.status === 'missing') {
+      setSelection(null);
+      return;
+    }
+    if (plan.status === 'noop') {
+      setSelection({ kind: 'net', name: plan.net });
+      return;
+    }
+    if (plan.status === 'merge') {
+      const dropped = mergeDropsCross(cur, plan.from, plan.into);
+      const ok = window.confirm(
+        `Połączyć net „${plan.from}” z „${plan.into}”?\n` +
+        `Wszystkie końcówki i segmenty „${plan.from}” przejdą do „${plan.into}”.` +
+        (dropped ? `\nUwaga: cross „${plan.from}” (→ ${dropped.page} ${dropped.label}) zostanie usunięty, zostaje cross „${plan.into}”.` : ''),
+      );
+      if (!ok) {
+        setSelection(null); // connect cancelled, nothing changed
+        return;
       }
-
-      // Append segment
-      const segments = netRecord.segments ?? [];
-      segments.push([a.px, a.py, b.px, b.py]);
-      netRecord.segments = segments;
+    }
+    const name = plan.status === 'merge' ? plan.into : plan.net;
+    editPage((page) => {
+      connectPins(page, pa, pb, fallback, { allowMerge: plan.status === 'merge' });
     });
-    setSelection({ kind: 'net', name: netA });
+    setSelection({ kind: 'net', name });
   };
 
   return (

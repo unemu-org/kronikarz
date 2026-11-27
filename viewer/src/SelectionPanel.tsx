@@ -1,9 +1,22 @@
 import type { ChangeEvent } from 'react';
-import { useRef as useReactRef } from 'react';
+import { useRef as useReactRef, useState } from 'react';
 import type { Page, Side, IcMap } from '@kronikarz/shared';
-import { parsePage, parsePinId, resolveIcKey, serializePage } from '@kronikarz/shared';
+import { parsePage, resolveIcKey, serializePage } from '@kronikarz/shared';
 import { pageFilePath, parsePackageFilePath, parsePageFilePath, updateDataFile, useDocStore } from './store.ts';
 import { passivePins } from './AddGateDialog.tsx';
+import {
+  assignEndpointNet,
+  disconnectEndpoint,
+  getEndpointNet,
+  mergeDropsCross,
+  netEndpoints,
+  netExists,
+  normalizeNetName,
+  renameNeedsConfirm,
+  renameNet,
+  uniqueNetName,
+  type EndpointRef,
+} from './netOps.ts';
 
 const ROTATIONS: Array<0 | 90 | 180 | 270> = [0, 90, 180, 270];
 const SIDES: Side[] = ['left', 'right', 'top', 'bottom'];
@@ -96,7 +109,7 @@ export function SelectionPanel(): JSX.Element | null {
 
   return (
     <aside className="w-72 shrink-0 overflow-y-auto border-l border-bg-accent bg-bg-panel p-2 text-xs">
-      {!gate && !net && selection?.kind !== 'segment' && selection?.kind !== 'port' && selection?.kind !== 'cross_ref' && selection?.kind !== 'power' && selection?.kind !== 'annotation' && selection?.kind !== 'decoration' && (
+      {!gate && netName === null && selection?.kind !== 'segment' && selection?.kind !== 'port' && selection?.kind !== 'cross_ref' && selection?.kind !== 'power' && selection?.kind !== 'annotation' && selection?.kind !== 'decoration' && (
         <div className="text-text-dim">brak zaznaczenia</div>
       )}
 
@@ -104,6 +117,7 @@ export function SelectionPanel(): JSX.Element | null {
         const idx = selection.idx;
         const ps = page.power?.[idx];
         if (!ps) return null;
+        const psCtx = netCtx({ kind: 'power', idx }, ps.net);
         return (
           <div className="space-y-2">
             <h2 className="font-bold text-phosphor">{ps.type}</h2>
@@ -114,11 +128,7 @@ export function SelectionPanel(): JSX.Element | null {
                   value={ps.type}
                   onChange={(v) => editPage((p) => { const t = p.power[idx]; if (t) t.type = v; })}
                 />
-                <Field
-                  label="net"
-                  value={ps.net}
-                  onChange={(v) => editPage((p) => { const t = p.power[idx]; if (t) t.net = v; })}
-                />
+                <NetField label="net" value={ps.net} onCommit={(v) => commitAssign(psCtx, v)} />
                 <div className="flex items-center gap-2">
                   <label className="w-16 text-text-dim">rotation</label>
                   <select
@@ -144,94 +154,108 @@ export function SelectionPanel(): JSX.Element | null {
         );
       })()}
 
-      {net && netName && (
+      {netName !== null && (() => {
+        // A net may exist only through endpoint references (no nets entry).
+        const eps = netEndpoints(page, netName);
+        const exists = netExists(page, netName);
+        const nCtx = netCtx(undefined, netName);
+        return (
         <div className="space-y-2">
-          {editing ? (
-            <div className="flex items-center gap-2">
-              <span className="text-net-active">net:</span>
-              <input
-                className="flex-1 bg-bg-accent px-1 py-0.5 font-bold text-net-active"
-                defaultValue={netName}
-                onBlur={(e) => {
-                  const newName = e.target.value.trim();
-                  if (!newName || newName === netName) return;
-                  renameNet(editPage, netName, newName);
-                  useDocStore.getState().setSelection({ kind: 'net', name: newName });
-                }}
-              />
-            </div>
-          ) : (
-            <h2 className="font-bold text-net-active">{netName}</h2>
+          <h2 className="font-bold text-net-active">{netName}</h2>
+          {!net && <div className="text-text-dim">bez wpisu w nets (tylko referencje końcówek)</div>}
+          {!exists && <div className="text-warning">net już nie istnieje na tej stronie</div>}
+          {editing && exists && (
+            <button
+              className="w-full bg-bg-accent px-2 py-0.5 text-left text-text-main hover:bg-phosphor-dim"
+              title="wszystkie końcówki tego netu na stronie + jego geometria; istniejąca nazwa = scalenie (z potwierdzeniem)"
+              onClick={() => {
+                const r = promptRenameNet(nCtx);
+                if (r.done && r.name) useDocStore.getState().setSelection({ kind: 'net', name: r.name });
+              }}
+            >
+              zmień nazwę netu
+            </button>
           )}
           <hr className="border-bg-accent" />
           <div>
-            <h3 className="text-text-dim">PINY ({net.pins.length})</h3>
+            <h3 className="text-text-dim">KOŃCÓWKI ({eps.length})</h3>
             <ul>
-              {net.pins.map((p) => (
-                <li key={p} className="text-phosphor">
-                  {p}
+              {eps.map((ep, i) => (
+                <li key={i} className="text-phosphor">
+                  {endpointLabel(page, ep)}
                 </li>
               ))}
             </ul>
           </div>
-          <div className="text-text-dim">
-            segmenty: {net.segments?.length ?? 'null'} · junctions:{' '}
-            {net.junctions?.length ?? 'null'}
-          </div>
-          {net.cross && (
+          {net && (
+            <div className="text-text-dim">
+              segmenty: {net.segments?.length ?? 'null'} · junctions:{' '}
+              {net.junctions?.length ?? 'null'}
+            </div>
+          )}
+          {net?.cross && (
             <div className="text-warning">
               cross → {net.cross.page} ({net.cross.label})
             </div>
           )}
           {editing && (
             <div className="space-y-1 border-t border-bg-accent pt-2">
-              <button
-                className="w-full bg-bg-accent px-2 py-0.5 text-left text-text-main hover:bg-phosphor-dim"
-                onClick={() =>
-                  editPage((p) => {
-                    const n = p.nets[netName];
-                    if (!n) return;
-                    n.junctions = [...(n.junctions ?? [])];
-                    // Add junction at average of all pins of this net
-                    const pts = n.pins
-                      .map((pid) => findPinPos(p, pid))
-                      .filter((q): q is { x: number; y: number } => !!q);
-                    if (pts.length) {
-                      const cx = Math.round(pts.reduce((a, b) => a + b.x, 0) / pts.length);
-                      const cy = Math.round(pts.reduce((a, b) => a + b.y, 0) / pts.length);
-                      n.junctions.push([cx, cy]);
+              {net && (
+                <>
+                  <button
+                    className="w-full bg-bg-accent px-2 py-0.5 text-left text-text-main hover:bg-phosphor-dim"
+                    onClick={() =>
+                      editPage((p) => {
+                        const n = p.nets[netName];
+                        if (!n) return;
+                        // Junction at the average of this net's gate pins
+                        // (pin.net = source of truth, not legacy net.pins[]).
+                        const pts = netEndpoints(p, netName).flatMap((ep) => {
+                          if (ep.kind !== 'pin') return [];
+                          const pin = p.gates[ep.gateIdx]?.pins[ep.pinIdx];
+                          return pin ? [{ x: pin.px, y: pin.py }] : [];
+                        });
+                        if (pts.length) {
+                          const cx = Math.round(pts.reduce((a, b) => a + b.x, 0) / pts.length);
+                          const cy = Math.round(pts.reduce((a, b) => a + b.y, 0) / pts.length);
+                          n.junctions = [...(n.junctions ?? []), [cx, cy]];
+                        }
+                      })
                     }
-                  })
-                }
-              >
-                + junction (środek netu)
-              </button>
-              <button
-                className="w-full bg-bg-accent px-2 py-0.5 text-left text-text-main hover:bg-phosphor-dim"
-                onClick={() =>
-                  editPage((p) => {
-                    const n = p.nets[netName];
-                    if (n) n.segments = null;
-                  })
-                }
-              >
-                wyczyść segmenty (→ dashed)
-              </button>
-              <button
-                className="w-full bg-bg-accent px-2 py-0.5 text-left text-text-main hover:bg-phosphor-dim"
-                onClick={() => {
-                  const rand = `${netName}_${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
-                  renameNet(editPage, netName, rand);
-                  useDocStore.getState().setSelection({ kind: 'net', name: rand });
-                }}
-                title="losowa nazwa — szybki fix konfliktu nazw"
-              >
-                🎲 randomize name
-              </button>
+                  >
+                    + junction (środek netu)
+                  </button>
+                  <button
+                    className="w-full bg-bg-accent px-2 py-0.5 text-left text-text-main hover:bg-phosphor-dim"
+                    onClick={() =>
+                      editPage((p) => {
+                        const n = p.nets[netName];
+                        if (n) n.segments = null;
+                      })
+                    }
+                  >
+                    wyczyść segmenty (→ dashed)
+                  </button>
+                </>
+              )}
+              {exists && (
+                <button
+                  className="w-full bg-bg-accent px-2 py-0.5 text-left text-text-main hover:bg-phosphor-dim"
+                  onClick={() => {
+                    const rand = uniqueNetName(page, `${netName}_${Math.random().toString(36).slice(2, 7).toUpperCase()}`);
+                    const r = commitRename(nCtx, rand, 'enter');
+                    if (r.done && r.name) useDocStore.getState().setSelection({ kind: 'net', name: r.name });
+                  }}
+                  title="losowa nazwa — szybki fix konfliktu nazw"
+                >
+                  🎲 randomize name
+                </button>
+              )}
             </div>
           )}
         </div>
-      )}
+        );
+      })()}
 
       {selection?.kind === 'segment' && (
         <SegmentPanel
@@ -244,6 +268,7 @@ export function SelectionPanel(): JSX.Element | null {
         const port = page.ports?.[selection.idx];
         if (!port) return null;
         const idx = selection.idx;
+        const portCtx = netCtx({ kind: 'port', idx }, port.net);
         return (
           <div className="space-y-2">
             <h2 className="font-bold text-phosphor">PORT {port.connector}{port.pin}</h2>
@@ -251,15 +276,9 @@ export function SelectionPanel(): JSX.Element | null {
             <Field label="connector" value={port.connector} onChange={(v) => editPage((p) => { const x = p.ports?.[idx]; if (x) x.connector = v.trim().toUpperCase(); })} />
             <Field label="pin" value={String(port.pin)} onChange={(v) => editPage((p) => { const x = p.ports?.[idx]; if (x) { const n = parseInt(v, 10); if (Number.isFinite(n)) x.pin = n; } })} />
             <FieldUni label="label" value={port.label} onChange={(v) => editPage((p) => { const x = p.ports?.[idx]; if (x) x.label = v; })} />
-            <FieldUni label="net" value={port.net} onChange={(v) => {
-              const old = port.net;
-              if (!v || v === old) return;
-              if (old && old.trim() && page.nets[old]) {
-                renameNet(editPage, old, v);
-              } else {
-                editPage((p) => { const x = p.ports?.[idx]; if (x) x.net = v; });
-              }
-            }} />
+            <NetField label="net" value={port.net} uni title={SIGNAL_NET_TITLE} onCommit={(v, mode) => commitRename(portCtx, v, mode)}>
+              <DisconnectButton ctx={portCtx} />
+            </NetField>
             <div className="flex items-center gap-2">
               <label className="w-16 text-text-dim">side</label>
               <select value={port.side} onChange={(e) => editPage((p) => { const x = p.ports?.[idx]; if (x) x.side = e.target.value as Side; })} className="flex-1 bg-bg-accent px-1 py-0.5">
@@ -281,20 +300,15 @@ export function SelectionPanel(): JSX.Element | null {
         const cr = page.cross_refs?.[selection.idx];
         if (!cr) return null;
         const idx = selection.idx;
+        const crCtx = netCtx({ kind: 'cross_ref', idx }, cr.net);
         return (
           <div className="space-y-2">
             <h2 className="font-bold text-phosphor">CROSS-REF {cr.label}</h2>
             <hr className="border-bg-accent" />
             <FieldUni label="label" value={cr.label} onChange={(v) => editPage((p) => { const x = p.cross_refs?.[idx]; if (x) x.label = v; })} />
-            <FieldUni label="net" value={cr.net} onChange={(v) => {
-              const old = cr.net;
-              if (!v || v === old) return;
-              if (old && old.trim() && page.nets[old]) {
-                renameNet(editPage, old, v);
-              } else {
-                editPage((p) => { const x = p.cross_refs?.[idx]; if (x) x.net = v; });
-              }
-            }} />
+            <NetField label="net" value={cr.net} uni title={SIGNAL_NET_TITLE} onCommit={(v, mode) => commitRename(crCtx, v, mode)}>
+              <DisconnectButton ctx={crCtx} />
+            </NetField>
             <div className="space-y-1">
               <div className="text-text-dim">arkusze (sheets):</div>
               <div className="grid grid-cols-6 gap-1">
@@ -668,26 +682,21 @@ export function SelectionPanel(): JSX.Element | null {
                 <li key={p.num} className={`flex items-center gap-1 ${p.disconnected ? 'opacity-50' : ''}`}>
                   <span className="w-4 text-phosphor">{p.num}</span>
                   <span className="w-8 text-text-dim">{p.side}</span>
-                  {editing ? (
-                    <input
-                      className="flex-1 bg-bg-accent px-1"
-                      defaultValue={p.net}
-                      key={p.net}
-                      disabled={p.disconnected}
-                      onBlur={(e) => {
-                        const v = e.target.value;
-                        const old = p.net;
-                        if (v === old) return;
-                        if (old && old.trim() && page.nets[old]) {
-                          renameNet(editPage, old, v);
-                        } else {
-                          updateGate((g) => {
-                            const pin = g.pins[pi];
-                            if (pin) pin.net = v;
-                          });
-                        }
-                      }}
-                    />
+                  {editing && gateIdx !== null ? (
+                    (() => {
+                      const pinCtx = netCtx({ kind: 'pin', gateIdx, pinIdx: pi }, p.net);
+                      return (
+                        <NetField
+                          value={p.net}
+                          disabled={p.disconnected}
+                          title="net tylko tego pinu (✎ = nazwa całego netu)"
+                          onCommit={(v) => commitAssign(pinCtx, v)}
+                        >
+                          {!p.disconnected && <RenameNetButton page={page} ctx={pinCtx} />}
+                          {!p.disconnected && <DisconnectButton ctx={pinCtx} />}
+                        </NetField>
+                      );
+                    })()
                   ) : (
                     <span className="flex-1">{p.disconnected ? 'NC' : p.net}</span>
                   )}
@@ -807,55 +816,220 @@ function FieldUni({
   );
 }
 
-function findPinPos(p: Page, pid: string): { x: number; y: number } | null {
-  try {
-    const { ref, gate, num } = parsePinId(pid);
-    for (const g of p.gates) {
-      if (g.ref !== ref) continue;
-      if (gate !== null && g.gate !== gate) continue;
-      const pin = g.pins.find((pp) => pp.num === num);
-      if (pin) return { x: pin.px, y: pin.py };
+function endpointLabel(p: Page, ep: EndpointRef): string {
+  switch (ep.kind) {
+    case 'pin': {
+      const g = p.gates[ep.gateIdx];
+      const pin = g?.pins[ep.pinIdx];
+      return g && pin ? `${g.ref}${g.gate ? `.${g.gate}` : ''}.${pin.num}` : '?';
     }
-  } catch {
-    /* ignore */
+    case 'port': {
+      const x = p.ports?.[ep.idx];
+      return x ? `port ${x.connector}${x.pin}` : '?';
+    }
+    case 'cross_ref': return `xref ${p.cross_refs?.[ep.idx]?.label ?? '?'}`;
+    case 'power': return `zasilanie ${p.power?.[ep.idx]?.type ?? '?'}`;
   }
-  return null;
 }
 
-function renameNet(editPage: (m: (p: Page) => void) => void, oldName: string, newName: string) {
-  editPage((p) => {
-    if (!p.nets[oldName]) return;
-    if (p.nets[newName]) {
-      // Merge into existing
-      const existing = p.nets[newName];
-      const src = p.nets[oldName]!;
-      existing.pins = Array.from(new Set([...existing.pins, ...src.pins]));
-      if (src.segments) {
-        existing.segments = [...(existing.segments ?? []), ...src.segments];
-      }
-      if (src.junctions) {
-        existing.junctions = [...(existing.junctions ?? []), ...src.junctions];
-      }
-      delete p.nets[oldName];
-    } else {
-      p.nets[newName] = p.nets[oldName]!;
-      delete p.nets[oldName];
-    }
-    for (const g of p.gates) {
-      for (const pin of g.pins) {
-        if (pin.net === oldName) pin.net = newName;
-      }
-    }
-    for (const ps of p.power) {
-      if (ps.net === oldName) ps.net = newName;
-    }
-    for (const port of p.ports ?? []) {
-      if (port.net === oldName) port.net = newName;
-    }
-    for (const cr of p.cross_refs ?? []) {
-      if (cr.net === oldName) cr.net = newName;
-    }
-  });
+const SIGNAL_NET_TITLE =
+  'nazwa sygnału = nazwa całego netu (wszystkie końcówki na stronie); istniejący net → Enter + potwierdzenie';
+const EMPTY_HINT = 'pusta nazwa netu — odrzucona';
+
+type CommitMode = 'blur' | 'enter';
+interface CommitOutcome { done: boolean; hint?: string; name?: string; merged?: boolean }
+
+// What a net field / button was rendered for. Captured at render, checked at
+// commit: another page, another selection or an endpoint whose net changed
+// meanwhile → the commit does nothing.
+interface NetCtx { pagePath: string | null; sel: string; ep?: EndpointRef; oldNet: string }
+
+function netCtx(ep: EndpointRef | undefined, oldNet: string): NetCtx {
+  const st = useDocStore.getState();
+  return { pagePath: st.pagePath, sel: JSON.stringify(st.selection), ep, oldNet };
+}
+
+function ctxPage(ctx: NetCtx): Page | null {
+  const st = useDocStore.getState();
+  if (!st.page || st.pagePath !== ctx.pagePath || JSON.stringify(st.selection) !== ctx.sel) return null;
+  if (ctx.ep && getEndpointNet(st.page, ctx.ep) !== ctx.oldNet) return null;
+  return st.page;
+}
+
+// Assign only this endpoint (pin / power). Empty name → hint, field reverts.
+// Unchanged name → no edit, no undo step.
+function commitAssign(ctx: NetCtx, raw: string): CommitOutcome {
+  const page = ctxPage(ctx);
+  const ep = ctx.ep;
+  if (!page || !ep) return { done: false };
+  const v = normalizeNetName(raw);
+  if (!v) return { done: false, hint: EMPTY_HINT };
+  if (v === ctx.oldNet) return { done: false };
+  useDocStore.getState().editPage((p) => { assignEndpointNet(p, ep, v); });
+  return { done: true, name: v };
+}
+
+function mergeConfirmText(page: Page, from: string, into: string): string {
+  const dropped = mergeDropsCross(page, from, into);
+  return `Net „${into}” już istnieje na tej stronie.\n` +
+    `Scalić „${from}” z „${into}”? Wszystkie końcówki i segmenty „${from}” przejdą do „${into}”.` +
+    (dropped ? `\nUwaga: oba nety mają cross — zostaje cross „${into}”, cross „${from}” (→ ${dropped.page} ${dropped.label}) zostanie usunięty.` : '');
+}
+
+// Rename the whole net `ctx.oldNet` (port / cross_ref / segment / buttons).
+// Endpoint with no net yet → just assign it. Renaming onto a live net is a
+// merge: on blur only a hint (no modal), on Enter/button a confirm.
+function commitRename(ctx: NetCtx, raw: string, mode: CommitMode): CommitOutcome {
+  const page = ctxPage(ctx);
+  if (!page) return { done: false };
+  const v = normalizeNetName(raw);
+  if (!v) return { done: false, hint: EMPTY_HINT };
+  if (v === ctx.oldNet) return { done: false };
+  if (!normalizeNetName(ctx.oldNet)) return ctx.ep ? commitAssign(ctx, v) : { done: false };
+  if (!netExists(page, ctx.oldNet)) return { done: false };
+  if (renameNeedsConfirm(page, ctx.oldNet, v)) {
+    if (mode === 'blur') return { done: false, hint: `Enter, aby scalić z istniejącym netem „${v}”` };
+    if (!window.confirm(mergeConfirmText(page, ctx.oldNet, v))) return { done: false };
+  }
+  const merged = netExists(page, v);
+  const old = ctx.oldNet;
+  useDocStore.getState().editPage((p) => { renameNet(p, old, v); });
+  return { done: true, name: v, merged };
+}
+
+// Button: prompt for the new name (modal is fine here — not inside a blur).
+function promptRenameNet(ctx: NetCtx): CommitOutcome {
+  const input = window.prompt(
+    `Nowa nazwa netu „${ctx.oldNet}” (zmienia wszystkie końcówki i geometrię na tej stronie):`,
+    ctx.oldNet,
+  );
+  if (input === null) return { done: false };
+  const r = commitRename(ctx, input, 'enter');
+  if (r.hint) alert(r.hint);
+  return r;
+}
+
+// Commit-on-blur/Enter net field: typing edits only the input; Esc reverts.
+// A refused commit reverts the field and shows `hint` inline (no modal in
+// blur). `uni` adds ↑ ↓ Ø quick-insert buttons (insert without committing);
+// `children` = extra buttons on the same row.
+function NetField({
+  label,
+  value,
+  onCommit,
+  uni = false,
+  disabled = false,
+  title,
+  children,
+}: {
+  label?: string;
+  value: string;
+  onCommit: (v: string, mode: CommitMode) => CommitOutcome;
+  uni?: boolean;
+  disabled?: boolean;
+  title?: string;
+  children?: React.ReactNode;
+}): JSX.Element {
+  const inputRef = useReactRef<HTMLInputElement>(null);
+  // Blur events fired while an Enter commit runs (confirm dialog) or by the
+  // blur() right after it must not commit a second time.
+  const ignoreBlur = useReactRef(false);
+  const [hint, setHint] = useState<string | null>(null);
+  const run = (el: HTMLInputElement, mode: CommitMode) => {
+    if (el.value === value) { setHint(null); return; }
+    const r = onCommit(el.value, mode);
+    if (!r.done) el.value = value;
+    setHint(r.done ? null : r.hint ?? null);
+  };
+  const insert = (ch: string) => {
+    const el = inputRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    el.value = el.value.slice(0, start) + ch + el.value.slice(end);
+    el.focus();
+    const pos = start + ch.length;
+    el.setSelectionRange(pos, pos);
+  };
+  return (
+    <div className="min-w-0 flex-1">
+      <div className="flex items-center gap-1">
+        {label && <label className="w-16 text-text-dim">{label}</label>}
+        <input
+          ref={inputRef}
+          key={value}
+          className="min-w-0 flex-1 bg-bg-accent px-1 py-0.5"
+          defaultValue={value}
+          disabled={disabled}
+          title={title}
+          onInput={() => setHint(null)}
+          onKeyDown={(e) => {
+            const el = e.currentTarget;
+            if (e.key === 'Enter') {
+              ignoreBlur.current = true;
+              try { run(el, 'enter'); el.blur(); } finally { ignoreBlur.current = false; }
+            } else if (e.key === 'Escape') {
+              el.value = value;
+              setHint(null);
+              ignoreBlur.current = true;
+              try { el.blur(); } finally { ignoreBlur.current = false; }
+            }
+          }}
+          onBlur={(e) => {
+            if (ignoreBlur.current) return;
+            run(e.currentTarget, 'blur');
+          }}
+        />
+        {uni && ['↑', '↓', 'Ø'].map((ch) => (
+          <button
+            key={ch}
+            type="button"
+            tabIndex={-1}
+            className="bg-bg-accent px-1 hover:bg-phosphor-dim hover:text-bg-main"
+            title={ch === 'Ø' ? 'Ø (przekreślone 0)' : ch}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => insert(ch)}
+          >{ch}</button>
+        ))}
+        {children}
+      </div>
+      {hint && <div className="text-[10px] text-error">{hint}</div>}
+    </div>
+  );
+}
+
+// ✎ — rename the whole net of this endpoint. Hidden when there is no net.
+function RenameNetButton({ page, ctx }: { page: Page; ctx: NetCtx }): JSX.Element | null {
+  if (!normalizeNetName(ctx.oldNet) || !netExists(page, ctx.oldNet)) return null;
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      className="bg-bg-accent px-1 text-text-dim hover:bg-phosphor-dim hover:text-bg-main"
+      title={`zmień nazwę netu „${ctx.oldNet}” — wszystkie końcówki na stronie`}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => { promptRenameNet(ctx); }}
+    >✎</button>
+  );
+}
+
+// × — take this endpoint off its net (net = ''), one undo step.
+function DisconnectButton({ ctx }: { ctx: NetCtx }): JSX.Element | null {
+  if (!ctx.oldNet || !ctx.ep) return null;
+  const ep = ctx.ep;
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      className="bg-bg-accent px-1 text-text-dim hover:bg-error/60 hover:text-bg-main"
+      title={`odłącz od netu „${ctx.oldNet}” (tylko ta końcówka)`}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => {
+        if (!ctxPage(ctx)) return;
+        useDocStore.getState().editPage((p) => { disconnectEndpoint(p, ep); });
+      }}
+    >×</button>
+  );
 }
 
 // Side inference per ic_map gate_pins category name.
@@ -1017,24 +1191,22 @@ function SegmentPanel({ netName, segmentIdx }: { netName: string; segmentIdx: nu
   if (!page) return <></>;
   const seg = page.nets[netName]?.segments?.[segmentIdx];
   if (!seg) return <></>;
+  const segCtx = netCtx(undefined, netName);
   return (
     <div className="space-y-2">
       <h2 className="font-bold text-selected">SEGMENT #{segmentIdx}</h2>
-      <label className="block">
-        <span className="text-text-dim">net:</span>
-        <input
-          type="text"
-          className="ml-2 bg-bg-accent px-2 py-0.5 text-text-main"
-          defaultValue={netName}
-          key={netName}
-          onBlur={(e) => {
-            const v = e.target.value.trim();
-            if (!v || v === netName) return;
-            renameNet(editPage, netName, v);
-            setSelection({ kind: 'segment', netName: v, segmentIdx });
-          }}
-        />
-      </label>
+      <NetField
+        label="net"
+        value={netName}
+        title="zmienia nazwę całego netu (wszystkie końcówki); istniejący net → Enter + potwierdzenie"
+        onCommit={(v, mode) => {
+          const r = commitRename(segCtx, v, mode);
+          // Merge appends this net's segments after the target's, so the
+          // segment index is no longer valid — select the whole net then.
+          if (r.done && r.name) setSelection(r.merged ? { kind: 'net', name: r.name } : { kind: 'segment', netName: r.name, segmentIdx });
+          return r;
+        }}
+      />
       <div className="text-text-dim">
         ({seg[0]},{seg[1]}) → ({seg[2]},{seg[3]})
       </div>

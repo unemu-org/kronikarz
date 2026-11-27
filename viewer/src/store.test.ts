@@ -12,6 +12,7 @@ import {
   scanFilePath,
   useDocStore,
 } from './store.ts';
+import { connectPins, renameNet } from './netOps.ts';
 
 interface Req { method: string; url: string; body: string; ifMatch: string | null }
 const reqs: Req[] = [];
@@ -125,4 +126,27 @@ test('package save goes to the package file it was loaded from', async () => {
   useDocStore.getState().editPackage(() => {});
   await flushSaves();
   assert.deepEqual(puts().map((p) => p.url), [`/files/${packageFilePath('P-1')}`]);
+});
+
+test('net ops through editPage: one undo step restores the page exactly', async () => {
+  const pg = mkPage('2-1');
+  pg.gates = [{
+    ref: 'U1', gate: null, x: 0, y: 0, rotation: 0, verified: false, note: null,
+    pins: [
+      { num: 1, side: 'left', px: 0, py: 0, net: 'A' },
+      { num: 2, side: 'left', px: 9, py: 0, net: 'B' },
+    ],
+  }];
+  pg.nets = { A: { pins: [], segments: [[0, 0, 5, 0]], junctions: null }, B: { pins: [], segments: null, junctions: null } };
+  useDocStore.getState().setPage(pg, PATH_A);
+  const before = JSON.stringify(useDocStore.getState().page);
+  useDocStore.getState().editPage((p) => { renameNet(p, 'A', 'B'); });
+  assert.equal(useDocStore.getState().page!.gates[0]!.pins[0]!.net, 'B');
+  useDocStore.getState().undo();
+  assert.equal(JSON.stringify(useDocStore.getState().page), before);
+  useDocStore.getState().editPage((p) => { connectPins(p, { gateIdx: 0, pinIdx: 0 }, { gateIdx: 0, pinIdx: 1 }, 'X'); });
+  assert.equal(useDocStore.getState().page!.gates[0]!.pins[1]!.net, 'A');
+  useDocStore.getState().undo();
+  assert.equal(JSON.stringify(useDocStore.getState().page), before);
+  await flushSaves();
 });

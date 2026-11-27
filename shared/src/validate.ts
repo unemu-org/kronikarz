@@ -291,7 +291,8 @@ export function validatePage(page: Page, pkg?: Package, icMap?: IcMap, project?:
       });
     }
     // Each pin reference parseable
-    for (const pid of net.pins) {
+    // Legacy field — may be absent in YAML (parser does not normalise it).
+    for (const pid of net.pins ?? []) {
       try {
         parsePinId(pid);
       } catch (e) {
