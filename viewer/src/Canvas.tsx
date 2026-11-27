@@ -1,7 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { Stage, Layer, Rect, Group, Text, Line } from 'react-konva';
 import type Konva from 'konva';
-import { useDocStore, runRewrite, postRewrite, pageFilePath, type VisionZone, type ZoneRole } from './store.ts';
+import {
+  useDocStore,
+  runRewrite,
+  postRewrite,
+  fetchDataFile,
+  scheduleSave,
+  parsePageFilePath,
+  scanFilePath,
+  zonesFilePath,
+  type VisionZone,
+  type ZoneRole,
+} from './store.ts';
+import { createZonesSync, type ZonesLoadState, type ZonesSync } from './zonesSync.ts';
 import { apiWrite } from './api.ts';
 import { ImageLayer } from './layers/ImageLayer.tsx';
 import { GateLayer } from './layers/GateLayer.tsx';
@@ -61,8 +73,27 @@ export function Canvas(): JSX.Element {
   const zoneDragRef = useRef<{ x0: number; y0: number } | null>(null);
   const [zoneDraft, setZoneDraft] = useState<VisionZone | null>(null);
   const [visionBusy, setVisionBusy] = useState(false);
-  const zonesLoadedRef = useRef<string>('');
-  const zonesSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [zonesLoad, setZonesLoad] = useState<{ state: ZonesLoadState; error: string | null }>({
+    state: 'loaded',
+    error: null,
+  });
+  // Zones file load/save (zonesSync.ts): saves only user changes, only after
+  // the GET of that page's zones resolved, through the store's save queue.
+  // Zones cannot be edited until then (an edit would be replaced by the load).
+  const zonesEditable = zonesLoad.state === 'loaded';
+  const zonesSyncRef = useRef<ZonesSync | null>(null);
+  zonesSyncRef.current ??= createZonesSync({
+    fetch: fetchDataFile,
+    schedule: scheduleSave,
+    apply: (z) => {
+      setZones(z);
+      setZoneSelected(-1);
+    },
+    onState: (state, error) => setZonesLoad({ state, error }),
+    onLoadError: (path, error) => {
+      console.warn(`zones: ${path}: ${error} — strefy tej strony nie będą zapisywane`);
+    },
+  });
   const [wireDraft, setWireDraft] = useState<{
     netName: string;
     startX: number;
@@ -72,6 +103,7 @@ export function Canvas(): JSX.Element {
   const [wireCursor, setWireCursor] = useState<{ x: number; y: number } | null>(null);
   const wireOrtho = useDocStore((s) => s.wireOrtho);
   const page = useDocStore((s) => s.page);
+  const pagePath = useDocStore((s) => s.pagePath);
   const route = useDocStore((s) => s.route);
   const loading = useDocStore((s) => s.loading);
   const opacity = useDocStore((s) => s.scanOpacity);
@@ -253,7 +285,7 @@ export function Canvas(): JSX.Element {
       if (e.key === 'r' || e.key === 'R') setTool('roi');
       if (e.key === 'w' || e.key === 'W') setTool('wire');
       if (e.key === 'z' || e.key === 'Z') setTool('zones');
-      if (tool === 'zones' && zoneSelected >= 0 && (e.key === 'Delete' || e.key === 'Backspace')) {
+      if (tool === 'zones' && zonesEditable && zoneSelected >= 0 && (e.key === 'Delete' || e.key === 'Backspace')) {
         e.preventDefault();
         setZones((prev) => prev.filter((_, i) => i !== zoneSelected));
         setZoneSelected(-1);
@@ -483,50 +515,23 @@ export function Canvas(): JSX.Element {
       window.removeEventListener('kronikarz:export-png', onExportPng as EventListener);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, size.w, size.h, opacity, selection, tool, placingGate, zoneSelected]);
+  }, [page, size.w, size.h, opacity, selection, tool, placingGate, zoneSelected, zonesEditable]);
 
   useEffect(() => {
     if (page) fitToScreen();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page?.page, size.w, size.h]);
 
-  // Persist zones to <page>.zones.yaml — load on page change, save with debounce
+  // <page>.zones.yaml next to the file the page was loaded from: load on page
+  // change; every zones change is reported, zonesSync decides what is saved.
+  const zonesPath = pagePath ? zonesFilePath(pagePath) : null;
   useEffect(() => {
-    if (!page || !route.pkg) return;
-    const key = `${route.pkg}/${page.page}`;
-    if (zonesLoadedRef.current === key) return;
-    zonesLoadedRef.current = key;
-    setZones([]);
-    setZoneSelected(-1);
-    fetch(`/files/MJC-400/${route.pkg}/pages/${page.page}.zones.yaml`)
-      .then((r) => r.ok ? r.text() : null)
-      .then(async (txt) => {
-        if (!txt) return;
-        try {
-          const yaml = await import('js-yaml');
-          const doc = yaml.load(txt) as { zones?: VisionZone[] } | null;
-          if (doc && Array.isArray(doc.zones)) setZones(doc.zones);
-        } catch { /* ignore */ }
-      })
-      .catch(() => { /* ignore */ });
-  }, [page?.page, route.pkg]);
+    zonesSyncRef.current!.open(zonesPath);
+  }, [zonesPath]);
 
   useEffect(() => {
-    if (!page || !route.pkg) return;
-    if (zonesLoadedRef.current !== `${route.pkg}/${page.page}`) return;
-    if (zonesSaveTimerRef.current) clearTimeout(zonesSaveTimerRef.current);
-    zonesSaveTimerRef.current = setTimeout(async () => {
-      const yaml = await import('js-yaml');
-      const body = zones.length === 0
-        ? 'zones: []\n'
-        : yaml.dump({ zones }, { flowLevel: 2, lineWidth: 120 });
-      apiWrite(`/files/MJC-400/${route.pkg}/pages/${page.page}.zones.yaml`, {
-        method: 'PUT',
-        body,
-      }).catch(() => { /* ignore */ });
-    }, 500);
-    return () => { if (zonesSaveTimerRef.current) clearTimeout(zonesSaveTimerRef.current); };
-  }, [zones, page?.page, route.pkg]);
+    zonesSyncRef.current!.changed(zonesPath, zones);
+  }, [zones, zonesPath]);
 
   const onWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
@@ -958,14 +963,19 @@ export function Canvas(): JSX.Element {
   };
 
   async function runVisionZones() {
-    if (!page || !route.pkg || zones.length === 0) return;
+    // The file the page was loaded from: fenced path and server page id must
+    // be the same file the auto-save writes (not the YAML `page:` field).
+    const target = pagePath ? parsePageFilePath(pagePath) : null;
+    if (!page || !pagePath || !target || !zonesEditable || zones.length === 0) return;
     if (!confirm(`Vision-digitize z ${zones.length} strefami? Plik nadpisany (auto .bak).`)) return;
     setVisionBusy(true);
-    const pkgId = route.pkg;
-    const pageId = page.page;
+    const { pkg: pkgId, pageId } = target;
     try {
-      // Rewrites the page server-side: flush, fence the page, POST, reload.
-      await runRewrite(pageFilePath(pkgId, pageId), 'Vision', async () => {
+      // Rewrites the page server-side: flush (also lands pending zones saves),
+      // fence the page, POST, reload. The server only rewrites the page yaml;
+      // zones come from the POST body and <page>.zones.yaml is left as is, so
+      // the zones stay saved and shown after the reload (no setZones([])).
+      await runRewrite(pagePath, 'Vision', async () => {
         const { outcome, data: d } = await postRewrite('/vision-page-zones', { package: pkgId, page: pageId, zones });
         if (outcome !== 'ok') {
           alert('vision failed: ' + (d?.error ?? outcome) + (d?.stderr ? '\n\nstderr:\n' + String(d.stderr).slice(0, 1000) : ''));
@@ -974,7 +984,6 @@ export function Canvas(): JSX.Element {
         alert(
           `Wykryto:\n  ${d!.gates ?? 0} bramek\n  ${d!.ports ?? 0} portów\n  ${d!.cross_refs ?? 0} cross-refów\n\nBackup: <page>.sch.yaml.bak`
         );
-        setZones([]);
         return outcome;
       });
     } finally {
@@ -1010,6 +1019,7 @@ export function Canvas(): JSX.Element {
       return;
     }
     if (tool === 'zones') {
+      if (!zonesEditable) return; // zones of this page not loaded yet / load failed
       if (e.evt.button !== 0 || e.evt.ctrlKey || e.evt.metaKey) return;
       const p = ptrScan();
       if (!p) return;
@@ -1179,13 +1189,15 @@ export function Canvas(): JSX.Element {
     roiDragRef.current = null;
     const r = roiRect;
     setRoiRect(null);
-    if (!r || r.w < 8 || r.h < 8 || !page || !route.pkg) return;
+    // Server addresses the scan by the page file (pkg dir + stem), not `page:`.
+    const target = pagePath ? parsePageFilePath(pagePath) : null;
+    if (!r || r.w < 8 || r.h < 8 || !page || !target) return;
     setRoiBusy(true);
     try {
       const resp = await apiWrite('/ai-detect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ package: route.pkg, page: page.page, x: r.x, y: r.y, w: r.w, h: r.h }),
+        body: JSON.stringify({ package: target.pkg, page: target.pageId, x: r.x, y: r.y, w: r.w, h: r.h }),
       });
       const data = await resp.json();
       if (!resp.ok) {
@@ -1202,8 +1214,9 @@ export function Canvas(): JSX.Element {
     }
   };
 
-  const scanUrl =
-    page && route.pkg ? `/files/MJC-400/${route.pkg}/${getScanPath(page, route.pkg)}` : null;
+  // Scan of the file the page was loaded from (scans/<file stem>.jpg).
+  const scanPath = page && pagePath ? scanFilePath(pagePath) : null;
+  const scanUrl = scanPath ? `/files/${scanPath}` : null;
 
   return (
     <div ref={containerRef} className="relative flex-1 overflow-hidden bg-bg-main">
@@ -1429,7 +1442,7 @@ export function Canvas(): JSX.Element {
                       fill={`${c}22`}
                       onClick={(e) => {
                         e.cancelBubble = true;
-                        if (e.evt.shiftKey) {
+                        if (e.evt.shiftKey && zonesEditable) {
                           // cycle role
                           setZones((prev) => prev.map((zz, k) => k === i ? { ...zz, role: ZONE_NEXT[zz.role] } : zz));
                         }
@@ -1540,18 +1553,32 @@ export function Canvas(): JSX.Element {
           </span>
           <button
             onClick={runVisionZones}
-            disabled={visionBusy || zones.length === 0}
+            disabled={visionBusy || !zonesEditable || zones.length === 0}
             className="ml-2 bg-phosphor-dim px-2 py-0.5 text-bg-main hover:bg-phosphor disabled:opacity-50"
           >
             {visionBusy ? '⏳ vision...' : '👁 vision (zones)'}
           </button>
           <button
             onClick={() => { setZones([]); setZoneSelected(-1); }}
-            disabled={zones.length === 0}
+            disabled={!zonesEditable || zones.length === 0}
             className="px-2 py-0.5 text-text-dim hover:text-phosphor disabled:opacity-50"
           >
             wyczyść
           </button>
+          {zonesLoad.state === 'loading' && <span className="ml-2 text-text-dim">wczytywanie stref…</span>}
+          {zonesLoad.state === 'error' && (
+            <>
+              <span className="ml-2 text-warning" title={zonesLoad.error ?? ''}>
+                ⚠ nie wczytano stref ({zonesLoad.error}) — edycja stref zablokowana; ponów albo przeładuj stronę, by spróbować ponownie
+              </span>
+              <button
+                onClick={() => zonesSyncRef.current!.open(zonesPath)}
+                className="px-2 py-0.5 text-text-dim hover:text-phosphor"
+              >
+                ponów
+              </button>
+            </>
+          )}
         </div>
       )}
       {roiResult && (
@@ -1563,10 +1590,6 @@ export function Canvas(): JSX.Element {
       )}
     </div>
   );
-}
-
-function getScanPath(page: { package: string; page: string }, _pkg: string): string {
-  return `scans/${page.page}.jpg`;
 }
 
 // "R7" → next free "R8", "R9", ... Skips collisions in pkg.components.

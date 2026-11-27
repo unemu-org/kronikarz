@@ -10,7 +10,7 @@ import {
   validateProject,
 } from '@kronikarz/shared';
 import type { Issue, Page } from '@kronikarz/shared';
-import { fetchDataFile, flushSaves, useDocStore } from './store.ts';
+import { fetchDataFile, flushSaves, packageFilePath, pageFilePath, parsePageFilePath, useDocStore } from './store.ts';
 
 // Both record the file's ETag for auto-save If-Match (fetchDataFile).
 async function fetchText(path: string): Promise<string> {
@@ -37,6 +37,7 @@ export function useLoader(): void {
   const setLoading = useDocStore((s) => s.setLoading);
   // Re-run validation whenever page/pkg/icMap/project changes so issues stay fresh.
   const page = useDocStore((s) => s.page);
+  const pagePath = useDocStore((s) => s.pagePath);
   const pkg = useDocStore((s) => s.pkg);
   const icMap = useDocStore((s) => s.icMap);
   const project = useDocStore((s) => s.project);
@@ -47,13 +48,15 @@ export function useLoader(): void {
     if (page && pkg) issues.push(...validatePage(page, pkg, icMap ?? undefined, project ?? undefined));
     if (project) issues.push(...validateProject(project));
     if (pkg && allPages.size > 0) {
-      // Live override: aktualna strona z `page` (po edycji) zamiast wersji z cache
+      // Live override: aktualna strona z `page` (po edycji) zamiast wersji z cache.
+      // allPages is keyed by file stem (package.pages[].id), so is the override.
       const merged = new Map(allPages);
-      if (page) merged.set(page.page, page);
+      const openId = pagePath ? parsePageFilePath(pagePath)?.pageId : undefined;
+      if (page && openId) merged.set(openId, page);
       issues.push(...validatePackagePages(pkg, merged));
     }
     setIssues(issues);
-  }, [page, pkg, icMap, project, allPages, setIssues]);
+  }, [page, pagePath, pkg, icMap, project, allPages, setIssues]);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,8 +65,8 @@ export function useLoader(): void {
     async function run() {
       if (route.mode === 'empty') {
         setProject(null);
-        setPackage(null);
-        setPage(null);
+        setPackage(null, null);
+        setPage(null, null);
         useDocStore.getState().setAllPages(new Map());
         setIssues([]);
         return;
@@ -88,20 +91,22 @@ export function useLoader(): void {
         setIcMap(icMap);
 
         let pkg = null;
+        let pkgPath: string | null = null;
         let page = null;
+        let pagePath: string | null = null;
         const issues: Issue[] = [];
 
         if (route.pkg) {
-          const pkgPath = `MJC-400/${route.pkg}/package.yaml`;
+          pkgPath = packageFilePath(route.pkg);
           const pkgText = await fetchTextOptional(pkgPath);
           pkg = pkgText ? parsePackage(pkgText, pkgPath) : null;
           if (pkg) issues.push(...validatePackage(pkg, icMap ?? undefined));
         }
         if (cancelled) return;
-        setPackage(pkg);
+        setPackage(pkg, pkgPath);
 
         if (route.mode === 'page' && route.pkg && route.page) {
-          const pagePath = `MJC-400/${route.pkg}/pages/${route.page}.sch.yaml`;
+          pagePath = pageFilePath(route.pkg, route.page);
           const pageText = await fetchTextOptional(pagePath);
           page = pageText ? parsePage(pageText, pagePath) : null;
           if (page && pkg) issues.push(...validatePage(page, pkg, icMap ?? undefined, project ?? undefined));
@@ -113,15 +118,18 @@ export function useLoader(): void {
           const pagesMap = new Map<string, Page>();
           for (const ref of pkg.package.pages) {
             try {
-              const pt = await fetchTextOptional(`MJC-400/${route.pkg}/pages/${ref.id}.sch.yaml`);
-              if (pt) pagesMap.set(ref.id, parsePage(pt, `MJC-400/${route.pkg}/pages/${ref.id}.sch.yaml`));
+              const refPath = pageFilePath(route.pkg, ref.id);
+              const pt = await fetchTextOptional(refPath);
+              if (pt) pagesMap.set(ref.id, parsePage(pt, refPath));
             } catch { /* ignore parse fails per page */ }
           }
           if (cancelled) return;
           useDocStore.getState().setAllPages(pagesMap);
         }
         if (cancelled) return;
-        setPage(page);
+        // Page and the file it came from land together: auto-save of this
+        // page always goes to pagePath (not to the YAML `page:` field).
+        setPage(page, pagePath);
 
         if (project) issues.push(...validateProject(project));
         setIssues(issues);

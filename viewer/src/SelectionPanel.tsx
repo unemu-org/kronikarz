@@ -2,7 +2,7 @@ import type { ChangeEvent } from 'react';
 import { useRef as useReactRef } from 'react';
 import type { Page, Side, IcMap } from '@kronikarz/shared';
 import { parsePage, parsePinId, resolveIcKey, serializePage } from '@kronikarz/shared';
-import { updateDataFile, useDocStore } from './store.ts';
+import { pageFilePath, parsePackageFilePath, parsePageFilePath, updateDataFile, useDocStore } from './store.ts';
 import { passivePins } from './AddGateDialog.tsx';
 
 const ROTATIONS: Array<0 | 90 | 180 | 270> = [0, 90, 180, 270];
@@ -13,12 +13,15 @@ const SIDES: Side[] = ['left', 'right', 'top', 'bottom'];
 // reported, not overwritten). `add` mutates the page, false = already there.
 // The page open in this tab at that moment is skipped (checked per page and
 // again right before the PUT): its in-memory copy would not have the item and
-// its next auto-save would conflict.
-async function copyToPages(pkgId: string, pageIds: string[], add: (pg: Page) => boolean): Promise<void> {
-  const isOpen = (id: string) => {
-    const st = useDocStore.getState();
-    return st.route.pkg === pkgId && st.page?.page === id;
-  };
+// its next auto-save would conflict. "Open" = its file is the one the page
+// in the store was loaded from (pagePath), whatever its YAML `page:` says.
+// Target files are in the dir of the loaded package.yaml (pkgPath), whatever
+// its `package.id` says.
+async function copyToPages(pageIds: string[], add: (pg: Page) => boolean): Promise<void> {
+  const pkgPath = useDocStore.getState().pkgPath;
+  const pkgId = pkgPath ? parsePackageFilePath(pkgPath) : null;
+  if (!pkgId) return;
+  const isOpen = (id: string) => useDocStore.getState().pagePath === pageFilePath(pkgId, id);
   let ok = 0;
   let same = 0;
   let skipped = 0;
@@ -28,7 +31,7 @@ async function copyToPages(pkgId: string, pageIds: string[], add: (pg: Page) => 
       skipped++;
       continue;
     }
-    const path = `MJC-400/${pkgId}/pages/${id}.sch.yaml`;
+    const path = pageFilePath(pkgId, id);
     const seen = { openNow: false };
     const res = await updateDataFile(path, (txt) => {
       if (isOpen(id)) {
@@ -52,6 +55,12 @@ async function copyToPages(pkgId: string, pageIds: string[], add: (pg: Page) => 
     (skipped ? `, pominięto otwartą stronę: ${skipped}` : '') +
     `, błędy: ${errors.length}.`;
   alert(errors.length ? `${summary}\n\n${errors.join('\n')}` : summary);
+}
+
+// File stem of the open page (package.pages[].id), not its YAML `page:`.
+function openPageId(): string | undefined {
+  const p = useDocStore.getState().pagePath;
+  return p ? parsePageFilePath(p)?.pageId : undefined;
 }
 
 export function SelectionPanel(): JSX.Element | null {
@@ -381,9 +390,9 @@ export function SelectionPanel(): JSX.Element | null {
               className="w-full bg-bg-accent px-2 py-0.5 text-left text-text-dim hover:bg-phosphor-dim hover:text-bg-main"
               onClick={async () => {
                 if (!pkg || !page) return;
-                const targets = pkg.package.pages.filter((p) => p.id !== page.page);
+                const targets = pkg.package.pages.filter((p) => p.id !== openPageId());
                 if (!confirm(`Skopiować ten tekst do ${targets.length} pozostałych stron pakietu?`)) return;
-                await copyToPages(pkg.package.id, targets.map((t) => t.id), (pg) => {
+                await copyToPages(targets.map((t) => t.id), (pg) => {
                   pg.annotations ??= [];
                   // Skip jezeli juz istnieje identyczny tekst w identycznej pozycji
                   if (pg.annotations.some((a) => a.text === ann.text && a.x === ann.x && a.y === ann.y)) return false;
@@ -436,10 +445,10 @@ export function SelectionPanel(): JSX.Element | null {
               className="w-full bg-bg-accent px-2 py-0.5 text-left text-text-dim hover:bg-phosphor-dim hover:text-bg-main"
               onClick={async () => {
                 if (!pkg || !page) return;
-                const targets = pkg.package.pages.filter((p) => p.id !== page.page);
+                const targets = pkg.package.pages.filter((p) => p.id !== openPageId());
                 if (!confirm(`Skopiować do ${targets.length} pozostałych stron pakietu?`)) return;
                 const sig = JSON.stringify(d);
-                await copyToPages(pkg.package.id, targets.map((t) => t.id), (pg) => {
+                await copyToPages(targets.map((t) => t.id), (pg) => {
                   pg.decorations ??= [];
                   // Dedup by identyczne pola
                   if (pg.decorations.some((dd) => JSON.stringify(dd) === sig)) return false;

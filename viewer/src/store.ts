@@ -12,6 +12,14 @@ import {
   type SaveQueue,
   type UpdateResult,
 } from './saveQueue.ts';
+export {
+  packageFilePath,
+  pageFilePath,
+  parsePackageFilePath,
+  parsePageFilePath,
+  scanFilePath,
+  zonesFilePath,
+} from './dataPaths.ts';
 
 export type Mode = 'module' | 'package' | 'page' | 'empty';
 export type Tool = 'select' | 'edit' | 'roi' | 'wire' | 'zones';
@@ -49,7 +57,15 @@ export interface DocState {
   route: Route;
   project: Project | null;
   pkg: Package | null;
+  /** File `pkg` was loaded from — every auto-save of the package goes there. */
+  pkgPath: string | null;
   page: Page | null;
+  /**
+   * File `page` was loaded from (set together with `page`) — every auto-save
+   * of the page goes there, never to a path built from the YAML `page:` field
+   * or from the current route (which may already point at the next page).
+   */
+  pagePath: string | null;
   allPages: Map<string, Page>;
   icMap: IcMap | null;
   issues: Issue[];
@@ -69,8 +85,8 @@ export interface DocState {
 
   setRoute: (r: Route) => void;
   setProject: (p: Project | null) => void;
-  setPackage: (p: Package | null) => void;
-  setPage: (p: Page | null) => void;
+  setPackage: (p: Package | null, path: string | null) => void;
+  setPage: (p: Page | null, path: string | null) => void;
   setAllPages: (m: Map<string, Page>) => void;
   setIcMap: (m: IcMap | null) => void;
   setIssues: (i: Issue[]) => void;
@@ -123,6 +139,15 @@ const saveQueue: SaveQueue = createSaveQueue({
 });
 
 function schedulePut(path: string, body: string): void {
+  saveQueue.schedule(path, body);
+}
+
+/**
+ * Debounced auto-save of a data file other than the page/package in the store
+ * (e.g. `<page>.zones.yaml`): same queue, so flush, fences, If-Match and
+ * beforeunload cover it. Load the file with fetchDataFile first (ETag).
+ */
+export function scheduleSave(path: string, body: string): void {
   saveQueue.schedule(path, body);
 }
 
@@ -236,16 +261,13 @@ export function flushSavesOnUnload(): void {
   saveQueue.flushNow({ keepalive: true });
 }
 
-/** Data path of a page yaml, as used by auto-save. */
-export function pageFilePath(pkg: string, pageId: string): string {
-  return `MJC-400/${pkg}/pages/${pageId}.sch.yaml`;
-}
-
 export const useDocStore = create<DocState>((set, get) => ({
   route: { mode: 'empty' },
   project: null,
   pkg: null,
+  pkgPath: null,
   page: null,
+  pagePath: null,
   allPages: new Map(),
   icMap: null,
   issues: [],
@@ -265,8 +287,8 @@ export const useDocStore = create<DocState>((set, get) => ({
 
   setRoute: (route) => set({ route }),
   setProject: (project) => set({ project }),
-  setPackage: (pkg) => set({ pkg }),
-  setPage: (page) => set({ page, past: [], future: [], selection: null }),
+  setPackage: (pkg, path) => set({ pkg, pkgPath: pkg ? path : null }),
+  setPage: (page, path) => set({ page, pagePath: page ? path : null, past: [], future: [], selection: null }),
   setAllPages: (allPages) => set({ allPages }),
   setIcMap: (icMap) => set({ icMap }),
   setIssues: (issues) => set({ issues }),
@@ -294,22 +316,21 @@ export const useDocStore = create<DocState>((set, get) => ({
 
   editPage: (mutator) => {
     const state = get();
-    if (!state.page || !state.route.pkg) return;
+    if (!state.page || !state.pagePath) return;
     const draft = clone(state.page);
     mutator(draft);
     const past = [...state.past, state.page].slice(-HISTORY_LIMIT);
     set({ page: draft, past, future: [] });
-    schedulePut(pageFilePath(state.route.pkg, draft.page), serializePage(draft));
+    schedulePut(state.pagePath, serializePage(draft));
   },
 
   editPackage: (mutator) => {
     const state = get();
-    if (!state.pkg || !state.route.pkg) return;
+    if (!state.pkg || !state.pkgPath) return;
     const draft = clone(state.pkg);
     mutator(draft);
     set({ pkg: draft });
-    const path = `MJC-400/${state.route.pkg}/package.yaml`;
-    schedulePut(path, serializePackage(draft));
+    schedulePut(state.pkgPath, serializePackage(draft));
   },
 
   undo: () => {
@@ -321,9 +342,7 @@ export const useDocStore = create<DocState>((set, get) => ({
       past: state.past.slice(0, -1),
       future: [state.page, ...state.future].slice(0, HISTORY_LIMIT),
     });
-    if (state.route.pkg) {
-      schedulePut(pageFilePath(state.route.pkg, prev.page), serializePage(prev));
-    }
+    if (state.pagePath) schedulePut(state.pagePath, serializePage(prev));
   },
 
   redo: () => {
@@ -335,8 +354,6 @@ export const useDocStore = create<DocState>((set, get) => ({
       past: [...state.past, state.page].slice(-HISTORY_LIMIT),
       future: state.future.slice(1),
     });
-    if (state.route.pkg) {
-      schedulePut(pageFilePath(state.route.pkg, next.page), serializePage(next));
-    }
+    if (state.pagePath) schedulePut(state.pagePath, serializePage(next));
   },
 }));

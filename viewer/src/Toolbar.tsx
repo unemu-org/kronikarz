@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useDocStore, flushSavesOrAlert, runRewrite, postRewrite, pageFilePath } from './store.ts';
+import { useDocStore, flushSavesOrAlert, runRewrite, postRewrite, parsePageFilePath } from './store.ts';
 import { navigate } from './router.ts';
 import { apiWrite } from './api.ts';
 
@@ -20,20 +20,23 @@ export function Toolbar(): JSX.Element {
   const setMulti = useDocStore((s) => s.setMulti);
   const editPage = useDocStore((s) => s.editPage);
   const page = useDocStore((s) => s.page);
+  const pagePath = useDocStore((s) => s.pagePath);
   const [visionBusy, setVisionBusy] = useState(false);
+  // Page actions target the file the page was loaded from (= the auto-save
+  // path, which runRewrite fences), not the YAML `page:` field or the route.
+  const target = pagePath ? parsePageFilePath(pagePath) : null;
 
   async function visionPage() {
-    if (!page || !route.pkg) return;
+    if (!page || !pagePath || !target) return;
+    const { pkg: pkgId, pageId } = target;
     if (!confirm(
-      `Vision-digitize strony ${page.page}? ` +
+      `Vision-digitize strony ${pageId}? ` +
       `Plik zostanie nadpisany (auto .bak przed). Trwa ~30-60s.`
     )) return;
     setVisionBusy(true);
-    const pkgId = route.pkg;
-    const pageId = page.page;
     try {
       // Rewrites the page server-side: flush, fence the page, POST, reload.
-      await runRewrite(pageFilePath(pkgId, pageId), 'Vision', async () => {
+      await runRewrite(pagePath, 'Vision', async () => {
         const { outcome, data: d } = await postRewrite('/vision-page', { package: pkgId, page: pageId });
         if (outcome !== 'ok') {
           alert('vision failed: ' + (d?.error ?? outcome) + (d?.stderr ? '\n\nstderr:\n' + String(d.stderr).slice(0, 1000) : ''));
@@ -55,13 +58,14 @@ export function Toolbar(): JSX.Element {
   }
 
   async function makeBak() {
-    if (!page || !route.pkg) return;
+    if (!page || !target) return;
+    const { pkg: pkgId, pageId } = target;
     // .bak must contain the latest edits.
     if (!(await flushSavesOrAlert('Backup'))) return;
     const r = await apiWrite('/make-bak', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ package: route.pkg, page: page.page }),
+      body: JSON.stringify({ package: pkgId, page: pageId }),
     });
     const d = await r.json();
     if (!r.ok) { alert('backup failed: ' + (d.error ?? r.statusText)); return; }
@@ -69,13 +73,12 @@ export function Toolbar(): JSX.Element {
   }
 
   async function restoreBak() {
-    if (!page || !route.pkg) return;
+    if (!page || !pagePath || !target) return;
     if (!confirm('Przywrócić ostatni .bak? Aktualne zmiany zostaną nadpisane.')) return;
-    const pkgId = route.pkg;
-    const pageId = page.page;
+    const { pkg: pkgId, pageId } = target;
     // Flush, then fence the page: no auto-save PUT may land after /restore-bak
     // (it would silently undo the restore). Reloads on success.
-    await runRewrite(pageFilePath(pkgId, pageId), 'Przywracanie .bak', async () => {
+    await runRewrite(pagePath, 'Przywracanie .bak', async () => {
       const { outcome, data: d } = await postRewrite('/restore-bak', { package: pkgId, page: pageId });
       if (outcome !== 'ok') alert('restore failed: ' + (d?.error ?? outcome));
       return outcome;

@@ -1,7 +1,7 @@
 import { Layer, Text, Group, Line, Rect, Circle } from 'react-konva';
 import type { CrossRef, Page } from '@kronikarz/shared';
 import { parsePage, serializePage } from '@kronikarz/shared';
-import { updateDataFile, useDocStore } from '../store.ts';
+import { pageFilePath, parsePackageFilePath, parsePageFilePath, updateDataFile, useDocStore } from '../store.ts';
 import { navigate } from '../router.ts';
 import { activeNets } from './selection.ts';
 
@@ -14,9 +14,11 @@ async function autoAddCrossRefOn(
   label: string,
   sourceSheet: number | undefined,
 ): Promise<void> {
-  const pkgId = useDocStore.getState().pkg?.package.id;
+  // Package dir of the loaded package.yaml (= data path), not `package.id`.
+  const pkgPath = useDocStore.getState().pkgPath;
+  const pkgId = pkgPath ? parsePackageFilePath(pkgPath) : null;
   if (!pkgId) return;
-  const path = `MJC-400/${pkgId}/pages/${targetPageId}.sch.yaml`;
+  const path = pageFilePath(pkgId, targetPageId);
   const out: { written: Page | null } = { written: null };
   const res = await updateDataFile(path, (txt) => {
     const pg = parsePage(txt, path);
@@ -72,7 +74,13 @@ export function CrossRefLayer({ refs, zoom }: Props): JSX.Element {
   const stroke = 1 / zoom;
   const editing = tool === 'edit';
   const page = useDocStore((s) => s.page);
+  const pagePath = useDocStore((s) => s.pagePath);
+  const pkgPath = useDocStore((s) => s.pkgPath);
   const active = activeNets(page, selection);
+  // Ids are file stems (package.pages[].id), so the open page is identified by
+  // the file it was loaded from, not its YAML `page:` field.
+  const openId = pagePath ? parsePageFilePath(pagePath)?.pageId : undefined;
+  const pkgDir = pkgPath ? parsePackageFilePath(pkgPath) : null;
 
   // Mapa sheet (jako string) → pageId i pageId → Set<net> z cross_refs
   const sheetToPageId = new Map<string, string>();
@@ -89,15 +97,15 @@ export function CrossRefLayer({ refs, zoom }: Props): JSX.Element {
     crossNetsByPage.set(pid, s);
   }
   // Live override aktualnej strony
-  if (page) {
+  if (page && openId) {
     const s = new Set<string>();
     for (const cr of page.cross_refs ?? []) if (cr.net && cr.net.trim()) s.add(cr.net);
-    crossNetsByPage.set(page.page, s);
+    crossNetsByPage.set(openId, s);
   }
   const pageHasReturn = (sheet: string, net: string): boolean => {
     const targetPid = sheetToPageId.get(String(sheet));
     if (!targetPid) return false;
-    if (page && targetPid === page.page) return true; // bezsensowne self-ref ale akceptujemy
+    if (page && targetPid === openId) return true; // bezsensowne self-ref ale akceptujemy
     return crossNetsByPage.get(targetPid)?.has(net) ?? false;
   };
 
@@ -145,8 +153,8 @@ export function CrossRefLayer({ refs, zoom }: Props): JSX.Element {
             }));
             return;
           }
-          if (canNavigate && pkg && alt) {
-            navigate({ mode: 'page', pkg: pkg.package.id, page: r.pages[0]! });
+          if (canNavigate && pkgDir && alt) {
+            navigate({ mode: 'page', pkg: pkgDir, page: r.pages[0]! });
             return;
           }
           setSelection({ kind: 'cross_ref', idx: i });
@@ -274,12 +282,12 @@ export function CrossRefLayer({ refs, zoom }: Props): JSX.Element {
                     fontStyle="bold"
                     onClick={async (e) => {
                       e.cancelBubble = true;
-                      if (!targetPid || !pkg) return;
-                      if (t.faulty && page) {
-                        const sourceSheet = pkg.package.pages.find((pp) => pp.id === page.page)?.sheet;
+                      if (!targetPid || !pkg || !pkgDir) return;
+                      if (t.faulty && page && openId) {
+                        const sourceSheet = pkg.package.pages.find((pp) => pp.id === openId)?.sheet;
                         await autoAddCrossRefOn(targetPid, r.net, r.label ?? r.net, sourceSheet);
                       }
-                      navigate({ mode: 'page', pkg: pkg.package.id, page: targetPid });
+                      navigate({ mode: 'page', pkg: pkgDir, page: targetPid });
                     }}
                   />,
                 );
