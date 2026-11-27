@@ -342,9 +342,12 @@ wyłącznie ludzkie — bez `src`. Symbole zasilania liczą się do ④ `labels`
 Zapis: **writer zapisuje tylko `auto`**; edycja człowieka usuwa pole (jedna
 postać `edited`, strony ręczne bez nowych linii, poprawka w diffie = usunięta
 linia). `src: edited` zapisane jawnie jest poprawne i znaczy to samo. Każda
-inna wartość = `edited` + ostrzeżenie `SRC_INVALID`. Krok tworzący element
-ustawia `auto` także na polach, które wypełnią późniejsze kroki (np. ①
-zapisuje bramkę z `src: auto, text_src: auto`).
+inna wartość = `edited` + ostrzeżenie `SRC_INVALID`. Krok ustawia `auto` tylko
+na aspektach, które sam wypełnia: ① zapisuje bramkę z `src: auto` i pustym
+tekstem, **bez** `text_src` — aspekt tekstu jest pusty, więc ② i tak może go
+wypełnić (`aspectEmpty`) i wtedy ustawia `text_src: auto`. (`text_src: auto` na
+pustej bramce chroniłby źle: `gateTextKey` nie obejmuje pinów, więc piny dopisane
+przez człowieka zostałyby pod `auto`.)
 
 **Wypełnianie pustych aspektów** (decyzja opiekuna
 2026-11-27). Krok może wypełnić aspekt dowolnego elementu — także dodanego przez

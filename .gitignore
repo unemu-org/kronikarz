@@ -19,6 +19,9 @@ data/.vision-cache/
 data/.ocr-cache/
 data/unmatched/
 
+# Snapshoty surowych wyników kroków pipeline'u (scripts/auto.py) — lokalne dane do uczenia
+data/.auto/
+
 # Auto-backups (detect-nets, manual undo)
 *.bak
 *.sch.yaml.*.bak

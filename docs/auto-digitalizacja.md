@@ -148,6 +148,101 @@ just auto PKG=P-R3-2 PAGE=2-58 STEP=text --force
 Każdy przebieg wypisuje: strony, krok, liczbę elementów `auto`, liczbę niepewnych, czas, koszt
 (przy płatnym VLM — tylko za zgodą opiekuna i w ustalonym budżecie).
 
+### Uruchomienie (kr-9p8.21)
+
+`scripts/auto.py` — wspólne wejście CLI i (kr-9p8.19) serwera. Zaimplementowane kroki:
+① `gates` (`cv-gates.py`) i ③ `wires` (`cv-wires.py` tryb (a) na **bieżących** bramkach
+strony, z pinami, jeśli są). `text`, `labels`, `nets` są rozpoznawane i odrzucane z exit 3.
+Reguły kroków (`canRun`, `nextRunnableStep`, `markStaleAfter`, `aspectEmpty`, druty po
+wartości, liczby jak w JS: 545.0 = 545, -0 = 0) są przeniesione do `scripts/_steps.py` — te
+same co w `shared/src/steps.ts`.
+
+```bash
+just auto PKG=P-R3-2 PAGE=2-58 STEP=gates [DATA=<kopia>] [--dry-run]   # bez --dry-run ostrzega: pisze do danych
+uv run scripts/auto.py --data <DATA_ROOT> --pkg P-R3-2 --page 2-58|all \
+    --step gates|wires|next [--force] [--draft] [--dry-run] [--json]
+PYTHONDONTWRITEBYTECODE=1 uv run --with pytest --with pyyaml --with numpy \
+    --with opencv-python-headless pytest -p no:cacheprovider \
+    scripts/test_auto.py scripts/test_steps.py scripts/test_jsyaml.py
+```
+
+- Pakiet: `<DATA_ROOT>/<moduł>/<pkg>/package.yaml`, gdzie moduł ma `project.yaml`
+  (`data/gold` nie jest modułem). Strony i skany ze ścieżek w `package.yaml`.
+- Exit: 0 ok (także `--step next`, gdy wszystko zatwierdzone); 1 błąd; 2 odmowa (`canRun`
+  albo ochrona kroku ⑤, niżej); 3 krok niezaimplementowany. Przy `--page all` wygrywa
+  najpoważniejszy: 1 > 3 > 2 > 0. Błąd użycia (argparse) też daje 1, bo 2 znaczy odmowę.
+- Zapis:
+  1. Tuż przed zapisem strona jest czytana jeszcze raz; jeśli zmieniła się od wczytania
+     (viewer, drugi przebieg), błąd (exit 1) i nic nie jest zapisane — także snapshot.
+  2. Niezmienny snapshot surowego wyniku narzędzia `<DATA_ROOT>/.auto/<pkg>/<strona>/<krok>-<run>.yaml`
+     (tworzony wyłącznie; `run` = czas UTC `20261127T153000`, wspólny dla całego wsadu, ten sam
+     w `steps[krok].run`; przy kolizji sufiks `-2`, `-3`…; dowiązanie symboliczne na ścieżce
+     `.auto` = odmowa). W snapshocie także pola spoza formatu: `cv_class`, `cv_pins` bramek,
+     `cv_free` (wolne końce) i `pin.net` z cv-wires — wejście dla kroków ②, ④, ⑤.
+  3. Strona przez `_safe_write` (kopia `<plik>.<ISO>.bak`, zapis atomowy, symlink = odmowa).
+  `--dry-run` nie zapisuje nic, także snapshotu.
+- Styl YAML (`scripts/_jsyaml.py`): wczytywanie jak js-yaml (YAML 1.2 core: `yes`/`no` to
+  napisy, `1e3` to liczba), zapis bajt w bajt jak `serializePage` viewera. Sekcje strony, których
+  treść się nie zmieniła, zostają bajt w bajt (także w stylu innego writera, np. gen-stubs);
+  zmieniona sekcja (`gates`, `nets`, `steps`) jest zapisana w stylu viewera. Przebieg bez zmian
+  treści dopisuje więc tylko sekcję `steps`. Sprawdza to `test_jsyaml.py` na wszystkich
+  stronach `data/MJC-400` (tylko odczyt; porównanie z prawdziwym serializerem przez node).
+  Komentarze YAML wewnątrz zmienionej sekcji najwyższego poziomu (i zaraz za nią) mogą zniknąć
+  — viewer gubi je zawsze; dziś żadna ze 155 stron nie ma komentarzy. Tekst strony i snapshotu
+  musi się wczytać z powrotem jako ten sam dokument, a powtórzony klucz mapy (także `1` i `'1'`)
+  to błąd jak w js-yaml — w obu przypadkach exit 1 i nic nie jest zapisane.
+- Zmiana strony w trakcie przebiegu (viewer, drugi przebieg) jest sprawdzana przed snapshotem
+  i jeszcze raz tuż przed zapisem strony; w drugim przypadku świeży snapshot jest usuwany. Także
+  nieudany zapis strony usuwa snapshot — snapshot istnieje tylko dla zapisanego przebiegu.
+- `steps[krok] = {status: auto, run, at}`. Późniejsze kroki `approved` → `stale`, gdy krok był
+  zatwierdzony (`--force`) albo zmieniła się jego treść (`stepFingerprint`).
+- **① gates.** Bramka znika tylko, gdy jej ramka jest `auto`, `note` pusta, a każdy inny aspekt
+  na niej (tekst, piny, nety pinów) jest pusty albo `auto` z kroku, który nie jest `approved` /
+  `stale` (zatwierdzony tekst jest sprawdzony przez człowieka — zostaje). `verified` nie chroni
+  (to nie treść). Wykryta ramka jest odrzucana jako ta sama bramka, gdy z bramką, która zostaje,
+  ma IoU ≥ 0,5 **albo** środek jednej leży w drugiej. Sam IoU nie wystarczał: ludzkie bramki bez
+  `w`/`h` mają autoBox viewera (80 × 90+, osobno dla każdego wymiaru, `w: 0` zostaje 0), często
+  dużo mniejszy od narysowanej ramki — IoU 0,18–0,43 dawało 13 duplikatów na 2-64/2-67/2-68
+  (teraz 0). Nowa bramka: `ref: ""`, `gate: null`, `pins: []`, `src: auto`, **bez** `text_src`
+  — krok ustawia `auto` tylko na aspektach, które sam wypełnia (format-spec v1.2); aspekt tekstu
+  jest pusty, więc krok ② i tak może go wypełnić (`aspectEmpty`).
+- **③ wires.** Odcinki i kropki `auto` (po wartości) są usuwane razem z polami `auto_*`; net,
+  który przez to opustoszał i którego nic nie używa (pin / port / odsyłacz / zasilanie, `cross`,
+  `pins[]`), znika. Wykryty odcinek jest przycinany do części niepokrytej przez zostające
+  odcinki (równoległe, ≤ 3 px w poprzek; resztka < 8 px odpada; odcinki netu `""` się nie
+  liczą), kropka przy zostającej kropce odpada — inaczej ponowne przebiegi na stronie z ręcznymi
+  drutami dublowałyby rysunek. Każda składowa spójna z cv-wires = nowy net `NET_AUTO_<n>`
+  (najmniejszy wolny numer), wszystkie jego odcinki i kropki w `auto_segments` /
+  `auto_junctions`. Krok ③ niesie samą geometrię: `pin.net`, porty, odsyłacze i nety ludzkie
+  zostają nietknięte; nazwy i scalanie netów to krok ⑤ (zmiana nazwy / scalenie w viewerze
+  zostawia odcinki `auto`). Składowa zamiast jednego wspólnego netu, bo `eval-digitize`
+  i walidator liczą per net, a podział na składowe to już wynik CV.
+- **Ochrona kroku ⑤.** Jeśli ponowny ③ miałby usunąć odcinki / kropki `auto` z netu spoza
+  `NET_AUTO_*` (nazwanego) albo z netu, którego używa końcówka (pin / port / odsyłacz /
+  zasilanie), to cofnąłby pracę kroku ⑤ — odmowa (exit 2) z listą netów i liczbą elementów.
+  Z `--force` krok przebiega i raportuje te nety (`step5_nets` w `--json`).
+- Znane ograniczenia: usunięcie elementu `auto` przez człowieka nie jest pamiętane — ponowny
+  przebieg kroku doda go znowu (do przeglądu: usunąć jeszcze raz albo poprawić wykrycie).
+  ③ na stronie z ręcznie narysowanymi drutami dodaje krótkie „ścinki” tam, gdzie CV i rysunek
+  ręczny się rozjeżdżają o więcej niż 3 px (2-58 z danymi ręcznymi: 155 wykrytych odcinków,
+  136 odrzuconych, 14 przyciętych, 19 dodanych w 17 netach).
+- Walidator na stronie po krokach ① + ③: `GATE_UNKNOWN_REF` (err) na każdej nowej bramce
+  (`ref` pusty do kroku ②) i `NET_EMPTY` (warn) na każdym `NET_AUTO_*` (końcówki dopiero
+  w ⑤) — oczekiwane; viewer powinien filtrować walidację do bieżącego kroku.
+
+Pomiar (MEASURED, 2026-11-27, kopia danych; strony wzorca 2-58…2-61, 2-63 najpierw
+zredukowane do pustej strony — bez bramek, netów, portów, odsyłaczy, zasilania; adnotacje
+i dekoracje zostały — potem `--step gates`, `--step wires --draft`): `eval-digitize` daje
+gateP/R/F1 = 1,000 na 2-58…2-61, 0,947 / 1,000 / 0,973 na 2-63 (TOTAL 0,987 / 1,000 / 0,993 —
+tyle co `cv-gates` końcowa) i wireP/R/F1/wF1geom/juncP/juncR identyczne z tabelą v4 (a)
+`cv-wires` (2-58 .926/.944/.935/.936/1.000/.864 … 2-61 .810/.837/.823/.832/.923/.923), mimo
+że bramki są z `cv-gates`, nie ze wzorca. Odcinki, kropki i podział na nety są identyczne
+z bezpośrednim `cv-wires.py --gates <ta sama strona>` (także 2-62 z 10 ręcznymi bramkami:
+wszystkie 10 wykrytych ramek odrzucone, ręczne zostały). Czas ①+③: 0,4–0,8 s na stronę.
+Ponowny przebieg obu kroków daje tę samą treść. `--step gates` na kopii ręcznych stron P-R3-2:
+na 2-58…2-62, 2-64…2-66 diff to tylko dopisana sekcja `steps` (5 linii); na 2-63, 2-67, 2-68,
+2-69 zmienione tylko sekcje `gates` i `steps`.
+
 ### Viewer
 
 - Pasek kroków ①–⑥ nad płótnem ze stanem każdego kroku; wybór kroku ogranicza widoczne

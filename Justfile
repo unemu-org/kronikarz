@@ -41,6 +41,33 @@ validate PKG="data/MJC-400/P-X3-2":
 install:
     npm install
 
+# Krok pipeline'u etapowego (scripts/auto.py, docs/auto-digitalizacja.md) — narzędzie opiekuna,
+# PISZE do prawdziwych danych (DATA, domyślnie $KRONIKARZ_DATA albo ./data).
+# just auto PKG=P-R3-2 PAGE=2-58|all STEP=gates|wires|next [DATA=<kopia>] [--force] [--draft] [--dry-run] [--json]
+[positional-arguments]
+auto *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    pkg=""; page=""; step=""; data="${KRONIKARZ_DATA:-./data}"; rest=(); dry=0
+    for a in "$@"; do
+        case "$a" in
+            PKG=*) pkg="${a#PKG=}" ;;
+            PAGE=*) page="${a#PAGE=}" ;;
+            STEP=*) step="${a#STEP=}" ;;
+            DATA=*) data="${a#DATA=}" ;;
+            --dry-run) dry=1; rest+=("$a") ;;
+            *) rest+=("$a") ;;
+        esac
+    done
+    if [ -z "$pkg" ] || [ -z "$page" ] || [ -z "$step" ]; then
+        echo "użycie: just auto PKG=<pakiet> PAGE=<strona|all> STEP=<gates|wires|next> [DATA=<katalog>] [--force] [--draft] [--dry-run] [--json]" >&2
+        exit 1
+    fi
+    if [ "$dry" = 0 ]; then
+        echo "UWAGA: zapis do PRAWDZIWYCH danych w $data (strona + .bak obok, snapshot w $data/.auto). Próby: DATA=<kopia> albo --dry-run." >&2
+    fi
+    exec uv run scripts/auto.py --data "$data" --pkg "$pkg" --page "$page" --step "$step" ${rest[@]+"${rest[@]}"}
+
 # Skany MJC-400 z oracles (fetch-only PDF) -> data/scans-raw + data/MJC-400/*/scans
 scans:
     git submodule update --init oracles
