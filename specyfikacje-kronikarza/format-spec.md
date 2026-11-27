@@ -1,10 +1,22 @@
 # Kronikarz — Format plików
-## Specyfikacja kompletna v1.1
+## Specyfikacja kompletna v1.2
 
 Kronikarz to narzędzie do digitalizacji i rekonstrukcji schematów
 elektronicznych ze skanów dokumentacji technicznej (głównie MERA-400).
 Format plików zaprojektowany pod workflow: AI/CV generuje YAML ze skanu
 → człowiek weryfikuje i koryguje w viewerze → eksporter generuje KiCad.
+
+Zmiany od v1.1 (pipeline etapowy, kr-9p8.17 / kr-9p8.18):
+- **Pochodzenie elementów** — opcjonalne pola `src` / `text_src` / `net_src`
+  (`auto` | `edited`) na bramkach, pinach, portach, cross-refach i symbolach
+  zasilania; **brak pola = `edited`**
+- **Pochodzenie drutów** — opcjonalne `net.auto_segments` / `net.auto_junctions`
+  (odcinki i kropki `auto`, dopasowywane po wartości)
+- **Stan kroków strony** — opcjonalna sekcja `steps` (`gates`, `text`, `wires`,
+  `labels`, `nets` → `{status, run?, at?}`); brak = `todo`
+- Pliki v1.1 są poprawnymi plikami v1.2 bez zmian (wszystko ręczne, kroki `todo`);
+  `kronikarz: "1"` bez zmian
+- Walidacja: ostrzeżenia `STEP_INVALID`, `SRC_INVALID`, `AUTO_GEOM_INVALID`
 
 Zmiany od v1.0:
 - **Port** ma rozdzielone `connector` (litera) + `pin` (numer) zamiast łączonego stringa
@@ -299,6 +311,135 @@ junctions (kropki połączenia T/X). Viewer + edytor utrzymują:
 - **junction = punkt gdzie ≥3 końce segmentów się stykają**
   (viewer dodaje auto-junction renderingiem, manualne w `nets[name].junctions`)
 
+### Pipeline etapowy: pochodzenie elementów i stan kroków (v1.2)
+
+Projekt pipeline'u: `docs/auto-digitalizacja.md`, „Pipeline etapowy z punktem
+kontroli”. Kroki w kolejności: ① `gates` → ② `text` → ③ `wires` → ④ `labels`
+→ ⑤ `nets` (⑥ = podgląd eksportu, bez stanu). Pomocnicze funkcje:
+`shared/src/steps.ts`.
+
+**Pochodzenie (`src`).** `auto` = wynik kroku pipeline'u, nieruszony przez
+człowieka; `edited` = zmieniony albo dodany przez człowieka. **Brak pola =
+`edited`** — dane sprzed pipeline'u są ręczne. Element, który wypełnia kilka
+kroków, ma osobne pole na każdy krok, bo poprawka w jednym kroku nie może
+blokować kolejnego (np. poprawiona ramka z ① nie może zablokować odczytu
+tekstu w ②):
+
+| Pole | Krok | Co obejmuje |
+|---|---|---|
+| `gate.src` | `gates` | `x`, `y`, `w`, `h`, `rotation` |
+| `gate.text_src` | `text` | `ref`, `gate`, `value`, `label_left`, `label_right` |
+| `pin.src` | `text` | `num`, `side`, `px`/`py` (względem środka bramki), `disconnected` |
+| `pin.net_src` | `nets` | `net`, `cross` |
+| `port.src`, `cross_ref.src`, `power.src` | `labels` | etykieta, złącze/pin, arkusze, typ, położenie, `side`/`rotation` |
+| `port.net_src`, `cross_ref.net_src`, `power.net_src` | `nets` | `net` |
+| `net.auto_segments`, `net.auto_junctions` | `wires` | geometria drutów |
+
+`verified` i `note` nie są treścią żadnego kroku. Adnotacje i dekoracje są
+wyłącznie ludzkie — bez `src`. Symbole zasilania liczą się do ④ `labels`
+(etykieta na końcu drutu, jak port).
+
+Zapis: **writer zapisuje tylko `auto`**; edycja człowieka usuwa pole (jedna
+postać `edited`, strony ręczne bez nowych linii, poprawka w diffie = usunięta
+linia). `src: edited` zapisane jawnie jest poprawne i znaczy to samo. Każda
+inna wartość = `edited` + ostrzeżenie `SRC_INVALID`. Krok tworzący element
+ustawia `auto` także na polach, które wypełnią późniejsze kroki (np. ①
+zapisuje bramkę z `src: auto, text_src: auto`).
+
+**Wypełnianie pustych aspektów** (decyzja opiekuna
+2026-11-27). Krok może wypełnić aspekt dowolnego elementu — także dodanego przez
+człowieka — tylko gdy **cały** ten aspekt jest pusty; wtedy ustawia jego pole
+`*_src: auto`. Aspektu niepustego (także częściowo wypełnionego) nie rusza,
+chyba że jego pole jest `auto` (to wtedy jego własny wynik, który ponowny
+przebieg zastępuje). Przykład: bramka dorysowana przez człowieka w ① bez
+tekstu i pinów dostaje tekst z ② (`text_src: auto`); bramka z wpisanym
+`ref: M5`, ale bez litery, zostaje bez zmian. Pustość aspektu sprawdza
+`aspectEmpty(kind, el, field)` w `shared/src/steps.ts`:
+
+| Element / pole | Aspekt pusty, gdy |
+|---|---|
+| bramka `src` | brak `x` i `y` |
+| bramka `text_src` | `ref`, `gate`, `value`, `label_left`, `label_right` puste i brak pinów |
+| pin `src` | brak `num` i `side` |
+| port `src` | `connector`, `pin`, `label` puste |
+| cross_ref `src` | `label` pusty i brak `pages` |
+| power `src` | `type` pusty |
+| `net_src` (każdy) | `net` pusty (pin: także brak `cross`) |
+
+Położenie portu / odsyłacza / zasilania nie liczy się do pustości (stoi na
+wolnym końcu drutu z kroku ③). Druty nie mają „pustego aspektu”: krok ③
+zastępuje odcinki `auto`, a ludzkie zostawia.
+
+**Druty.** `segments` / `junctions` zostają krotkami (bez zmian dla
+konsumentów). Odcinki `auto` są dodatkowo wypisane w `auto_segments`
+(kropki — w `auto_junctions`) **po wartości**: odcinek z `segments` jest
+`auto`, jeśli identyczny odcinek (kierunek bez znaczenia, z krotnością) jest
+w `auto_segments` tego netu. Wpis bez odpowiednika w `segments` nic nie
+znaczy. Dlaczego nie indeksy: każde przestawienie / podział / usunięcie
+odcinka przez narzędzie, które nie zna tego pola, przesunęłoby indeksy
+i po cichu oznaczyło ludzkie odcinki jako `auto` (ponowny przebieg kroku by
+je skasował); dopasowanie po wartości w najgorszym razie gubi `auto`, czyli
+zostawia odcinek człowiekowi. Dlaczego nie obiekty / piąty element krotki:
+zmieniłoby to typ `segments` dla walidatora, viewera i skryptów Pythona
+(`x1, y1, x2, y2 = seg`).
+
+Znane ograniczenie: viewer po edycji dopasowuje odcinki `auto` po wartości
+w obrębie całej strony (żeby scalenie / zmiana nazwy netu nie gubiła `auto`).
+Usunięcie odcinka `auto` może więc przenieść `auto` na identyczny odcinek
+ludzki (w innym necie albo duplikat w tym samym). Nakładające się druty i tak
+są błędem rysunku, więc zostawiamy to tak.
+
+Wpisy `auto_segments` / `auto_junctions` muszą być listami 4 / 2 skończonych
+liczb. Zły wpis (albo pole niebędące listą) jest pomijany: odcinek nie jest
+`auto`, edycja nie zgłasza wyjątku. Walidator ostrzega `AUTO_GEOM_INVALID`,
+a pierwsza edycja strony w viewerze usuwa złe wpisy.
+
+```yaml
+nets:
+  "-BLR":
+    pins: []
+    segments:
+      - [110, 90, 150, 90]          # auto
+      - [150, 90, 150, 130]         # edited (przesunięty przez człowieka)
+    junctions:
+      - [150, 90]
+    auto_segments:
+      - [110, 90, 150, 90]
+    auto_junctions:
+      - [150, 90]
+```
+
+**Stan kroków (`steps`).** Sekcja strony; brak sekcji albo kroku = `todo`.
+
+```yaml
+steps:
+  gates:  { status: approved, run: "20261127T101500-a1", at: "2026-11-27T10:20:00Z" }
+  text:   { status: auto, run: "20261127T103000-b2", at: "2026-11-27T10:30:00Z" }
+```
+
+| `status` | Znaczenie |
+|---|---|
+| `todo` | krok nie przebiegł |
+| `auto` | krok przebiegł, czeka na przegląd |
+| `approved` | zatwierdzony przez człowieka |
+| `stale` | był `approved`, ale później zmieniono wcześniejszy krok |
+
+`run` — id przebiegu (snapshot `data/.auto/<pakiet>/<strona>/<krok>-<run>.yaml`),
+`at` — czas ISO ostatniej zmiany stanu. Nieznany krok albo status →
+ostrzeżenie `STEP_INVALID`, krok traktowany jak `todo`.
+
+Reguły (`shared/src/steps.ts`):
+- krok przebiega, gdy poprzedni jest `approved` (wyjątek: `--draft`);
+  krok `approved` tylko z `--force` (`canRun`);
+- przebieg zastępuje wyłącznie pola `auto` swojego kroku i wypełnia
+  aspekty całkiem puste (`aspectEmpty`); niepustych aspektów `edited` nie rusza;
+- **każda edycja człowieka** w viewerze (`applyHumanEdit`, wołane w
+  `editPage`): zmienione pola `auto` → `edited`; jeśli zmieniła się treść
+  kroku X, każdy **późniejszy** krok `approved` → `stale` (`markStaleAfter`;
+  sam X zostaje, jaki był). Przeniesienie niezmienionego odcinka do innego
+  netu (scalenie, zmiana nazwy) to zmiana kroku `nets`, nie `wires` — odcinek
+  zostaje `auto`.
+
 ---
 
 ## `ic_map.yaml`
@@ -538,6 +679,9 @@ interface Issue {
 | `PORT_NET_MISSING`             | warn   | `port.net` nie ma entry w `page.nets`                         |
 | `PORT_NOT_ON_BACKPLANE`        | warn   | port nie dopasowany do żadnego backplane endpoint            |
 | `GATES_UNVERIFIED`             | info   | liczba bramek z `verified: false`                             |
+| `STEP_INVALID`                 | warn   | `steps`: nieznany krok albo status (krok = `todo`)            |
+| `SRC_INVALID`                  | warn   | `src`/`text_src`/`net_src` spoza `auto` \| `edited` (= `edited`) |
+| `AUTO_GEOM_INVALID`            | warn   | zły wpis `auto_segments`/`auto_junctions` (pomijany)          |
 
 #### Project-level
 
@@ -593,6 +737,7 @@ Pliki `*.bak` są w `.gitignore`.
 | Rotacja elementow                  | sch.yaml      | tak               |
 | Override w/h pudla bramki          | sch.yaml      | tak               |
 | Weryfikacja (verified, note)       | sch.yaml      | tak               |
+| Pochodzenie (src) i stan kroków    | sch.yaml      | tak (v1.2)        |
 | Rejestr IC pakietu                 | package.yaml  | tak               |
 | Zdjecia PCB                        | package.yaml  | tak               |
 | Backplane multi-drop signals       | project.yaml  | tak               |

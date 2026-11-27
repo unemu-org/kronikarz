@@ -1,6 +1,6 @@
 import { Layer, Text, Group, Line, Rect, Circle } from 'react-konva';
 import type { CrossRef, Page } from '@kronikarz/shared';
-import { parsePage, serializePage } from '@kronikarz/shared';
+import { applyHumanEdit, parsePage, serializePage } from '@kronikarz/shared';
 import { pageFilePath, parsePackageFilePath, parsePageFilePath, updateDataFile, useDocStore } from '../store.ts';
 import { navigate } from '../router.ts';
 import { activeNets } from './selection.ts';
@@ -39,6 +39,8 @@ async function autoAddCrossRefOn(
     if (!pg.nets[net]) {
       pg.nets[net] = { pins: [], segments: null, junctions: null };
     }
+    // Nowy odsyłacz = zmiana kroków labels/nets tej strony (format v1.2).
+    applyHumanEdit(parsePage(txt, path), pg, new Date().toISOString());
     out.written = pg;
     return serializePage(pg);
   });

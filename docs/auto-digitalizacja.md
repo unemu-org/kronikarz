@@ -112,9 +112,16 @@ krok ⑥ (podgląd arkusza), a projekt KiCad całego pakietu powstaje z widoku p
 - Krok przebiega tylko, gdy poprzedni jest `approved` (wyjątek: `--draft` do prób).
 - Zastępuje wyłącznie elementy `src: auto` tego kroku; elementy `edited` zostają. Nigdy nie
   rusza elementów innych kroków.
-- Zmiana zatwierdzonego kroku (w viewerze albo z `--force`) oznacza późniejsze zatwierdzone
-  kroki jako `stale`; viewer to pokazuje, a opiekun decyduje: zatwierdzić ponownie albo
-  przepuścić krok jeszcze raz.
+- Puste aspekty (decyzja opiekuna 2026-11-27 — USER): krok może
+  wypełnić aspekt (ramka / tekst / net) dowolnego elementu, także dodanego przez człowieka,
+  tylko gdy **cały** aspekt jest pusty, i ustawia wtedy jego `*_src: auto`. Aspektu niepustego
+  (także częściowo wypełnionego) nie nadpisuje. Np. bramka dorysowana w ① dostaje tekst z ②,
+  a bramka z wpisanym samym `ref` zostaje bez zmian. Sprawdza to `aspectEmpty` w
+  `shared/src/steps.ts`; szczegóły w `format-spec.md` v1.2.
+- Każda zmiana treści kroku (w viewerze — także kroku niezatwierdzonego — albo przez ponowny
+  przebieg z `--force`) oznacza wszystkie późniejsze zatwierdzone kroki jako `stale`; sam
+  zmieniony krok zachowuje swój stan. Viewer to pokazuje, a opiekun decyduje: zatwierdzić
+  ponownie albo przepuścić krok jeszcze raz. `verified`, `note` i stan kroków nie są treścią.
 - Zapis przez `_safe_write` (atomowo, `.bak`). Krok uruchomiony z viewera: viewer najpierw
   robi flush zapisów, serwer blokuje stronę na czas przebiegu, po zakończeniu viewer
   przeładowuje stronę (jak dziś `runRewrite`). Krok uruchomiony z CLI przy otwartej stronie:

@@ -103,6 +103,26 @@ export interface Package {
 
 // --- *.sch.yaml ---
 
+// Pochodzenie elementu (v1.2): `auto` = wynik kroku pipeline'u, nieruszony
+// przez człowieka; `edited` = zmieniony albo dodany przez człowieka.
+// Brak pola = `edited` (dane sprzed pipeline'u są ręczne); writer viewera
+// zapisuje tylko `auto` — edycja człowieka usuwa pole. Element ma osobne pole
+// dla każdego kroku, który go wypełnia (zob. format-spec.md, „Pipeline etapowy”).
+export type Src = 'auto' | 'edited';
+
+// Kroki pipeline'u etapowego w kolejności (krok ⑥ = podgląd eksportu, bez stanu).
+export type StepName = 'gates' | 'text' | 'wires' | 'labels' | 'nets';
+export type StepStatus = 'todo' | 'auto' | 'approved' | 'stale';
+
+export interface StepState {
+  status: StepStatus;
+  run?: string; // id przebiegu (snapshot data/.auto/<pakiet>/<strona>/<krok>-<run>.yaml)
+  at?: string; // ISO czas ostatniej zmiany stanu
+}
+
+// Brak kroku (albo całej sekcji) = `todo`.
+export type PageSteps = Partial<Record<StepName, StepState>>;
+
 export type Side = 'left' | 'right' | 'top' | 'bottom';
 export type Rotation = 0 | 90 | 180 | 270;
 
@@ -120,6 +140,8 @@ export interface Pin {
   cross?: CrossPage;
   // Explicitly marked NC (Not Connected). Hidden in viewer, skipped by validator.
   disconnected?: boolean;
+  src?: Src; // krok `text`: num, side, px/py (względem środka bramki), disconnected
+  net_src?: Src; // krok `nets`: net, cross
 }
 
 export interface Gate {
@@ -136,6 +158,8 @@ export interface Gate {
   h?: number; // optional override for box height (px). Default auto-size.
   verified: boolean;
   note: string | null;
+  src?: Src; // krok `gates`: x, y, w, h, rotation
+  text_src?: Src; // krok `text`: ref, gate, value, label_left, label_right
 }
 
 export type PowerType = 'VCC' | 'GND' | string;
@@ -146,6 +170,8 @@ export interface PowerSymbol {
   y: number;
   net: string;
   rotation?: Rotation;
+  src?: Src; // krok `labels`: type, x, y, rotation
+  net_src?: Src; // krok `nets`: net
 }
 
 // Edge connector / port — `< A50 >` style symbol entering or leaving the page.
@@ -159,6 +185,8 @@ export interface Port {
   x: number;         // tip position on scan (in pixels)
   y: number;
   side: Side;        // direction the port opens toward the page interior
+  src?: Src;         // krok `labels`: connector, pin, label, x, y, side
+  net_src?: Src;     // krok `nets`: net
 }
 
 // Intra-package cross-page reference printed at the edge of a schematic page
@@ -171,6 +199,8 @@ export interface CrossRef {
   x: number;
   y: number;
   side: Side;
+  src?: Src; // krok `labels`: label, pages, x, y, side
+  net_src?: Src; // krok `nets`: net
 }
 
 export interface Net {
@@ -178,6 +208,11 @@ export interface Net {
   segments: Array<[number, number, number, number]> | null;
   junctions: Array<[number, number]> | null;
   cross?: CrossPage;
+  // Krok `wires` (v1.2): odcinki / kropki z `segments` / `junctions`, które są
+  // `auto`. Dopasowanie po wartości (odcinek bez względu na kierunek); wpis bez
+  // odpowiednika w `segments`/`junctions` nic nie znaczy. Brak = wszystko `edited`.
+  auto_segments?: Array<[number, number, number, number]>;
+  auto_junctions?: Array<[number, number]>;
 }
 
 export interface Annotation {
@@ -205,6 +240,7 @@ export interface Page {
   nets: Record<string, Net>;
   annotations: Annotation[];
   decorations?: Decoration[];
+  steps?: PageSteps; // v1.2: stan kroków pipeline'u; brak = wszystkie `todo`
 }
 
 // --- ic_map.yaml ---

@@ -80,7 +80,7 @@ Cache: `data/.vision-cache/`, `data/.cv-cache/...`. Wszystkie odpalane przez `uv
 - `migrate-*.py` — migracje schematu (port-split, sheet-numbers, fix-pr3-2-*)
 - `gen-stubs.py`, `sync-packages.py`, `build-ic-map.py`, `install-hooks.sh` — `gen-stubs.py` i `build-ic-map.py` bez `--force` odmawiają nadpisania istniejących plików (wszystko albo nic, `_safe_write.py`); `--force` robi `<plik>.<ISO>.bak` i resetuje kuratorowane pola — na `data/` nie używać. `--root` / `--dry-run` do prób na kopii.
 
-## Format danych (`specyfikacje-kronikarza/format-spec.md` v1.1)
+## Format danych (`specyfikacje-kronikarza/format-spec.md` v1.2)
 
 Cztery typy YAML (`kronikarz: "1"`):
 

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Project, Package, Page, IcMap, Issue } from '@kronikarz/shared';
-import { serializePage, serializePackage } from '@kronikarz/shared';
+import { applyHumanEdit, serializePage, serializePackage } from '@kronikarz/shared';
 import { apiWrite } from './api.ts';
 import {
   createSaveQueue,
@@ -319,6 +319,9 @@ export const useDocStore = create<DocState>((set, get) => ({
     if (!state.page || !state.pagePath) return;
     const draft = clone(state.page);
     mutator(draft);
+    // Każda edycja tu jest ludzka: zmienione elementy `src: auto` → edited,
+    // zmieniony krok → późniejsze zatwierdzone kroki `stale` (format v1.2).
+    applyHumanEdit(state.page, draft, new Date().toISOString());
     const past = [...state.past, state.page].slice(-HISTORY_LIMIT);
     set({ page: draft, past, future: [] });
     schedulePut(state.pagePath, serializePage(draft));

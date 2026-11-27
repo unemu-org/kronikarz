@@ -1,5 +1,6 @@
 import type { Project, Package, Page, IcMap, IcComponent, Component } from './types.ts';
 import { parsePinId, resolveIcKey } from './parse.ts';
+import { SRC_FIELDS, STEP_ORDER, STEP_STATUSES, isJunction, isSegment } from './steps.ts';
 
 function backplaneConnectorsForPackage(project: Project | undefined, pkgId: string): Set<string> {
   if (!project) return new Set();
@@ -403,6 +404,72 @@ export function validatePage(page: Page, pkg?: Package, icMap?: IcMap, project?:
     });
   }
 
+  issues.push(...validateProvenance(page));
+
+  return issues;
+}
+
+// v1.2: `steps` i pola `src` — tylko ostrzeżenia (zła wartość = traktowana jak
+// brak: krok `todo`, element `edited`).
+function validateProvenance(page: Page): Issue[] {
+  const issues: Issue[] = [];
+  const steps: unknown = page.steps;
+  if (steps !== undefined && steps !== null) {
+    if (typeof steps !== 'object' || Array.isArray(steps)) {
+      issues.push({ level: 'warn', code: 'STEP_INVALID', message: 'steps: oczekiwana mapa krok → {status, run?, at?}' });
+    } else {
+      for (const [name, st] of Object.entries(steps as Record<string, unknown>)) {
+        const status = st && typeof st === 'object' ? (st as { status?: unknown }).status : undefined;
+        if (!(STEP_ORDER as readonly string[]).includes(name)) {
+          issues.push({ level: 'warn', code: 'STEP_INVALID', message: `steps.${name}: nieznany krok (znane: ${STEP_ORDER.join(', ')})`, ref: name });
+        } else if (typeof status !== 'string' || !(STEP_STATUSES as readonly string[]).includes(status)) {
+          issues.push({ level: 'warn', code: 'STEP_INVALID', message: `steps.${name}.status=${JSON.stringify(status)} — oczekiwane: ${STEP_STATUSES.join(' | ')}`, ref: name });
+        }
+      }
+    }
+  }
+  let bad = 0;
+  let example = '';
+  const check = (el: object, where: string) => {
+    for (const f of SRC_FIELDS) {
+      const v = (el as Record<string, unknown>)[f];
+      if (v !== undefined && v !== 'auto' && v !== 'edited') {
+        bad++;
+        if (!example) example = `${where}.${f}=${JSON.stringify(v)}`;
+      }
+    }
+  };
+  page.gates.forEach((g, i) => {
+    check(g, `gates[${i}]`);
+    (g.pins ?? []).forEach((p, j) => check(p, `gates[${i}].pins[${j}]`));
+  });
+  (page.ports ?? []).forEach((p, i) => check(p, `ports[${i}]`));
+  (page.cross_refs ?? []).forEach((c, i) => check(c, `cross_refs[${i}]`));
+  (page.power ?? []).forEach((p, i) => check(p, `power[${i}]`));
+  let badGeom = 0;
+  let geomExample = '';
+  for (const [name, net] of Object.entries(page.nets ?? {})) {
+    if (!net) continue;
+    for (const [f, ok] of [['auto_segments', isSegment], ['auto_junctions', isJunction]] as const) {
+      const v: unknown = (net as unknown as Record<string, unknown>)[f];
+      if (v === undefined) continue;
+      const n = Array.isArray(v) ? v.filter((e) => !ok(e)).length : 1;
+      if (n) {
+        badGeom += n;
+        if (!geomExample) geomExample = `nets[${JSON.stringify(name)}].${f}`;
+      }
+    }
+  }
+  if (badGeom) {
+    issues.push({
+      level: 'warn',
+      code: 'AUTO_GEOM_INVALID',
+      message: `${badGeom} złych wpisów auto_segments/auto_junctions (np. ${geomExample}; oczekiwane listy [x1,y1,x2,y2] / [x,y] liczb) — pomijane`,
+    });
+  }
+  if (bad) {
+    issues.push({ level: 'warn', code: 'SRC_INVALID', message: `${bad} pól src/text_src/net_src z wartością spoza auto | edited (np. ${example}) — traktowane jak edited` });
+  }
   return issues;
 }
 
