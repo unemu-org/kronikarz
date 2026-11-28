@@ -268,7 +268,7 @@ na 2-58…2-62, 2-64…2-66 diff to tylko dopisana sekcja `steps` (5 linii); na 
 - Prawy panel = kolejka przeglądu kroku: najpierw elementy niepewne (pewność, niezgodność dwóch
   odczytów, sprzeczność z `ic_map` / rejestrem / walidatorem), klawisze „zatwierdź” / „popraw” /
   „następny”; przycisk „Zatwierdź krok”.
-- Kolory: `auto` (niebieski), `edited` (pomarańczowy), krok zatwierdzony (zielony).
+- Kolory: `auto` (żółty), `edited` (niebieski), krok zatwierdzony (zielony) — jak w makiecie (USER).
 - Walidacja na dole filtrowana do bieżącego kroku.
 - Lista stron i widok pakietu pokazują stan kroków każdej strony (①–⑥).
 - Przycisk „Vision”, okno AI (R) i narzędzie stref (Z) znikają (kr-9p8.16). Zostają
@@ -300,9 +300,9 @@ Zrobione (kr-9p8.20; logika w `viewer/src/stepView.ts`, testy `stepView.test.ts`
   tekst pinu jak w `pinTextKey`) w ②; nety pinów (✎, rozłącz ×) w ⑤; port / odsyłacz / zasilanie —
   etykieta, arkusze, strona, usuń w ④, net w ⑤. Zmiana kroku przerywa rozpoczęte wstawianie /
   rysowanie i czyści historię cofania.
-- Kolory w bieżącym kroku: `auto` niebieski `#64b5f6`, `edited` pomarańczowy `#ffb74d`, krok
-  zatwierdzony zielony `#66bb6a` (jedna paleta `PROV_COLORS`; decyzja opiekuna co do barw
-  w toku — makieta ma auto żółte, ludzkie niebieskie); zaznaczenie, aktywny net i błędy mają
+- Kolory w bieżącym kroku: `auto` żółty `#e5c07b`, `edited` niebieski `#61afef`, krok
+  zatwierdzony zielony `#66bb6a`, krok nieaktualny pomarańczowy (jedna paleta `PROV_COLORS`;
+  barwy jak w makiecie — decyzja opiekuna 2026-11-28); zaznaczenie, aktywny net i błędy mają
   pierwszeństwo, a zaznaczona bramka / odcinek / port ma też grubszą przerywaną linię. Błędy /
   ostrzeżenia barwią płótno tylko z kodów bieżącego kroku (`issueRelevant`).
 - Narzędzia (`toolAllowed`, `placeAllowed`, `pageActionAllowed`): w krokach ①–⑤ V i E; W (drut)

@@ -67,9 +67,11 @@ export const STATUS_MARK: Readonly<Record<StepStatus, string>> = {
 // Decyzja opiekuna co do barw w toku (makieta: auto żółty, ludzkie niebieski).
 
 export const PROV_COLORS = {
-  auto: '#64b5f6', // niebieski: wynik pipeline'u, nieruszony
-  edited: '#ffb74d', // pomarańczowy: zmieniony / dodany przez człowieka
+  // barwy jak w zaakceptowanej makiecie (USER 2026-11-28, wariant C)
+  auto: '#e5c07b', // żółty: wynik pipeline'u, nieruszony
+  edited: '#61afef', // niebieski: zmieniony / dodany przez człowieka
   approved: '#66bb6a', // zielony: krok zatwierdzony
+  stale: '#ff9800', // pomarańczowy: krok nieaktualny
   todo: '#5c616b', // szary: krok nieuruchomiony
 } as const;
 
@@ -78,7 +80,7 @@ export const STATUS_COLOR: Readonly<Record<StepStatus, string>> = {
   todo: PROV_COLORS.todo,
   auto: PROV_COLORS.auto,
   approved: PROV_COLORS.approved,
-  stale: PROV_COLORS.edited,
+  stale: PROV_COLORS.stale,
 };
 
 /** Kolor elementu bieżącego kroku: krok zatwierdzony → zielony, inaczej wg `src`. */
