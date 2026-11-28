@@ -325,7 +325,7 @@ Zrobione (kr-9p8.20; logika w `viewer/src/stepView.ts`, testy `stepView.test.ts`
   najpierw niepewne (problem walidatora tego kroku przy elemencie; odcinki: krótszy niż 10 px,
   koniec we wnętrzu innego odcinka bez kropki), klik / N / Shift+N = zaznacz i przybliż.
   „Zatwierdź krok” przez `editPage` (stan kroku i `verified` nie są treścią): ① ustawia też
-  `verified: true` na każdej bramce; ⑤ tylko bez błędów walidacji strony (kody kroków ①–⑤).
+  `verified: true` na każdej bramce; ⑤ tylko bez błędów walidacji strony (kody kroków ①–⑤); `CROSS_REF_NO_RETURN` nie blokuje — naprawa leży na stronie docelowej (USER 2026-11-28).
   Krok `todo` — z potwierdzeniem. „Cofnij zatwierdzenie”: krok wraca do `auto` (był przebieg) albo
   `todo`, późniejsze zatwierdzone → `stale`.
 - Walidacja: problemy bieżącego kroku (`issueStep`; `CROSS_REF_NO_RETURN` w ⑤ — brak powrotu

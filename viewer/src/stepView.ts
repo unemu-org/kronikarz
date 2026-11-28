@@ -295,9 +295,19 @@ export function groupIssues(
  * Błędy walidacji strony blokujące zatwierdzenie ⑤: `err` o kodzie kroku
  * ①–⑤ tej strony (inne strony pakietu, rejestr i projekt się nie liczą).
  */
+/**
+ * Kody, których naprawa leży na innej stronie (USER 2026-11-28): brak
+ * odsyłacza powrotnego blokuje dopiero tamtą stronę, tu jest tylko widoczny.
+ */
+export const NON_BLOCKING_CODES: ReadonlySet<string> = new Set(['CROSS_REF_NO_RETURN']);
+
 export function blockingErrors(issues: readonly Issue[], pageId: string): Issue[] {
   return issues.filter(
-    (i) => i.level === 'err' && issueStepOf(i) !== null && (i.page === undefined || i.page === pageId),
+    (i) =>
+      i.level === 'err' &&
+      !NON_BLOCKING_CODES.has(i.code) &&
+      issueStepOf(i) !== null &&
+      (i.page === undefined || i.page === pageId),
   );
 }
 

@@ -223,6 +223,8 @@ test('blockingErrors / canApprove: ⑤ tylko bez błędów strony', () => {
   assert.equal(canApprove(p, 'nets', list.slice(1), '2-1').ok, true);
   assert.equal(canApprove(p, 'wires', list, '2-1').ok, true); // inne kroki bez blokady
   assert.equal(canApprove(mkPage({ steps: { gates: { status: 'approved' } } }), 'gates', [], '2-1').ok, false);
+  // brak odsyłacza powrotnego na innej stronie nie blokuje tej strony (USER)
+  assert.equal(canApprove(p, 'nets', [iss('CROSS_REF_NO_RETURN', 'err', { page: '2-1' })], '2-1').ok, true);
 });
 
 // --- zatwierdzanie ---
