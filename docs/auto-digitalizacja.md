@@ -294,8 +294,12 @@ Zrobione (kr-9p8.20; logika w `viewer/src/stepView.ts`, testy `stepView.test.ts`
   w ⑤; bez kroku wszystko, w ⑥ nic. Prostokąt (V) i Shift+klik zaznaczają tylko elementy
   edytowalne (w ④ porty, choć w prostokącie są też środki bramek); Delete, K, wklejanie (jak
   przyciski „+ …”) sprawdzają to samo. Panel zaznaczenia elementu spoza kroku jest tylko do
-  odczytu (`panelEditable`: bramka ①②, odcinek ③, net ③⑤, końcówka ④⑤) z przyciskiem „przełącz”
-  na jego krok. Zmiana kroku przerywa rozpoczęte wstawianie / rysowanie.
+  odczytu (`panelEditable`: bramka ①②⑤, odcinek ③, net ③⑤, końcówka ④⑤) z przyciskiem „przełącz”
+  na jego krok; w panelu edytowalne są tylko pola aspektu kroku (`fieldEditable`): bramka — obrót
+  w ①; ref, litera, wartość, typ / rozkład pinów i NC (`pin.disconnected`, pin nienarysowany —
+  tekst pinu jak w `pinTextKey`) w ②; nety pinów (✎, rozłącz ×) w ⑤; port / odsyłacz / zasilanie —
+  etykieta, arkusze, strona, usuń w ④, net w ⑤. Zmiana kroku przerywa rozpoczęte wstawianie /
+  rysowanie i czyści historię cofania.
 - Kolory w bieżącym kroku: `auto` niebieski `#64b5f6`, `edited` pomarańczowy `#ffb74d`, krok
   zatwierdzony zielony `#66bb6a` (jedna paleta `PROV_COLORS`; decyzja opiekuna co do barw
   w toku — makieta ma auto żółte, ludzkie niebieskie); zaznaczenie, aktywny net i błędy mają
