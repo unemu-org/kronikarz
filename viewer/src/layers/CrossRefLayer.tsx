@@ -1,8 +1,10 @@
 import { Layer, Text, Group, Line, Rect, Circle } from 'react-konva';
 import type { CrossRef, Page } from '@kronikarz/shared';
-import { applyHumanEdit, parsePage, serializePage } from '@kronikarz/shared';
+import { applyHumanEdit, elementSrc, parsePage, serializePage } from '@kronikarz/shared';
 import { pageFilePath, parsePackageFilePath, parsePageFilePath, updateDataFile, useDocStore } from '../store.ts';
 import { navigate } from '../router.ts';
+import { useStepView } from './stepLook.ts';
+import { canEditElement } from '../stepView.ts';
 import { activeNets } from './selection.ts';
 
 // Pobierz YAML strony, dorzuc cross_ref i zapisz spowrotem (updateDataFile:
@@ -74,7 +76,9 @@ export function CrossRefLayer({ refs, zoom }: Props): JSX.Element {
   const toggleMulti = useDocStore((s) => s.toggleMulti);
   const allPages = useDocStore((s) => s.allPages);
   const stroke = 1 / zoom;
-  const editing = tool === 'edit';
+  // Etykieta końcówki (położenie) tylko w ④ / bez kroku; w ⑤ do odczytu.
+  const curStep = useDocStore((s) => s.currentStep);
+  const editing = tool === 'edit' && canEditElement(curStep, 'port', 'label');
   const page = useDocStore((s) => s.page);
   const pagePath = useDocStore((s) => s.pagePath);
   const pkgPath = useDocStore((s) => s.pkgPath);
@@ -111,14 +115,17 @@ export function CrossRefLayer({ refs, zoom }: Props): JSX.Element {
     return crossNetsByPage.get(targetPid)?.has(net) ?? false;
   };
 
+  const sv = useStepView();
+  const look = sv.look('label');
+  const srcField = useDocStore((s) => s.currentStep) === 'nets' ? 'net_src' : 'src';
   return (
-    <Layer>
+    <Layer visible={look.visible} opacity={look.opacity} listening={look.listening}>
       {refs.map((r, i) => {
         const isActive = active.has(r.net);
         const isMulti = multi?.kind === 'cross_ref' && multi.indices.includes(i);
         const isSelected = (selection?.kind === 'cross_ref' && selection.idx === i) || isMulti;
         const canNavigate = pkg && r.pages.length > 0;
-        const color = isActive ? ACTIVE : canNavigate ? CLICKABLE : COLOR;
+        const color = isActive ? ACTIVE : sv.prov('label', elementSrc(r, srcField)) ?? (canNavigate ? CLICKABLE : COLOR);
 
         // Render: label nad wirem (jak w oryginale), pages obok wire
         const label = r.label ?? '';

@@ -6,6 +6,9 @@ import { useDocStore } from '../store.ts';
 import type { Selection } from '../store.ts';
 import { gateShape, type Shape } from './shapes.ts';
 import { gateBox } from './box.ts';
+import { elementSrc } from '@kronikarz/shared';
+import { useStepView } from './stepLook.ts';
+import { canEditElement, issueRelevant } from '../stepView.ts';
 
 const MIN_W = 30;
 const MIN_HH = 30;
@@ -31,7 +34,7 @@ export function GateLayer({ gates }: Props): JSX.Element {
   );
 }
 
-function GateNode({ gate: g, idx: i, selected }: { gate: Gate; idx: number; selected: boolean }): JSX.Element {
+function GateNode({ gate: g, idx: i, selected }: { gate: Gate; idx: number; selected: boolean }): JSX.Element | null {
   const setSelection = useDocStore((s) => s.setSelection);
   const pkg = useDocStore((s) => s.pkg);
   const icMap = useDocStore((s) => s.icMap);
@@ -39,22 +42,36 @@ function GateNode({ gate: g, idx: i, selected }: { gate: Gate; idx: number; sele
   const editPage = useDocStore((s) => s.editPage);
   const multi = useDocStore((s) => s.multi);
   const toggleMulti = useDocStore((s) => s.toggleMulti);
-  const issues = useDocStore((s) => s.issues);
+  const allIssues = useDocStore((s) => s.issues);
+  const step = useDocStore((s) => s.currentStep);
+  const issues = allIssues.filter((it) => issueRelevant(it, step));
+  const sv = useStepView();
+  const boxLook = sv.look('gateBox');
+  const textLook = sv.look('gateText');
   const gateKey = `${g.ref}${g.gate ? `.${g.gate}` : ''}`;
   const gateIdxKey = `${g.ref}#${i}`;
   const hasError = issues.some((it) => it.level === 'err' && (it.ref === gateKey || it.ref === g.ref || it.ref === gateIdxKey));
   const hasWarn = !hasError && issues.some((it) => it.level === 'warn' && (it.ref === gateKey || it.ref === g.ref || it.ref === gateIdxKey));
   const editing = tool === 'edit';
+  // Ramka (położenie, rozmiar) tylko w ① / bez kroku; w ②③⑤ ramka to kontekst do odczytu.
+  const canBox = canEditElement(step, 'gate', 'box');
   const shape = gateShape(g, pkg, icMap);
   const comp = pkg?.components[g.ref];
   const icSuffix = comp && comp.ic ? comp.ic : undefined;
   const isMulti = multi?.kind === 'gate' && multi.indices.includes(i);
-  const color =
+  const plain = g.verified ? '#4CAF50' : '#FFC107';
+  const marked =
     (selected || isMulti) ? '#2196F3' :
     hasError ? '#ff3838' :
     hasWarn ? '#ff9800' :
-    g.verified ? '#4CAF50' :
-    '#FFC107';
+    null;
+  // Bieżący krok: ramka (①) / tekst (②) w kolorze pochodzenia (stepView.ts).
+  const color = marked ?? sv.prov('gateBox', elementSrc(g)) ?? plain;
+  const textColor = marked ?? sv.prov('gateText', elementSrc(g, 'text_src')) ?? color;
+  // Cała bramka z innego kroku → wyszarzona grupa bez interakcji; sam tekst
+  // z innego kroku (np. w ①) → tylko tekst wyszarzony.
+  const wholeOther = boxLook.role === 'other' && textLook.role === 'other';
+  const text = { color: textColor, visible: textLook.visible, opacity: wholeOther ? 1 : textLook.opacity };
   const onSelect = () => setSelection({ kind: 'gate', idx: i });
 
   const base = gateBox(g);
@@ -78,13 +95,14 @@ function GateNode({ gate: g, idx: i, selected }: { gate: Gate; idx: number; sele
     }
   }
 
+  if (wholeOther && !boxLook.visible) return null;
   return (
-    <Group>
+    <Group opacity={wholeOther ? boxLook.opacity : 1} listening={!wholeOther}>
     <Group
       x={g.x}
       y={g.y}
       rotation={g.rotation}
-      draggable={editing}
+      draggable={editing && canBox}
       onClick={(e) => {
         e.cancelBubble = true;
         if (e.evt.shiftKey || e.evt.metaKey || e.evt.ctrlKey) {
@@ -143,12 +161,14 @@ function GateNode({ gate: g, idx: i, selected }: { gate: Gate; idx: number; sele
         gate={g}
         shape={shape}
         color={color}
+        emph={selected || isMulti}
+        text={text}
         icSuffix={icSuffix}
         boxOverride={override}
         jumperPositions={comp?.ic === null && comp.type === 'jumper' ? comp.positions : undefined}
         jumperSelected={comp?.ic === null && comp.type === 'jumper' ? comp.selected ?? null : undefined}
       />
-      {selected && editing && shape === 'rect' && (
+      {selected && editing && canBox && shape === 'rect' && (
         <ResizeHandles
           w={box.w}
           h={box.h}
@@ -241,15 +261,15 @@ function GateNode({ gate: g, idx: i, selected }: { gate: Gate; idx: number; sele
         />
       )}
     </Group>
-    {passiveLabel && labelAnchor && (
-      <Group x={labelAnchor.x} y={labelAnchor.y} listening={false}>
+    {passiveLabel && labelAnchor && text.visible && (
+      <Group x={labelAnchor.x} y={labelAnchor.y} listening={false} opacity={text.opacity}>
         <Text
           text={passiveLabel}
           width={labelAnchor.w}
           align={labelAnchor.align}
           fontSize={14}
           fontFamily="IBM Plex Mono"
-          fill={color}
+          fill={textColor}
           fontStyle="bold"
         />
       </Group>
@@ -363,10 +383,20 @@ function ResizeHandles({
   );
 }
 
+/** Tekst bramki (krok ②): kolor, widoczność, wyszarzenie. */
+interface TextLook {
+  color: string;
+  visible: boolean;
+  opacity: number;
+}
+
 interface BodyProps {
   gate: Gate;
   shape: Shape;
   color: string;
+  /** Zaznaczona: grubsza, przerywana ramka (nie tylko kolor — auto też jest niebieskie). */
+  emph?: boolean;
+  text?: TextLook;
   icSuffix?: string | number;
   boxOverride?: { w: number; h: number; lox: number; loy: number } | null;
   jumperPositions?: string[];
@@ -390,7 +420,7 @@ function gateSymbol(icSuffix?: string | number): string | null {
   return null;
 }
 
-function ShapeBody({ gate, shape, color, icSuffix, boxOverride, jumperPositions, jumperSelected }: BodyProps): JSX.Element {
+function ShapeBody({ gate, shape, color, emph, text, icSuffix, boxOverride, jumperPositions, jumperSelected }: BodyProps): JSX.Element {
   const { w, h } = boxOverride ?? gateBox(gate);
   const lox = boxOverride?.lox ?? 0;
   const loy = boxOverride?.loy ?? 0;
@@ -410,7 +440,7 @@ function ShapeBody({ gate, shape, color, icSuffix, boxOverride, jumperPositions,
       break;
     case 'rect':
     default:
-      body = <RectShape gate={gate} color={color} w={w} h={h} icSuffix={icSuffix} />;
+      body = <RectShape gate={gate} color={color} emph={emph} text={text} w={w} h={h} icSuffix={icSuffix} />;
   }
   return <Group x={lox} y={loy}>{body}</Group>;
 }
@@ -418,17 +448,22 @@ function ShapeBody({ gate, shape, color, icSuffix, boxOverride, jumperPositions,
 function RectShape({
   gate,
   color,
+  emph,
+  text,
   w,
   h,
   icSuffix,
 }: {
   gate: Gate;
   color: string;
+  emph?: boolean;
+  text?: TextLook;
   w: number;
   h: number;
   icSuffix?: string | number;
 }) {
   const symbol = gateSymbol(icSuffix);
+  const tc = text?.color ?? color;
   return (
     <>
       <Rect
@@ -437,9 +472,11 @@ function RectShape({
         width={w}
         height={h}
         stroke={color}
-        strokeWidth={2}
+        strokeWidth={emph ? 4 : 2}
+        dash={emph ? [10, 5] : undefined}
         fill="rgba(13,17,23,0.7)"
       />
+      <Group visible={text?.visible ?? true} opacity={text?.opacity ?? 1}>
       {/* Top-left stack: gate function symbol over IC suffix */}
       {symbol && (
         <Text
@@ -448,7 +485,7 @@ function RectShape({
           text={symbol}
           fontSize={18}
           fontFamily="IBM Plex Mono"
-          fill={color}
+          fill={tc}
           fontStyle="bold"
         />
       )}
@@ -459,7 +496,7 @@ function RectShape({
           text={String(icSuffix)}
           fontSize={18}
           fontFamily="IBM Plex Mono"
-          fill={color}
+          fill={tc}
         />
       )}
       {/* Gate letter (A/B/C…) top-right */}
@@ -470,7 +507,7 @@ function RectShape({
           text={gate.gate}
           fontSize={18}
           fontFamily="IBM Plex Mono"
-          fill={color}
+          fill={tc}
         />
       )}
       {/* ref centered at bottom */}
@@ -482,7 +519,7 @@ function RectShape({
         text={gate.ref}
         fontSize={18}
         fontFamily="IBM Plex Mono"
-        fill={color}
+        fill={tc}
         fontStyle="bold"
       />
       {gate.label_left && (
@@ -505,6 +542,7 @@ function RectShape({
           fill="#8b949e"
         />
       )}
+      </Group>
     </>
   );
 }

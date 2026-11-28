@@ -5,6 +5,9 @@ import type { Gate } from '@kronikarz/shared';
 import { useDocStore } from '../store.ts';
 import { snapPinToEdge } from './box.ts';
 import { connectPins, mergeDropsCross, planConnect } from '../netOps.ts';
+import { elementSrc } from '@kronikarz/shared';
+import { useStepView } from './stepLook.ts';
+import { canEditElement } from '../stepView.ts';
 
 interface Props {
   gates: Gate[];
@@ -17,6 +20,17 @@ export function PinLayer({ gates }: Props): JSX.Element {
   const editPage = useDocStore((s) => s.editPage);
   const page = useDocStore((s) => s.page);
   const editing = tool === 'edit';
+  // Bieżący krok: piny to ② (pin.src) i ⑤ (pin.net_src); w ① / ④ wyszarzone.
+  const step = useDocStore((s) => s.currentStep);
+  const sv = useStepView();
+  const look = sv.look('pin');
+  const srcField = step === 'nets' ? 'net_src' : 'src';
+  // Czerwony pierścień „pin bez netu” to sprawa netów — nie w ②/③.
+  const showOrphans = step === null || step === 'kicad' || step === 'nets';
+  // Przeciąganie pinu (tekst / położenie) tylko w ② / bez kroku; łączenie
+  // pinów w E (drut + net) w ③ / ⑤ / bez kroku. W (drut) zawsze przyciąga.
+  const canDragPin = canEditElement(step, 'pin', 'text');
+  const canConnect = canEditElement(step, 'pin', 'net') || canEditElement(step, 'segment', 'geom');
 
   const pkg = useDocStore((s) => s.pkg);
   // Gates whose component is a jumper: pin numeric labels suppressed (the
@@ -67,7 +81,7 @@ export function PinLayer({ gates }: Props): JSX.Element {
       }));
       return;
     }
-    if (!editing) {
+    if (!editing || !canConnect) {
       setSelection({ kind: 'gate', idx: gi });
       return;
     }
@@ -122,13 +136,14 @@ export function PinLayer({ gates }: Props): JSX.Element {
   };
 
   return (
-    <Layer>
+    <Layer visible={look.visible} opacity={look.opacity} listening={look.listening}>
       {gates.flatMap((g, gi) =>
         g.pins.map((p, pi) => {
           if (p.disconnected) return null;
+          const prov = sv.prov('pin', elementSrc(p, srcField));
           const armed = armedPin && armedPin.g === gi && armedPin.p === pi;
           const active = activeNets.has(p.net) || gi === selectedGateIdx;
-          const orphan = isOrphan(p.net);
+          const orphan = showOrphans && isOrphan(p.net);
           const jumper = isJumperGate(g);
           const strokeColor = armed || active ? '#39ff14' : orphan ? '#ff3030' : jumper ? '#FFC107' : undefined;
           const strokeW = jumper ? 2 : armed ? 2 : active ? 1.5 : orphan ? 2.5 : 0;
@@ -138,10 +153,10 @@ export function PinLayer({ gates }: Props): JSX.Element {
               x={p.px}
               y={p.py}
               radius={armed ? 10 : active ? 8 : orphan ? 8 : 6}
-              fill={jumper ? 'rgba(13,17,23,0.7)' : armed ? '#2196F3' : active ? '#FF9800' : '#39ff14'}
+              fill={jumper ? 'rgba(13,17,23,0.7)' : armed ? '#2196F3' : active ? '#FF9800' : prov ?? '#39ff14'}
               stroke={strokeColor}
               strokeWidth={strokeW}
-              draggable={editing && !jumper}
+              draggable={editing && !jumper && canDragPin}
               dragBoundFunc={function (this: Konva.Node, absPos) {
                 const stage = this.getStage();
                 if (!stage) return absPos;
@@ -224,6 +239,7 @@ export function PinLayer({ gates }: Props): JSX.Element {
           if (p.side === 'left') dx = -labelW - 6;
           else if (p.side === 'right') dx = 12;
           else if (p.side === 'bottom') dy = 12;
+          const prov = step === 'text' ? sv.prov('pin', elementSrc(p)) : null;
           return (
             <Text
               key={`label-${gi}-${pi}`}
@@ -232,7 +248,7 @@ export function PinLayer({ gates }: Props): JSX.Element {
               text={String(p.num)}
               fontSize={20}
               fontFamily="IBM Plex Mono"
-              fill="#FFC107"
+              fill={prov ?? '#FFC107'}
               fontStyle="bold"
               listening={false}
             />

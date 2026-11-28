@@ -13,6 +13,7 @@ import {
   type SaveQueue,
   type UpdateResult,
 } from './saveQueue.ts';
+import { canEditElement, defaultStep, toolAllowed, type OthersMode, type ViewStep } from './stepView.ts';
 export {
   packageFilePath,
   pageFilePath,
@@ -83,6 +84,22 @@ export interface DocState {
   future: Page[];
   saveStatus: 'idle' | 'pending' | 'saving' | 'error';
   saveError: string | null;
+  /**
+   * Bieżący krok pipeline'u na pasku kroków (kr-9p8.20); null = „wszystko”
+   * (bez filtra — jak przed pipeline'em). Ogranicza widoczne warstwy i
+   * narzędzia (stepView.ts). Stan widoku, nie pliku.
+   */
+  currentStep: ViewStep | null;
+  /** Elementy innych kroków: wyszarzone albo ukryte. */
+  othersMode: OthersMode;
+  /**
+   * Strona zablokowana przez krok pipeline'u uruchomiony z viewera (albo po
+   * niepewnym wyniku — do przeładowania): editPage / undo / redo tej strony
+   * nic nie robią, płótno pokazuje powód. Osobno dla każdej strony.
+   */
+  pageLocks: Readonly<Record<string, string>>; // ścieżka strony → powód blokady
+  /** Liczba trwających POST /auto w tej karcie (strona albo cały pakiet). */
+  autoRuns: number;
 
   setRoute: (r: Route) => void;
   setProject: (p: Project | null) => void;
@@ -106,6 +123,10 @@ export interface DocState {
   undo: () => void;
   redo: () => void;
   setSaveStatus: (s: 'idle' | 'pending' | 'saving' | 'error', err?: string | null) => void;
+  setCurrentStep: (s: ViewStep | null) => void;
+  setOthersMode: (m: OthersMode) => void;
+  setPageLock: (path: string, reason: string | null) => void;
+  bumpAutoRuns: (delta: 1 | -1) => void;
 }
 
 const HISTORY_LIMIT = 50;
@@ -232,10 +253,12 @@ export function runRewrite(
   path: string,
   name: string,
   action: () => Promise<RewriteOutcome>,
+  opts: { ambiguousMessage?: string } = {},
 ): Promise<RewriteResult> {
   return saveQueue.runRewrite(path, {
     name,
     action,
+    ambiguousMessage: opts.ambiguousMessage,
     reload: () => window.location.reload(),
     alert: (m) => window.alert(m),
     confirm: (m) => window.confirm(m),
@@ -274,6 +297,16 @@ export function flushSavesOnUnload(): void {
   saveQueue.flushNow({ keepalive: true });
 }
 
+/** Powód blokady otwartej strony (krok pipeline'u na niej) albo null. */
+export function lockReason(s: Pick<DocState, 'pageLocks' | 'pagePath'>): string | null {
+  return s.pagePath !== null && Object.hasOwn(s.pageLocks, s.pagePath) ? s.pageLocks[s.pagePath]! : null;
+}
+
+/** Otwarta strona zablokowana przez krok pipeline'u. */
+export function isLocked(s: Pick<DocState, 'pageLocks' | 'pagePath'>): boolean {
+  return lockReason(s) !== null;
+}
+
 export const useDocStore = create<DocState>((set, get) => ({
   route: { mode: 'empty' },
   project: null,
@@ -297,20 +330,40 @@ export const useDocStore = create<DocState>((set, get) => ({
   future: [],
   saveStatus: 'idle',
   saveError: null,
+  currentStep: null,
+  othersMode: 'faint',
+  pageLocks: {},
+  autoRuns: 0,
 
   setRoute: (route) => set({ route }),
   setProject: (project) => set({ project }),
   setPackage: (pkg, path) => set({ pkg, pkgPath: pkg ? path : null }),
-  setPage: (page, path) => set({ page, pagePath: page ? path : null, past: [], future: [], selection: null }),
+  setPage: (page, path) =>
+    set((s) => {
+      // Inna strona → jej krok domyślny; przeładowanie tej samej zostawia wybór.
+      const currentStep = !page ? null : path === s.pagePath ? s.currentStep : defaultStep(page);
+      return {
+        page,
+        pagePath: page ? path : null,
+        past: [],
+        future: [],
+        selection: null,
+        currentStep,
+        tool: toolAllowed(currentStep, s.tool) ? s.tool : 'select',
+      };
+    }),
   setAllPages: (allPages) => set({ allPages }),
   setIcMap: (icMap) => set({ icMap }),
   setIssues: (issues) => set({ issues }),
-  setTool: (tool) => set({ tool }),
+  // Narzędzie spoza bieżącego kroku (klawisz, przycisk) jest ignorowane.
+  setTool: (tool) => set((s) => (toolAllowed(s.currentStep, tool) ? { tool } : {})),
   setLoadError: (loadError) => set({ loadError }),
   setLoading: (loading) => set({ loading }),
   setSelection: (selection) => set({ selection, multi: null }),
   setMulti: (multi) => set({ multi }),
   toggleMulti: (kind, i) => set((s) => {
+    // Shift+klik: tylko elementy, które wolno w bieżącym kroku przesuwać.
+    if (!canEditElement(s.currentStep, kind, kind === 'gate' ? 'box' : 'label')) return {};
     if (!s.multi || s.multi.kind !== kind) {
       return { multi: { kind, indices: [i] }, selection: null };
     }
@@ -326,10 +379,31 @@ export const useDocStore = create<DocState>((set, get) => ({
   setWireOrtho: (wireOrtho) => set({ wireOrtho }),
   setZoom: (zoom) => set({ zoom }),
   setSaveStatus: (saveStatus, err = null) => set({ saveStatus, saveError: err }),
+  // Zmiana kroku czyści historię cofania: cofnięcie edycji innego kroku
+  // (niewidocznej, wyszarzonej) z poziomu bieżącego byłoby zaskoczeniem.
+  setCurrentStep: (currentStep) =>
+    set((s) => ({
+      currentStep,
+      selection: null,
+      multi: null,
+      past: [],
+      future: [],
+      tool: toolAllowed(currentStep, s.tool) ? s.tool : 'select',
+    })),
+  setOthersMode: (othersMode) => set({ othersMode }),
+  setPageLock: (path, reason) =>
+    set((s) => {
+      const pageLocks = { ...s.pageLocks };
+      if (reason === null) delete pageLocks[path];
+      else pageLocks[path] = reason;
+      return { pageLocks };
+    }),
+  bumpAutoRuns: (delta) => set((s) => ({ autoRuns: Math.max(0, s.autoRuns + delta) })),
 
   editPage: (mutator) => {
     const state = get();
     if (!state.page || !state.pagePath) return;
+    if (isLocked(state)) return; // trwa krok pipeline'u — edycja zablokowana
     const draft = clone(state.page);
     mutator(draft);
     // Każda edycja tu jest ludzka: zmienione elementy `src: auto` → edited,
@@ -351,7 +425,7 @@ export const useDocStore = create<DocState>((set, get) => ({
 
   undo: () => {
     const state = get();
-    if (!state.past.length || !state.page) return;
+    if (!state.past.length || !state.page || isLocked(state)) return;
     const prev = state.past[state.past.length - 1]!;
     set({
       page: prev,
@@ -363,7 +437,7 @@ export const useDocStore = create<DocState>((set, get) => ({
 
   redo: () => {
     const state = get();
-    if (!state.future.length || !state.page) return;
+    if (!state.future.length || !state.page || isLocked(state)) return;
     const next = state.future[0]!;
     set({
       page: next,

@@ -1,6 +1,7 @@
 import { Layer, Line, Text, Group, Rect } from 'react-konva';
 import type { Page } from '@kronikarz/shared';
 import { useDocStore } from '../store.ts';
+import { useStepView } from './stepLook.ts';
 import { navigate } from '../router.ts';
 
 interface Props {
@@ -14,8 +15,10 @@ interface Props {
 export function CrossPageLayer({ page, zoom }: Props): JSX.Element {
   const pkg = useDocStore((s) => s.pkg);
   const w = 1.5 / zoom;
+  const sv = useStepView();
+  const look = sv.look('pinCross');
   return (
-    <Layer>
+    <Layer visible={look.visible} opacity={look.opacity} listening={look.listening}>
       {page.gates.flatMap((g, gi) =>
         g.pins
           .filter((p) => p.cross)

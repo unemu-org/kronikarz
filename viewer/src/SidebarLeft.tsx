@@ -1,10 +1,12 @@
 import { useDocStore } from './store.ts';
 import { navigate } from './router.ts';
+import { StepMarks, usePagesLive } from './StepMarks.tsx';
 
 export function SidebarLeft(): JSX.Element | null {
   const project = useDocStore((s) => s.project);
   const pkg = useDocStore((s) => s.pkg);
   const route = useDocStore((s) => s.route);
+  const pages = usePagesLive();
 
   if (!project) return null;
 
@@ -32,7 +34,7 @@ export function SidebarLeft(): JSX.Element | null {
             {pkg.package.pages.map((p) => (
               <li key={p.id}>
                 <button
-                  className={`block w-full text-left px-1 py-0.5 ${
+                  className={`flex w-full items-center text-left px-1 py-0.5 ${
                     route.page === p.id ? 'bg-bg-accent text-phosphor' : 'hover:bg-bg-accent'
                   }`}
                   onClick={() => navigate({ mode: 'page', pkg: pkg.package.id, page: p.id })}
@@ -46,6 +48,9 @@ export function SidebarLeft(): JSX.Element | null {
                         : p.status === 'wip'
                           ? '…'
                           : ''}
+                  </span>
+                  <span className="ml-auto text-[10px]">
+                    <StepMarks page={pages.get(p.id)} />
                   </span>
                 </button>
               </li>

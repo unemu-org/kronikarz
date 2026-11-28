@@ -114,6 +114,8 @@ export interface RewriteDeps {
   reload: () => void;
   alert: (msg: string) => void;
   confirm: (msg: string) => boolean;
+  /** Fence error after an 'ambiguous' outcome (default: "<name> mogło się częściowo udać — …"). */
+  ambiguousMessage?: string;
 }
 
 export type RewriteResult =
@@ -496,7 +498,8 @@ export function createSaveQueue(deps: SaveQueueDeps): SaveQueue {
     if (outcome === 'ambiguous') {
       q.setFenceError(
         path,
-        `${d.name} mogło się częściowo udać — przeładuj stronę; niezapisane zmiany tej strony nie zostały wysłane`,
+        d.ambiguousMessage ??
+          `${d.name} mogło się częściowo udać — przeładuj stronę; niezapisane zmiany tej strony nie zostały wysłane`,
       );
       return 'ambiguous';
     }

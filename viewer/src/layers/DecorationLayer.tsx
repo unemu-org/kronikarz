@@ -2,6 +2,7 @@ import { Layer, Line, Rect, Ellipse, Group } from 'react-konva';
 import type Konva from 'konva';
 import type { Decoration } from '@kronikarz/shared';
 import { useDocStore } from '../store.ts';
+import { useStepView } from './stepLook.ts';
 
 interface Props {
   decorations: Decoration[];
@@ -17,8 +18,10 @@ export function DecorationLayer({ decorations, zoom }: Props): JSX.Element {
   const editPage = useDocStore((s) => s.editPage);
   const tool = useDocStore((s) => s.tool);
   const editing = tool === 'edit';
+  const sv = useStepView();
+  const look = sv.look('decor');
   return (
-    <Layer>
+    <Layer visible={look.visible} opacity={look.opacity} listening={look.listening}>
       {decorations.map((d, i) => {
         const isSelected = selection?.kind === 'decoration' && selection.idx === i;
         const stroke = isSelected ? SELECTED : d.color ?? DEFAULT_COLOR;

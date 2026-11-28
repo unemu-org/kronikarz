@@ -10,6 +10,8 @@ import { ModuleView } from './ModuleView.tsx';
 import { ValidationPanel } from './ValidationPanel.tsx';
 import { SaveToast } from './SaveToast.tsx';
 import { HelpOverlay } from './HelpOverlay.tsx';
+import { StepBar } from './StepBar.tsx';
+import { ReviewPanel } from './ReviewPanel.tsx';
 import { useDocStore } from './store.ts';
 
 export function App(): JSX.Element {
@@ -43,8 +45,14 @@ export function App(): JSX.Element {
         <SidebarLeft />
         {route.mode === 'page' && (
           <>
-            <Canvas />
-            <SelectionPanel />
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+              <StepBar />
+              <Canvas />
+            </div>
+            <div className="flex w-72 shrink-0 flex-col overflow-hidden border-l border-bg-accent bg-bg-panel">
+              <ReviewPanel />
+              <SelectionPanel />
+            </div>
           </>
         )}
         {route.mode === 'package' && <PackageView />}

@@ -2,12 +2,21 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App.tsx';
 import { hasUnsavedChanges, flushSavesOnUnload } from './store.ts';
+import { isAutoRunning } from './autoRun.ts';
 import './index.css';
 
 // Warn before closing/reloading the tab while an edit is not confirmed saved
 // (debounce pending, PUT in flight, or last PUT failed), and push queued PUTs
 // out right away with fetch keepalive so they can outlive the page.
 window.addEventListener('beforeunload', (e) => {
+  // Trwa krok pipeline'u (POST /auto): zamknięcie karty przerywa przebieg na
+  // serwerze — przeglądarka pyta (własnego tekstu „trwa krok pipeline'u” już
+  // nie pokazuje; pasek kroków pokazuje „trwa…”).
+  if (isAutoRunning()) {
+    e.preventDefault();
+    e.returnValue = 'trwa krok pipeline’u';
+    return;
+  }
   if (!hasUnsavedChanges()) return;
   flushSavesOnUnload();
   e.preventDefault();

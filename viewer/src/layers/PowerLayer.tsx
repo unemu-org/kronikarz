@@ -1,6 +1,9 @@
 import { Layer, Line, Text, Group, Circle, Rect } from 'react-konva';
 import type { PowerSymbol } from '@kronikarz/shared';
 import { useDocStore } from '../store.ts';
+import { useStepView } from './stepLook.ts';
+import { canEditElement } from '../stepView.ts';
+import { elementSrc } from '@kronikarz/shared';
 
 interface Props {
   power: PowerSymbol[];
@@ -13,14 +16,19 @@ export function PowerLayer({ power, zoom }: Props): JSX.Element {
   const editPage = useDocStore((s) => s.editPage);
   const selection = useDocStore((s) => s.selection);
   const setSelection = useDocStore((s) => s.setSelection);
-  const editing = tool === 'edit';
+  // Etykieta końcówki (położenie) tylko w ④ / bez kroku; w ⑤ do odczytu.
+  const curStep = useDocStore((s) => s.currentStep);
+  const editing = tool === 'edit' && canEditElement(curStep, 'port', 'label');
+  const sv = useStepView();
+  const look = sv.look('label');
+  const srcField = useDocStore((s) => s.currentStep) === 'nets' ? 'net_src' : 'src';
   return (
-    <Layer>
+    <Layer visible={look.visible} opacity={look.opacity} listening={look.listening}>
       {power.map((p, i) => {
         const isVcc = p.type === 'VCC' || p.type === '+5V' || p.type === '5V';
         const isGnd = p.type === 'GND' || p.type === '+0V' || p.type === '0V';
         const isSelected = selection?.kind === 'power' && selection.idx === i;
-        const stroke = isSelected ? '#2196F3' : '#39ff14';
+        const stroke = isSelected ? '#2196F3' : sv.prov('label', elementSrc(p, srcField)) ?? '#39ff14';
         const onWireClick = (e: { cancelBubble?: boolean } & object) => {
           (e as { cancelBubble: boolean }).cancelBubble = true;
           if (tool === 'wire') {

@@ -275,6 +275,64 @@ na 2-58…2-62, 2-64…2-66 diff to tylko dopisana sekcja `steps` (5 linii); na 
   „cleanup nets” (ratunek, gdy nety się rozsypią) i symbole +5V/+0V (podciąganie
   rezystorów i potencjometrów) — USER.
 
+Zrobione (kr-9p8.20; logika w `viewer/src/stepView.ts`, testy `stepView.test.ts`,
+`stepStore.test.ts`):
+
+- `StepBar.tsx` nad płótnem: „wszystko” (bez filtra, jak przed pipeline'em) i ①–⑥ ze stanem
+  (`○ czeka`, `● do przeglądu`, `✓ zatwierdzony`, `◐ nieaktualny`), przełącznik „inne kroki:
+  wyszarzone | ukryte”. Krok po otwarciu strony: strona bez `steps` → „wszystko”; inaczej
+  pierwszy `auto`/`stale`, potem następny do uruchomienia; wszystko zatwierdzone → „wszystko”.
+  Wybór kroku to stan widoku (store `currentStep`), nie pliku.
+- Części rysunku i kroki (`partRole`): ramka bramki ①; tekst bramki i piny ② (`text_src`,
+  `pin.src`); odcinki / kropki ③ (`auto_segments`); porty, odsyłacze, zasilanie ④ (`src`); nety
+  pinów / portów / odsyłaczy / zasilania i strzałki `pin.cross` ⑤ (`net_src`). Kontekst
+  (pełny, zwykłe kolory): ramki w ②③⑤, piny w ③, druty w ④⑤, tekst bramek w ⑤ — tylko do
+  odczytu (klik zaznacza, W przyciąga drut; bez przeciągania, zmiany rozmiaru, usuwania). Reszta,
+  także adnotacje i dekoracje, wyszarzona bez interakcji albo ukryta.
+- Edycja w kroku (`canEditElement(krok, rodzaj, aspekt)`): wolno zmienić tylko aspekt bieżącego
+  kroku — ramkę w ①, tekst bramki / pinu w ②, geometrię drutu w ③, etykietę końcówki w ④, net
+  w ⑤; bez kroku wszystko, w ⑥ nic. Prostokąt (V) i Shift+klik zaznaczają tylko elementy
+  edytowalne (w ④ porty, choć w prostokącie są też środki bramek); Delete, K, wklejanie (jak
+  przyciski „+ …”) sprawdzają to samo. Panel zaznaczenia elementu spoza kroku jest tylko do
+  odczytu (`panelEditable`: bramka ①②, odcinek ③, net ③⑤, końcówka ④⑤) z przyciskiem „przełącz”
+  na jego krok. Zmiana kroku przerywa rozpoczęte wstawianie / rysowanie.
+- Kolory w bieżącym kroku: `auto` niebieski `#64b5f6`, `edited` pomarańczowy `#ffb74d`, krok
+  zatwierdzony zielony `#66bb6a` (jedna paleta `PROV_COLORS`; decyzja opiekuna co do barw
+  w toku — makieta ma auto żółte, ludzkie niebieskie); zaznaczenie, aktywny net i błędy mają
+  pierwszeństwo, a zaznaczona bramka / odcinek / port ma też grubszą przerywaną linię. Błędy /
+  ostrzeżenia barwią płótno tylko z kodów bieżącego kroku (`issueRelevant`).
+- Narzędzia (`toolAllowed`, `placeAllowed`, `pageActionAllowed`): w krokach ①–⑤ V i E; W (drut)
+  tylko w ③ i ⑤; R (AI) i Z (strefy) tylko bez kroku; ⑥ tylko V. „+ bramka” w ①; „+ port / xref /
+  +5V / +0V” w ④; „+ tekst / linia / rect / koło” tylko bez kroku. „cleanup nets” w ③ / ⑤ / bez
+  kroku; „vision”, „make .bak”, „restore .bak” tylko bez kroku.
+- W trakcie przebiegu kroku (bez podglądu) strona jest zablokowana (`pageLock`): `editPage`, cofnij
+  / ponów nic nie robią, płótno przykryte komunikatem „trwa krok pipeline’u — edycja
+  zablokowana”, panel zaznaczenia, „Zatwierdź”, „+ …” i akcje strony nieaktywne; zamknięcie karty
+  pyta (beforeunload). Po niepewnym wyniku blokada zostaje z „przeładuj stronę”. Wynik przebiegu
+  i licznik czasu należą do strony, na której go uruchomiono; wynik z `sessionStorage` tylko dla
+  tej strony i nie starszy niż 10 min.
+- „Uruchom krok” (z „wymuś” przy kroku zatwierdzonym, „szkic” przy niezatwierdzonym poprzedniku,
+  „podgląd (dry-run)”): flush, POST `/auto` przez `runRewrite` (blokada zapisów strony, po
+  zapisie przeładowanie; wynik pokazany po przeładowaniu z `sessionStorage`), w trakcie
+  GET `/auto/status`. 409 refused / busy, 501, 4xx → nic nie zapisano, edycja wraca; 500 bez
+  wyniku, 504, brak odpowiedzi → strona zablokowana do ręcznego przeładowania. Podgląd bez
+  `runRewrite`.
+- Prawy panel (`ReviewPanel.tsx`, minimalny — rozbudowa w kr-9p8.7): elementy kroku z `src: auto`,
+  najpierw niepewne (problem walidatora tego kroku przy elemencie; odcinki: krótszy niż 10 px,
+  koniec we wnętrzu innego odcinka bez kropki), klik / N / Shift+N = zaznacz i przybliż.
+  „Zatwierdź krok” przez `editPage` (stan kroku i `verified` nie są treścią): ① ustawia też
+  `verified: true` na każdej bramce; ⑤ tylko bez błędów walidacji strony (kody kroków ①–⑤).
+  Krok `todo` — z potwierdzeniem. „Cofnij zatwierdzenie”: krok wraca do `auto` (był przebieg) albo
+  `todo`, późniejsze zatwierdzone → `stale`.
+- Walidacja: problemy bieżącego kroku (`issueStep`; `CROSS_REF_NO_RETURN` w ⑤ — brak powrotu
+  netu) i osobno „inne (bez kroku)”: rejestr pakietu (także `Issue.scope: 'package'`), projekt,
+  format, kody nieznane; problemy innych kroków i innych stron (`Issue.page`) ukryte, przełącznik
+  „wszystkie”.
+- Lista stron i widok pakietu: znaczki ①–⑤ (`✓ ● ◐ ○`). Widok pakietu: „Uruchom następny krok na
+  wszystkich stronach” (POST `/auto {page: 'all', step: 'next'}`, z potwierdzeniem i podglądem),
+  wynik per strona, potem ponowne wczytanie pakietu — tylko gdy nadal otwarty jest widok tego
+  pakietu (bieżąca trasa ze store).
+
 ### Dane do uczenia z każdego kroku
 
 | Krok | Para do uczenia |

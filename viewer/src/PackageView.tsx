@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useDocStore } from './store.ts';
 import { navigate } from './router.ts';
+import { PackageAutoRun, StepMarks, usePagesLive } from './StepMarks.tsx';
 
 type Tab = 'schemat' | 'pcb-front' | 'pcb-back';
 
@@ -9,6 +10,7 @@ export function PackageView(): JSX.Element | null {
   const icMap = useDocStore((s) => s.icMap);
   const route = useDocStore((s) => s.route);
   const [tab, setTab] = useState<Tab>('schemat');
+  const pages = usePagesLive();
 
   if (!pkg) return null;
 
@@ -30,6 +32,11 @@ export function PackageView(): JSX.Element | null {
         </div>
         <div className="relative flex-1 overflow-hidden bg-bg-main">
           {tab === 'schemat' && (
+            <div className="border-b border-bg-accent bg-bg-panel px-3 py-1 text-xs">
+              <PackageAutoRun pkg={pkg.package.id} />
+            </div>
+          )}
+          {tab === 'schemat' && (
             <div className="grid grid-cols-3 gap-2 p-3 text-xs sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6">
               {pkg.package.pages.map((p) => (
                 <button
@@ -45,6 +52,7 @@ export function PackageView(): JSX.Element | null {
                   />
                   <span className="text-phosphor">{p.id}</span>
                   <span className="text-text-dim">{p.status}</span>
+                  <StepMarks page={pages.get(p.id)} />
                 </button>
               ))}
             </div>

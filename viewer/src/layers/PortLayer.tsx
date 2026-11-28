@@ -1,6 +1,9 @@
 import { Layer, Line, Text, Group, Rect, Circle } from 'react-konva';
 import type { Port } from '@kronikarz/shared';
 import { useDocStore } from '../store.ts';
+import { useStepView } from './stepLook.ts';
+import { canEditElement } from '../stepView.ts';
+import { elementSrc } from '@kronikarz/shared';
 import { activeNets } from './selection.ts';
 
 interface Props {
@@ -45,15 +48,20 @@ export function PortLayer({ ports, zoom }: Props): JSX.Element {
   const page = useDocStore((s) => s.page);
   const stroke = 2 / zoom;
   const active = activeNets(page, selection);
-  const editing = tool === 'edit';
+  // Etykieta końcówki (położenie) tylko w ④ / bez kroku; w ⑤ do odczytu.
+  const curStep = useDocStore((s) => s.currentStep);
+  const editing = tool === 'edit' && canEditElement(curStep, 'port', 'label');
+  const sv = useStepView();
+  const look = sv.look('label');
+  const srcField = useDocStore((s) => s.currentStep) === 'nets' ? 'net_src' : 'src';
 
   return (
-    <Layer>
+    <Layer visible={look.visible} opacity={look.opacity} listening={look.listening}>
       {ports.map((p, i) => {
         const isActive = active.has(p.net);
         const isMulti = multi?.kind === 'port' && multi.indices.includes(i);
         const isSelected = (selection?.kind === 'port' && selection.idx === i) || isMulti;
-        const color = isActive ? ACTIVE : COLOR;
+        const color = isActive ? ACTIVE : sv.prov('label', elementSrc(p, srcField)) ?? COLOR;
         // Local geometry (port at side=left, tip at 0,0, opens to the right):
         //  - left chevron tip at (0,0)
         //  - body extends right to width ~50 (depending on connector len)
@@ -133,7 +141,7 @@ export function PortLayer({ ports, zoom }: Props): JSX.Element {
               height={bh * 2 + 12}
               fill="transparent"
             />
-            <Line points={points} stroke={color} strokeWidth={stroke * 1.5} closed={false} listening={false} />
+            <Line points={points} stroke={color} strokeWidth={stroke * (isSelected ? 3 : 1.5)} dash={isSelected ? [8 / zoom, 4 / zoom] : undefined} closed={false} listening={false} />
             <Circle
               x={bw}
               y={0}
@@ -150,7 +158,7 @@ export function PortLayer({ ports, zoom }: Props): JSX.Element {
           i wycentrowany w/wzgledem chevronu niezaleznie od side. */}
       {ports.map((p, i) => {
         const isActive = active.has(p.net);
-        const color = isActive ? ACTIVE : COLOR;
+        const color = isActive ? ACTIVE : sv.prov('label', elementSrc(p, srcField)) ?? COLOR;
         const pid = `${p.connector}${p.pin}`;
         const pidLabelWidth = Math.max(60, pid.length * 16 + 12);
         const bw = pidLabelWidth + 16;

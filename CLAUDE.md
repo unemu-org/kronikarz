@@ -65,6 +65,8 @@ Monorepo npm workspaces, 4 paczki + skrypty Python:
 - `DecorationLayer` — `line` (ortho domyślnie, Shift = freeform) / `rect` / `ellipse`
 - `PowerLayer`, `CrossPageLayer`
 
+Pasek kroków ①–⑥ (`StepBar.tsx`, kr-9p8.20): bieżący krok (store `currentStep`, null = „wszystko”) wyszarza / ukrywa części innych kroków, barwi elementy kroku wg pochodzenia (auto / edited / zatwierdzony), ogranicza narzędzia i filtruje walidację; „Uruchom krok” = POST `/auto` przez `runRewrite`; prawy panel `ReviewPanel.tsx` = kolejka przeglądu + „Zatwierdź krok”. Logika czysta w `stepView.ts` (testy), warstwy czytają ją przez `layers/stepLook.ts`. Szczegóły: `docs/auto-digitalizacja.md` „Viewer”.
+
 Narzędzia: V (select + rubber-band), E (edit), R (ROI/AI detect), W (wire — orto domyślnie, Shift = freeform, auto-L corner unika landing na istniejących segmentach), Z (zones dla Vision-AI per-strefa). Multi-select: shift+klik lub rubber-band drag w V. Drag jednego elementu z multi przenosi cały zestaw. Toolbar buttony: `+ bramka/xref/port/tekst/linia/rect/koło`, align/distribute/stack-column dla multi-gate.
 
 ### Skrypty (`scripts/`)
@@ -99,9 +101,14 @@ Kluczowe kody:
 - `NET_DISCONNECTED` / `NET_ORPHAN_ENDPOINT` (err) — geometria nie pokrywa się z deklaracją netu
 - `NET_FLOATING` (err) — sieć z 1 endpointem
 - `ENDPOINT_NET_MISMATCH` (err) — pin/port leży na segmencie netu X ale ma `endpoint.net = Y`. Mid-line match wymaga junction-dot żeby uznać (krzyżujące się druty bez dota = osobne nety)
-- `CROSS_REF_NO_RETURN` (err) — cross_ref do strony X bez powrotnego cross_refa
-- `PORT_NOT_ON_BACKPLANE` (warn) — port nie dopasowany do żadnego backplane endpointu
-- `GATE_LETTER_NOT_IN_COMPONENT` / `GATE_LETTER_WRONG_PAGE` / `PIN_NOT_IN_IC_MAP` (err)
+- `NET_EMPTY` (warn) — net bez końcówek (po krokach ①+③ oczekiwane na `NET_AUTO_*`)
+- `CROSS_REF_NO_RETURN` (err) — cross_ref do strony X bez powrotnego cross_refa z tym netem; `CROSS_REF_UNKNOWN_PAGE` (warn) — nieznany arkusz
+- `PORT_NOT_ON_BACKPLANE` / `PORT_NET_MISSING` (warn) — port poza backplane / net portu bez wpisu w `nets`
+- `GATE_UNKNOWN_REF` / `GATE_LETTER_MISSING` / `GATE_UNKNOWN_LETTER` / `GATE_PIN_INVALID` (err), `GATE_PIN_MISSING` / `IC_UNKNOWN_SUFFIX` (warn) — bramka vs rejestr pakietu i `ic_map`
+- `GATE_PAGE_UNKNOWN` / `GATE_UNUSED` / `PASSIVE_PAGE_UNKNOWN` — rejestr pakietu (`validatePackage`, `scope: 'package'` przy `IC_UNKNOWN_SUFFIX` z rejestru)
+- `STEP_INVALID` / `SRC_INVALID` / `AUTO_GEOM_INVALID` (warn) — pola formatu v1.2
+
+Problemy między stronami mają `Issue.page` (strona z odsyłaczem). Viewer przypisuje kody krokom ①–⑤ (`issueStep` w `viewer/src/stepView.ts`) i filtruje walidację do bieżącego kroku.
 
 `validatePackagePages(pkg, pagesMap)` ładuje wszystkie strony pakietu i sprawdza cross-page consistency. Wywoływane w loader.ts; `allPages` Map cache'owana w store, live override aktualnej strony.
 

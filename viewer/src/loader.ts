@@ -12,13 +12,7 @@ import {
 import type { Issue, Page } from '@kronikarz/shared';
 import { fetchDataFile, flushSaves, packageFilePath, pageFilePath, parsePageFilePath, useDocStore } from './store.ts';
 
-// Both record the file's ETag for auto-save If-Match (fetchDataFile).
-async function fetchText(path: string): Promise<string> {
-  const r = await fetchDataFile(path);
-  if (!r.ok) throw new Error(`GET /files/${path} → ${r.status}`);
-  return r.text();
-}
-
+// Records the file's ETag for auto-save If-Match (fetchDataFile).
 async function fetchTextOptional(path: string): Promise<string | null> {
   const r = await fetchDataFile(path);
   if (r.status === 404) return null;

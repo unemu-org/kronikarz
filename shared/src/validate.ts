@@ -20,6 +20,10 @@ export interface Issue {
   code: string;
   message: string;
   ref?: string;
+  /** Strona pakietu (id), której dotyczy problem walidacji między stronami. */
+  page?: string;
+  /** `package` = problem rejestru pakietu (validatePackage), nie strony. */
+  scope?: 'package';
 }
 
 function isIc(c: Component): c is IcComponent {
@@ -486,6 +490,7 @@ export function validatePackage(pkg: Package, icMap?: IcMap): Issue[] {
           code: 'IC_UNKNOWN_SUFFIX',
           message: `${ref}.ic="${comp.ic}" not in ic_map`,
           ref,
+          scope: 'package',
         });
       }
       // Each gate's page must exist
@@ -572,6 +577,7 @@ export function validatePackagePages(pkg: Package, pages: Map<string, Page>): Is
             code: 'CROSS_REF_UNKNOWN_PAGE',
             message: `page "${pid}" cross_ref net "${net}" wskazuje nieznany sheet "${target}" w pakiecie`,
             ref: net,
+            page: pid,
           });
           continue;
         }
@@ -583,6 +589,7 @@ export function validatePackagePages(pkg: Package, pages: Map<string, Page>): Is
             code: 'CROSS_REF_NO_RETURN',
             message: `page "${pid}" ma cross_ref net "${net}" do sheet ${target} (page "${targetPageId}"), ale tam nie ma cross_ref z ta nazwa`,
             ref: net,
+            page: pid,
           });
         }
       }

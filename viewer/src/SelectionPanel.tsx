@@ -1,8 +1,9 @@
-import type { ChangeEvent } from 'react';
+import type { ChangeEvent, ReactNode } from 'react';
 import { useRef as useReactRef, useState } from 'react';
 import type { Page, Side, IcMap } from '@kronikarz/shared';
 import { parsePage, resolveIcKey, serializePage } from '@kronikarz/shared';
-import { pageFilePath, parsePackageFilePath, parsePageFilePath, updateDataFile, useDocStore } from './store.ts';
+import { lockReason, pageFilePath, parsePackageFilePath, parsePageFilePath, updateDataFile, useDocStore } from './store.ts';
+import { STEP_META, editStepFor, fieldEditable, panelEditable, type ElementKind } from './stepView.ts';
 import { passivePins } from './AddGateDialog.tsx';
 import {
   assignEndpointNet,
@@ -86,8 +87,20 @@ export function SelectionPanel(): JSX.Element | null {
   const editPackage = useDocStore((s) => s.editPackage);
   const issues = useDocStore((s) => s.issues);
   const editing = tool === 'edit';
+  // Bieżący krok: panel elementu spoza kroku (albo strona zablokowana przez
+  // trwający krok) jest tylko do odczytu — <fieldset disabled> wyłącza pola i przyciski.
+  const currentStep = useDocStore((s) => s.currentStep);
+  const setCurrentStep = useDocStore((s) => s.setCurrentStep);
+  const lockMsg = useDocStore(lockReason);
+  const lock = lockMsg !== null ? { reason: lockMsg } : null;
 
   if (!page) return null;
+  const selKind = selection?.kind ?? null;
+  const outOfStep = selKind !== null && !panelEditable(currentStep, selKind);
+  const readOnly = !!lock || outOfStep;
+  const editAt = selKind !== null ? editStepFor(selKind) : null;
+  // Pole panelu spoza aspektu bieżącego kroku → wyłączone (stepView.fieldEditable).
+  const off = (kind: ElementKind, field: string): boolean => !!lock || !fieldEditable(currentStep, kind, field);
   const gate =
     selection?.kind === 'gate' && selection.idx >= 0 && selection.idx < page.gates.length
       ? page.gates[selection.idx]!
@@ -108,7 +121,17 @@ export function SelectionPanel(): JSX.Element | null {
   };
 
   return (
-    <aside className="w-72 shrink-0 overflow-y-auto border-l border-bg-accent bg-bg-panel p-2 text-xs">
+    <aside className="min-h-0 flex-1 overflow-y-auto bg-bg-panel p-2 text-xs">
+      {lock && <div className="mb-2 border border-warning/60 px-2 py-1 text-warning">⏳ {lock.reason}</div>}
+      {!lock && outOfStep && (
+        <div className="mb-2 border border-warning/60 px-2 py-1 text-warning" data-testid="read-only">
+          element kroku {editAt ? `${STEP_META[editAt].glyph} ${STEP_META[editAt].name}` : '„wszystko”'} — przełącz krok, aby edytować{' '}
+          <button onClick={() => setCurrentStep(editAt)} className="ml-1 border border-warning/60 px-1.5 text-text-main hover:bg-warning/20">
+            przełącz
+          </button>
+        </div>
+      )}
+      <fieldset disabled={readOnly} className="m-0 min-w-0 border-0 p-0">
       {!gate && netName === null && selection?.kind !== 'segment' && selection?.kind !== 'port' && selection?.kind !== 'cross_ref' && selection?.kind !== 'power' && selection?.kind !== 'annotation' && selection?.kind !== 'decoration' && (
         <div className="text-text-dim">brak zaznaczenia</div>
       )}
@@ -123,12 +146,17 @@ export function SelectionPanel(): JSX.Element | null {
             <h2 className="font-bold text-phosphor">{ps.type}</h2>
             {editing ? (
               <>
+                <Asp off={off('power', 'type')}>
                 <Field
                   label="type"
                   value={ps.type}
                   onChange={(v) => editPage((p) => { const t = p.power[idx]; if (t) t.type = v; })}
                 />
+                </Asp>
+                <Asp off={off('power', 'net')}>
                 <NetField label="net" value={ps.net} onCommit={(v) => commitAssign(psCtx, v)} />
+                </Asp>
+                <Asp off={off('power', 'rotation')}>
                 <div className="flex items-center gap-2">
                   <label className="w-16 text-text-dim">rotation</label>
                   <select
@@ -146,6 +174,7 @@ export function SelectionPanel(): JSX.Element | null {
                   className="w-full bg-error/40 px-2 py-0.5 text-left text-error hover:bg-error/60"
                   onClick={() => { if (!confirm('Usunąć?')) return; editPage((p) => { p.power.splice(idx, 1); }); useDocStore.getState().setSelection(null); }}
                 >usuń</button>
+                </Asp>
               </>
             ) : (
               <div className="text-text-dim">x={ps.x} y={ps.y} rot={ps.rotation ?? 0}</div>
@@ -273,12 +302,17 @@ export function SelectionPanel(): JSX.Element | null {
           <div className="space-y-2">
             <h2 className="font-bold text-phosphor">PORT {port.connector}{port.pin}</h2>
             <hr className="border-bg-accent" />
+            <Asp off={off('port', 'label')}>
             <Field label="connector" value={port.connector} onChange={(v) => editPage((p) => { const x = p.ports?.[idx]; if (x) x.connector = v.trim().toUpperCase(); })} />
             <Field label="pin" value={String(port.pin)} onChange={(v) => editPage((p) => { const x = p.ports?.[idx]; if (x) { const n = parseInt(v, 10); if (Number.isFinite(n)) x.pin = n; } })} />
             <FieldUni label="label" value={port.label} onChange={(v) => editPage((p) => { const x = p.ports?.[idx]; if (x) x.label = v; })} />
+            </Asp>
+            <Asp off={off('port', 'net')}>
             <NetField label="net" value={port.net} uni title={SIGNAL_NET_TITLE} onCommit={(v, mode) => commitRename(portCtx, v, mode)}>
               <DisconnectButton ctx={portCtx} />
             </NetField>
+            </Asp>
+            <Asp off={off('port', 'side')}>
             <div className="flex items-center gap-2">
               <label className="w-16 text-text-dim">side</label>
               <select value={port.side} onChange={(e) => editPage((p) => { const x = p.ports?.[idx]; if (x) x.side = e.target.value as Side; })} className="flex-1 bg-bg-accent px-1 py-0.5">
@@ -292,6 +326,7 @@ export function SelectionPanel(): JSX.Element | null {
             >
               usuń port
             </button>
+            </Asp>
           </div>
         );
       })()}
@@ -305,10 +340,15 @@ export function SelectionPanel(): JSX.Element | null {
           <div className="space-y-2">
             <h2 className="font-bold text-phosphor">CROSS-REF {cr.label}</h2>
             <hr className="border-bg-accent" />
+            <Asp off={off('cross_ref', 'label')}>
             <FieldUni label="label" value={cr.label} onChange={(v) => editPage((p) => { const x = p.cross_refs?.[idx]; if (x) x.label = v; })} />
+            </Asp>
+            <Asp off={off('cross_ref', 'net')}>
             <NetField label="net" value={cr.net} uni title={SIGNAL_NET_TITLE} onCommit={(v, mode) => commitRename(crCtx, v, mode)}>
               <DisconnectButton ctx={crCtx} />
             </NetField>
+            </Asp>
+            <Asp off={off('cross_ref', 'pages')}>
             <div className="space-y-1">
               <div className="text-text-dim">arkusze (sheets):</div>
               <div className="grid grid-cols-6 gap-1">
@@ -360,6 +400,7 @@ export function SelectionPanel(): JSX.Element | null {
             >
               usuń cross-ref
             </button>
+            </Asp>
           </div>
         );
       })()}
@@ -504,6 +545,7 @@ export function SelectionPanel(): JSX.Element | null {
             </div>
           )}
           {gate && icMap && comp?.ic !== null && (
+            <Asp off={off('gate', 'ic')}>
             <IcPicker
               gate={gate}
               gateIdx={gateIdx!}
@@ -522,8 +564,10 @@ export function SelectionPanel(): JSX.Element | null {
                 });
               }}
             />
+            </Asp>
           )}
           {gate && comp?.ic === null && editing && (
+            <Asp off={off('gate', 'value')}>
             <div className="space-y-1 border border-bg-accent p-1">
               <div className="text-text-dim">
                 {comp.type === 'resistor' ? 'Rezystor' : comp.type === 'capacitor' ? 'Kondensator' : 'Jumper'}
@@ -595,6 +639,7 @@ export function SelectionPanel(): JSX.Element | null {
                 </>
               )}
             </div>
+            </Asp>
           )}
           {(() => {
             const gateKey = `${gate.ref}${gate.gate ? `.${gate.gate}` : ''}`;
@@ -613,6 +658,7 @@ export function SelectionPanel(): JSX.Element | null {
           <hr className="border-bg-accent" />
           {editing ? (
             <div className="space-y-1">
+              <Asp off={off('gate', 'ref')}>
               <Field
                 label="ref"
                 value={gate.ref}
@@ -637,6 +683,8 @@ export function SelectionPanel(): JSX.Element | null {
                   onChange={(v) => updateGate((g) => (g.gate = v || null))}
                 />
               )}
+              </Asp>
+              <Asp off={off('gate', 'rotation')}>
               <div className="flex items-center gap-2">
                 <label className="w-16 text-text-dim">rotation</label>
                 <select
@@ -662,6 +710,7 @@ export function SelectionPanel(): JSX.Element | null {
                   ))}
                 </select>
               </div>
+              </Asp>
               <div className="flex items-center gap-2 text-text-dim">
                 <span className="w-16">x</span>
                 <span>{gate.x}</span>
@@ -686,6 +735,7 @@ export function SelectionPanel(): JSX.Element | null {
                     (() => {
                       const pinCtx = netCtx({ kind: 'pin', gateIdx, pinIdx: pi }, p.net);
                       return (
+                        <Asp off={off('gate', 'pinNet')}>
                         <NetField
                           value={p.net}
                           disabled={p.disconnected}
@@ -695,12 +745,14 @@ export function SelectionPanel(): JSX.Element | null {
                           {!p.disconnected && <RenameNetButton page={page} ctx={pinCtx} />}
                           {!p.disconnected && <DisconnectButton ctx={pinCtx} />}
                         </NetField>
+                        </Asp>
                       );
                     })()
                   ) : (
                     <span className="flex-1">{p.disconnected ? 'NC' : p.net}</span>
                   )}
                   {editing && (
+                    <Asp off={off('gate', 'nc')}>
                     <label className="flex items-center gap-0.5 text-text-dim" title="NC — not connected (ukryj pin, skip walidacji)">
                       <input
                         type="checkbox"
@@ -717,6 +769,7 @@ export function SelectionPanel(): JSX.Element | null {
                       />
                       <span>NC</span>
                     </label>
+                    </Asp>
                   )}
                   {p.cross && (
                     <span className="text-warning">→{p.cross.page}</span>
@@ -747,6 +800,7 @@ export function SelectionPanel(): JSX.Element | null {
         </div>
       )}
 
+      </fieldset>
     </aside>
   );
 }
@@ -1339,3 +1393,12 @@ function splitNetCluster(
   setSelection({ kind: 'net', name: newName });
 }
 
+
+/** Grupa pól jednego aspektu: wyłączona, gdy aspekt nie należy do bieżącego kroku. */
+function Asp({ off, children }: { off: boolean; children: ReactNode }): JSX.Element {
+  return (
+    <fieldset disabled={off} className="contents">
+      {children}
+    </fieldset>
+  );
+}

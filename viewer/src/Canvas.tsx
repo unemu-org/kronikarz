@@ -3,6 +3,7 @@ import { Stage, Layer, Rect, Group, Text, Line } from 'react-konva';
 import type Konva from 'konva';
 import {
   useDocStore,
+  lockReason,
   runRewrite,
   postRewrite,
   fetchDataFile,
@@ -33,6 +34,8 @@ import { AnnotationLayer } from './layers/AnnotationLayer.tsx';
 import { DecorationLayer } from './layers/DecorationLayer.tsx';
 import type { Decoration } from '@kronikarz/shared';
 import { AIDetectDialog, type AiDetection, type RoiRect } from './AIDetectDialog.tsx';
+import { canEditElement, placeAllowed, rubberBand, type Box } from './stepView.ts';
+import { LOCK_RUNNING } from './autoRun.ts';
 
 export function Canvas(): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -285,7 +288,7 @@ export function Canvas(): JSX.Element {
       setWireDraft({ ...wireDraft, vertices: wireDraft.vertices.slice(0, -1) });
     }
     if (key === 'c') {
-      if (tool === 'edit') setPlacingGate(true);
+      if (tool === 'edit' && placeAllowed(useDocStore.getState().currentStep, 'gate')) setPlacingGate(true);
     }
     const nextTool = toolForKey(e);
     if (nextTool) setTool(nextTool);
@@ -296,7 +299,7 @@ export function Canvas(): JSX.Element {
     }
     if (key === 'h') setOverlaysVisible(!useDocStore.getState().overlaysVisible);
     if (key === 'k') {
-      if (selection?.kind === 'gate') {
+      if (selection?.kind === 'gate' && canEditElement(useDocStore.getState().currentStep, 'gate', 'box')) {
         const idx = selection.idx;
         editPage((p) => {
           const g = p.gates[idx];
@@ -304,7 +307,8 @@ export function Canvas(): JSX.Element {
         });
       }
     }
-    if (e.key === 'Delete' || e.key === 'Backspace') {
+    // Usuwanie tylko elementów edytowalnych w bieżącym kroku (stepView.canEditElement).
+    if ((e.key === 'Delete' || e.key === 'Backspace') && (!selection || canEditElement(useDocStore.getState().currentStep, selection.kind))) {
       if (tool === 'edit' && selection?.kind === 'gate') {
         const idx = selection.idx;
         editPage((p) => { p.gates.splice(idx, 1); });
@@ -363,6 +367,8 @@ export function Canvas(): JSX.Element {
       if (raw) {
         try {
           const clip = JSON.parse(raw);
+          // Wklejanie jak przyciski „+ …”: tylko rodzaje dozwolone w bieżącym kroku.
+          if (!['annotation', 'decoration', 'gate'].includes(clip?.kind) || !placeAllowed(useDocStore.getState().currentStep, clip.kind)) return;
           // Mouse position in scan coords for paste-at-cursor
           const stage = stageRef.current;
           const ptr = stage?.getPointerPosition();
@@ -525,6 +531,33 @@ export function Canvas(): JSX.Element {
       window.removeEventListener('kronikarz:export-png', onExportPng as EventListener);
     };
   }, [onKeyDown]);
+
+  // Zmiana kroku przerywa rozpoczęte wstawianie / rysowanie.
+  const currentStep = useDocStore((s) => s.currentStep);
+  useEffect(() => {
+    setPlacingGate(false);
+    setPlacingXref(false);
+    setPlacingPort(false);
+    setPlacingAnn(false);
+    setPlacingDeco(null);
+    setDecoDraft(null);
+    setPlacingPower(null);
+    setWireDraft(null);
+    setWireCursor(null);
+  }, [currentStep]);
+  const lockMsg = useDocStore(lockReason);
+  const lock = lockMsg !== null ? { reason: lockMsg } : null;
+
+  // Kolejka przeglądu (ReviewPanel) przybliża element: 'kronikarz:zoom-to' {x,y,w,h}.
+  const zoomToBox = useEvent((b: Box) => {
+    const scale = Math.max(0.3, Math.min(2, Math.min(size.w / b.w, size.h / b.h) * 0.6));
+    setView({ x: size.w / 2 - (b.x + b.w / 2) * scale, y: size.h / 2 - (b.y + b.h / 2) * scale, scale });
+  });
+  useEffect(() => {
+    const on = (ev: Event) => zoomToBox((ev as CustomEvent<Box>).detail);
+    window.addEventListener('kronikarz:zoom-to', on);
+    return () => window.removeEventListener('kronikarz:zoom-to', on);
+  }, [zoomToBox]);
 
   // Fit when another page is opened or the canvas is resized (not on edits).
   const pageId = page?.page;
@@ -1140,27 +1173,8 @@ export function Canvas(): JSX.Element {
       selectDragRef.current = null;
       setSelectRect(null);
       if (r.w < 4 || r.h < 4) return;
-      const inside = (x: number, y: number) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
-      // Priorytet: gates jezeli sa, inaczej ports, inaczej cross_refs
-      const gateIdx: number[] = [];
-      page.gates.forEach((g, i) => { if (inside(g.x, g.y)) gateIdx.push(i); });
-      if (gateIdx.length > 0) {
-        setMulti({ kind: 'gate', indices: gateIdx });
-        return;
-      }
-      const portIdx: number[] = [];
-      (page.ports ?? []).forEach((p, i) => { if (inside(p.x, p.y)) portIdx.push(i); });
-      if (portIdx.length > 0) {
-        setMulti({ kind: 'port', indices: portIdx });
-        return;
-      }
-      const crIdx: number[] = [];
-      (page.cross_refs ?? []).forEach((c, i) => { if (inside(c.x, c.y)) crIdx.push(i); });
-      if (crIdx.length > 0) {
-        setMulti({ kind: 'cross_ref', indices: crIdx });
-        return;
-      }
-      setMulti(null);
+      // Priorytet: bramki, porty, odsyłacze — tylko edytowalne w bieżącym kroku.
+      setMulti(rubberBand(page, r, useDocStore.getState().currentStep));
       return;
     }
     if (placingDeco && decoDragRef.current && decoDraft) {
@@ -1487,6 +1501,18 @@ export function Canvas(): JSX.Element {
           </>
         )}
       </Stage>
+      {lock && (
+        <div className="absolute inset-0 z-10 flex items-start justify-center bg-bg-main/40 pt-16" data-testid="page-lock">
+          <div className="flex items-center gap-2 border border-warning bg-bg-panel px-3 py-1 text-xs text-warning">
+            ⏳ {lock.reason}
+            {lock.reason !== LOCK_RUNNING && (
+              <button onClick={() => window.location.reload()} className="border border-warning/60 px-1.5 text-text-main hover:bg-warning/20">
+                przeładuj
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       {!page && !loading && (
         <div className="absolute inset-0 flex items-center justify-center text-text-dim">
           {route.mode === 'empty' ? (

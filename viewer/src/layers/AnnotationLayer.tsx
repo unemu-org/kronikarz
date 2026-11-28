@@ -2,6 +2,7 @@ import { Layer, Text, Rect, Group } from 'react-konva';
 import type Konva from 'konva';
 import type { Annotation } from '@kronikarz/shared';
 import { useDocStore } from '../store.ts';
+import { useStepView } from './stepLook.ts';
 
 interface Props {
   annotations: Annotation[];
@@ -17,8 +18,10 @@ export function AnnotationLayer({ annotations, zoom }: Props): JSX.Element {
   const editPage = useDocStore((s) => s.editPage);
   const tool = useDocStore((s) => s.tool);
   const editing = tool === 'edit';
+  const sv = useStepView();
+  const look = sv.look('decor');
   return (
-    <Layer>
+    <Layer visible={look.visible} opacity={look.opacity} listening={look.listening}>
       {annotations.map((a, i) => {
         const isSelected = selection?.kind === 'annotation' && selection.idx === i;
         const fontSize = a.fontSize ?? 20;

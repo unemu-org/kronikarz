@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Layer, Line, Circle } from 'react-konva';
 import type Konva from 'konva';
 import type { Page, Gate, Port } from '@kronikarz/shared';
+import { autoJunctionMask, autoSegmentMask } from '@kronikarz/shared';
+import { canEditElement, issueRelevant } from '../stepView.ts';
+import { useStepView } from './stepLook.ts';
 import { useDocStore } from '../store.ts';
 import { moveNetPoint, withNetPointMoved, type NetPoint } from '../netOps.ts';
 import { createPointDragSession, type PointDrag, type PointDragSession } from '../netPointDrag.ts';
@@ -125,11 +128,18 @@ export function NetLayer({ page, zoom }: Props): JSX.Element {
   const active = highlightedNets(page, selection);
   const w = 2.2 / zoom;
   const wActive = 4 / zoom;
-  const editing = tool === 'edit';
+  // Geometria drutów (przeciąganie, podział, kropki) tylko w ③ / bez kroku; w ④⑤ do odczytu.
+  const curStep = useDocStore((s) => s.currentStep);
+  const editing = tool === 'edit' && canEditElement(curStep, 'segment', 'geom');
   const issues = useDocStore((s) => s.issues);
+  // Bieżący krok: druty to ③ (kolor pochodzenia z auto_segments); czerwone
+  // „złe nety” (kody kroku ⑤) tylko bez kroku i w ⑤.
+  const step = useDocStore((s) => s.currentStep);
+  const sv = useStepView();
+  const look = sv.look('wire');
   const badNets = new Set<string>();
   for (const it of issues) {
-    if (it.level === 'err' && (
+    if (it.level === 'err' && issueRelevant(it, step) && (
       it.code === 'NET_DISCONNECTED' ||
       it.code === 'NET_ORPHAN_ENDPOINT' ||
       it.code === 'NET_FLOATING' ||
@@ -191,7 +201,7 @@ export function NetLayer({ page, zoom }: Props): JSX.Element {
   for (const cr of page.cross_refs ?? []) if (cr.net && cr.net.trim()) allNetNames.add(cr.net);
 
   return (
-    <Layer>
+    <Layer visible={look.visible} opacity={look.opacity} listening={look.listening}>
       {Array.from(allNetNames).map((name) => {
         const storedNet = page.nets[name] ?? { pins: [], segments: null, junctions: null };
         const net = pointDrag && pointDrag.net === name
@@ -205,6 +215,12 @@ export function NetLayer({ page, zoom }: Props): JSX.Element {
 
         const segments = net.segments ?? [];
         const dashed = net.segments === null;
+        const segAuto = autoSegmentMask(net);
+        const juncAuto = autoJunctionMask(net);
+        const segColor = (si: number): string =>
+          isBad || isActive ? color : sv.prov('wire', segAuto[si] ? 'auto' : 'edited') ?? color;
+        const juncColor = (ji: number): string =>
+          isBad || isActive ? color : sv.prov('wire', juncAuto[ji] ? 'auto' : 'edited') ?? color;
 
         // Dashed placeholders connecting all endpoints touching this net.
         // We scan every gate pin's `.net` field directly (source of truth)
@@ -299,8 +315,9 @@ export function NetLayer({ page, zoom }: Props): JSX.Element {
                 <Line
                   key={`${name}-s-${si}`}
                   points={[s[0], s[1], s[2], s[3]]}
-                  stroke={showAsSelected ? '#2196F3' : (segActive ? COLOR_ACTIVE : color)}
-                  strokeWidth={segActive ? wActive : w}
+                  stroke={showAsSelected ? '#2196F3' : (segActive ? COLOR_ACTIVE : segColor(si))}
+                  strokeWidth={selected ? wActive * 1.5 : segActive ? wActive : w}
+                  dash={selected ? [12 / zoom, 6 / zoom] : undefined}
                   hitStrokeWidth={Math.max(8, w * 4)}
                   onClick={(e) => {
                     e.cancelBubble = true;
@@ -420,7 +437,7 @@ export function NetLayer({ page, zoom }: Props): JSX.Element {
                   x={j[0]}
                   y={j[1]}
                   radius={4}
-                  fill={color}
+                  fill={juncColor(ji)}
                   draggable={editing && nearestSeg >= 0}
                   dragBoundFunc={function (this: Konva.Node, absPos) {
                     const stage = this.getStage();

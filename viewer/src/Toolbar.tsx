@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useDocStore, flushSavesOrAlert, runRewrite, postRewrite, parsePageFilePath } from './store.ts';
+import { useDocStore, flushSavesOrAlert, isLocked, runRewrite, postRewrite, parsePageFilePath } from './store.ts';
 import { navigate } from './router.ts';
 import { apiWrite } from './api.ts';
+import { pageActionAllowed, placeAllowed, toolAllowed, type PlaceKind } from './stepView.ts';
 
 export function Toolbar(): JSX.Element {
   const route = useDocStore((s) => s.route);
@@ -21,6 +22,12 @@ export function Toolbar(): JSX.Element {
   const editPage = useDocStore((s) => s.editPage);
   const page = useDocStore((s) => s.page);
   const pagePath = useDocStore((s) => s.pagePath);
+  // Bieżący krok (StepBar) ogranicza narzędzia i przyciski „+ …” (stepView.ts).
+  const currentStep = useDocStore((s) => s.currentStep);
+  // Strona zablokowana przez trwający krok pipeline'u: żadnych akcji strony.
+  const locked = useDocStore(isLocked);
+  const noPlace = (kind: PlaceKind): boolean => locked || tool !== 'edit' || !placeAllowed(currentStep, kind);
+  const noAction = (a: Parameters<typeof pageActionAllowed>[1]): boolean => locked || !pageActionAllowed(currentStep, a);
   const [visionBusy, setVisionBusy] = useState(false);
   // Page actions target the file the page was loaded from (= the auto-save
   // path, which runRewrite fences), not the YAML `page:` field or the route.
@@ -289,11 +296,11 @@ export function Toolbar(): JSX.Element {
           </select>
         )}
         <div className="ml-2 flex items-center gap-1 border-l border-bg-accent pl-3">
-          <button onClick={() => setTool('select')} className={`px-2 py-0.5 ${tool === 'select' ? 'bg-phosphor-dim text-bg-main' : 'text-text-dim'}`} title="V — zaznacz">V</button>
-          <button onClick={() => setTool('edit')} className={`px-2 py-0.5 ${tool === 'edit' ? 'bg-phosphor-dim text-bg-main' : 'text-text-dim'}`} title="E — edytuj">E</button>
-          <button onClick={() => setTool('roi')} className={`px-2 py-0.5 ${tool === 'roi' ? 'bg-phosphor-dim text-bg-main' : 'text-text-dim'}`} title="R — ROI: AI wykrywa">R (AI)</button>
-          <button onClick={() => setTool('wire')} className={`px-2 py-0.5 ${tool === 'wire' ? 'bg-phosphor-dim text-bg-main' : 'text-text-dim'}`} title="W — rysuj ścieżkę">W (wire)</button>
-          <button onClick={() => setTool('zones')} className={`px-2 py-0.5 ${tool === 'zones' ? 'bg-phosphor-dim text-bg-main' : 'text-text-dim'}`} title="Z — strefy dla vision AI">Z (zones)</button>
+          <button disabled={!toolAllowed(currentStep, 'select')} onClick={() => setTool('select')} className={`px-2 py-0.5 disabled:opacity-30 ${tool === 'select' ? 'bg-phosphor-dim text-bg-main' : 'text-text-dim'}`} title="V — zaznacz">V</button>
+          <button disabled={!toolAllowed(currentStep, 'edit')} onClick={() => setTool('edit')} className={`px-2 py-0.5 disabled:opacity-30 ${tool === 'edit' ? 'bg-phosphor-dim text-bg-main' : 'text-text-dim'}`} title="E — edytuj">E</button>
+          <button disabled={!toolAllowed(currentStep, 'roi')} onClick={() => setTool('roi')} className={`px-2 py-0.5 disabled:opacity-30 ${tool === 'roi' ? 'bg-phosphor-dim text-bg-main' : 'text-text-dim'}`} title="R — ROI: AI wykrywa">R (AI)</button>
+          <button disabled={!toolAllowed(currentStep, 'wire')} onClick={() => setTool('wire')} className={`px-2 py-0.5 disabled:opacity-30 ${tool === 'wire' ? 'bg-phosphor-dim text-bg-main' : 'text-text-dim'}`} title="W — rysuj ścieżkę">W (wire)</button>
+          <button disabled={!toolAllowed(currentStep, 'zones')} onClick={() => setTool('zones')} className={`px-2 py-0.5 disabled:opacity-30 ${tool === 'zones' ? 'bg-phosphor-dim text-bg-main' : 'text-text-dim'}`} title="Z — strefy dla vision AI">Z (zones)</button>
           {tool === 'wire' && (
             <button onClick={() => setWireOrtho(!wireOrtho)} className={`px-2 py-0.5 ${wireOrtho ? 'bg-phosphor-dim text-bg-main' : 'text-text-dim'}`} title="ortho ↔ freeform (Shift = chwilowo freeform)">
               {wireOrtho ? '⌐ ortho' : '↗ freeform'}
@@ -302,55 +309,55 @@ export function Toolbar(): JSX.Element {
         </div>
         <div className="flex items-center gap-1 border-l border-bg-accent pl-3">
           <button
-            disabled={tool !== 'edit'}
+            disabled={noPlace('gate')}
             onClick={() => window.dispatchEvent(new CustomEvent('kronikarz:place-gate'))}
             className="px-2 py-0.5 text-text-dim hover:bg-bg-accent hover:text-phosphor disabled:hover:bg-transparent disabled:hover:text-text-dim"
             title="C — dodaj bramkę"
           >+ bramka (C)</button>
           <button
-            disabled={tool !== 'edit'}
+            disabled={noPlace('cross_ref')}
             onClick={() => window.dispatchEvent(new CustomEvent('kronikarz:place-cross-ref'))}
             className="px-2 py-0.5 text-text-dim hover:bg-bg-accent hover:text-phosphor disabled:hover:bg-transparent disabled:hover:text-text-dim"
             title="dodaj cross-ref"
           >+ xref</button>
           <button
-            disabled={tool !== 'edit'}
+            disabled={noPlace('port')}
             onClick={() => window.dispatchEvent(new CustomEvent('kronikarz:place-port'))}
             className="px-2 py-0.5 text-text-dim hover:bg-bg-accent hover:text-phosphor disabled:hover:bg-transparent disabled:hover:text-text-dim"
             title="dodaj port (chevron < >)"
           >+ port</button>
           <button
-            disabled={tool !== 'edit'}
+            disabled={noPlace('annotation')}
             onClick={() => window.dispatchEvent(new CustomEvent('kronikarz:place-annotation'))}
             className="px-2 py-0.5 text-text-dim hover:bg-bg-accent hover:text-phosphor disabled:hover:bg-transparent disabled:hover:text-text-dim"
             title="dodaj tekst/adnotację"
           >+ tekst</button>
           <button
-            disabled={tool !== 'edit'}
+            disabled={noPlace('decoration')}
             onClick={() => window.dispatchEvent(new CustomEvent('kronikarz:place-decoration', { detail: { kind: 'line' } }))}
             className="px-2 py-0.5 text-text-dim hover:bg-bg-accent hover:text-phosphor disabled:hover:bg-transparent disabled:hover:text-text-dim"
             title="narysuj linię (drag)"
           >+ linia</button>
           <button
-            disabled={tool !== 'edit'}
+            disabled={noPlace('decoration')}
             onClick={() => window.dispatchEvent(new CustomEvent('kronikarz:place-decoration', { detail: { kind: 'rect' } }))}
             className="px-2 py-0.5 text-text-dim hover:bg-bg-accent hover:text-phosphor disabled:hover:bg-transparent disabled:hover:text-text-dim"
             title="narysuj prostokąt (drag)"
           >+ rect</button>
           <button
-            disabled={tool !== 'edit'}
+            disabled={noPlace('decoration')}
             onClick={() => window.dispatchEvent(new CustomEvent('kronikarz:place-decoration', { detail: { kind: 'ellipse' } }))}
             className="px-2 py-0.5 text-text-dim hover:bg-bg-accent hover:text-phosphor disabled:hover:bg-transparent disabled:hover:text-text-dim"
             title="narysuj koło (drag)"
           >+ koło</button>
           <button
-            disabled={tool !== 'edit'}
+            disabled={noPlace('power')}
             onClick={() => window.dispatchEvent(new CustomEvent('kronikarz:place-power', { detail: { type: '+5V' } }))}
             className="px-2 py-0.5 text-text-dim hover:bg-bg-accent hover:text-phosphor disabled:hover:bg-transparent disabled:hover:text-text-dim"
             title="dodaj symbol +5V (pull-up)"
           >+ +5V</button>
           <button
-            disabled={tool !== 'edit'}
+            disabled={noPlace('power')}
             onClick={() => window.dispatchEvent(new CustomEvent('kronikarz:place-power', { detail: { type: '+0V' } }))}
             className="px-2 py-0.5 text-text-dim hover:bg-bg-accent hover:text-phosphor disabled:hover:bg-transparent disabled:hover:text-text-dim"
             title="dodaj symbol +0V/GND (pull-down)"
@@ -425,23 +432,26 @@ export function Toolbar(): JSX.Element {
           >📷 png bare</button>
           <button
             onClick={cleanupNets}
-            className="px-2 py-0.5 text-text-dim hover:bg-bg-accent hover:text-phosphor"
+            disabled={noAction('cleanup')}
+            className="px-2 py-0.5 text-text-dim hover:bg-bg-accent hover:text-phosphor disabled:opacity-30"
             title="Usuń orphan nets"
           >🧹 cleanup nets</button>
           <button
             onClick={visionPage}
-            disabled={visionBusy}
+            disabled={visionBusy || noAction('vision')}
             className="px-2 py-0.5 text-text-dim hover:bg-bg-accent hover:text-phosphor disabled:opacity-50"
             title="Vision-digitize: Claude wykrywa bramki/porty/cross-refy ze skanu"
           >{visionBusy ? '⏳ vision...' : '👁 vision'}</button>
           <button
             onClick={makeBak}
-            className="px-2 py-0.5 text-text-dim hover:bg-bg-accent hover:text-phosphor"
+            disabled={noAction('make-bak')}
+            className="px-2 py-0.5 text-text-dim hover:bg-bg-accent hover:text-phosphor disabled:opacity-30"
             title="Zrób kopię zapasową .bak (+ timestamped)"
           >💾 make .bak</button>
           <button
             onClick={restoreBak}
-            className="px-2 py-0.5 text-text-dim hover:bg-bg-accent hover:text-phosphor"
+            disabled={noAction('restore-bak')}
+            className="px-2 py-0.5 text-text-dim hover:bg-bg-accent hover:text-phosphor disabled:opacity-30"
             title="Przywróć ostatni backup .bak"
           >↶ restore .bak</button>
         </div>
