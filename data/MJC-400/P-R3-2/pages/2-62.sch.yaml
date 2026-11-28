@@ -523,8 +523,8 @@ cross_refs:
     x: 379
     "y": 346
     side: left
-  - net: "-CZYTAN"
-    label: "-CZYTAN"
+  - net: "-CZYTRN"
+    label: "-CZYTRN"
     pages:
       - "1"
     x: 379
