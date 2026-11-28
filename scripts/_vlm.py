@@ -111,8 +111,10 @@ def norm_pages(v) -> list[int]:
     """Lista arkuszy → posortowana lista int (akceptuje '2,3,4,5', ['2','3'], [2,3])."""
     if v is None:
         return []
-    if isinstance(v, str):
+    if isinstance(v, (str, int, float)) and not isinstance(v, bool):  # model bywa zwraca skalar: "sheets": 9
         items = re.findall(r"\d+", norm_text(v))
+    elif not isinstance(v, (list, tuple)):
+        return []
     else:
         items = []
         for x in v:
@@ -121,8 +123,12 @@ def norm_pages(v) -> list[int]:
 
 
 def norm_pins(v) -> list[int]:
+    if isinstance(v, (str, int, float)) and not isinstance(v, bool):  # skalar zamiast listy
+        v = [v]
+    elif not isinstance(v, (list, tuple)):
+        return []
     out = []
-    for x in v or []:
+    for x in v:
         m = re.search(r"\d+", norm_text(x))
         if m:
             out.append(int(m.group()))
@@ -141,8 +147,29 @@ def gate_crop_box(rect, pin_ys=()) -> tuple[int, int, int, int]:
     return (round(x0 - GATE_MX), round(top), round(x1 + GATE_MX), round(bottom))
 
 
-def render_box(scan, bbox, mark_y, scale: int):
-    """Wycina bbox (z białym dopełnieniem poza skanem), skaluje, dorysowuje znaczniki wiersza."""
+def port_crop_box(x, y, side) -> tuple[int, int, int, int]:
+    """Kadr portu (bake-off kr-9p8.4, krok ④): `x`, `y` = grot szewronu (port.x/y); wiersz
+    `y - PORT_UP … y + PORT_DOWN`, `PORT_OUT` na zewnątrz arkusza i `PORT_IN` w głąb."""
+    x, y = float(x), float(y)
+    if side == "right":
+        return (round(x - PORT_IN), round(y - PORT_UP), round(x + PORT_OUT), round(y + PORT_DOWN))
+    return (round(x - PORT_OUT), round(y - PORT_UP), round(x + PORT_IN), round(y + PORT_DOWN))
+
+
+def xref_crop_box(x, y, side) -> tuple[int, int, int, int]:
+    """Kadr cross-refa (bake-off kr-9p8.4, krok ④): `x`, `y` = koniec drutu (cross_ref.x/y);
+    wiersz `y - XREF_UP … y + XREF_DOWN`; przy prawym końcu `XREF_BACK` w lewo (etykieta)
+    i `XREF_FWD` w prawo (arkusze), przy lewym (`side: left`) `XREF_LEFT_BACK` / `XREF_LEFT_FWD`."""
+    x, y = float(x), float(y)
+    if side == "left":
+        return (round(x - XREF_LEFT_BACK), round(y - XREF_UP), round(x + XREF_LEFT_FWD), round(y + XREF_DOWN))
+    return (round(x - XREF_BACK), round(y - XREF_UP), round(x + XREF_FWD), round(y + XREF_DOWN))
+
+
+def render_box(scan, bbox, mark_y, scale: int, keep_rows=None):
+    """Wycina bbox (z białym dopełnieniem poza skanem), skaluje, dorysowuje znaczniki wiersza.
+    `keep_rows` = (ya, yb) w px skanu: wiersze poza nimi zamalowane na biało (sąsiednie wiersze
+    odsyłaczy, krok ④)."""
     from PIL import Image, ImageDraw
 
     x0, y0, x1, y1 = bbox
@@ -151,6 +178,13 @@ def render_box(scan, bbox, mark_y, scale: int):
     sx1, sy1 = min(scan.width, x1), min(scan.height, y1)
     if sx1 > sx0 and sy1 > sy0:
         canvas.paste(scan.crop((sx0, sy0, sx1, sy1)), (sx0 - x0, sy0 - y0))
+    if keep_rows is not None:
+        ya, yb = (int(round(v)) - y0 for v in keep_rows)
+        dr0 = ImageDraw.Draw(canvas)
+        if ya > 0:
+            dr0.rectangle((0, 0, canvas.width, ya - 1), fill=255)
+        if yb < canvas.height - 1:
+            dr0.rectangle((0, yb + 1, canvas.width, canvas.height), fill=255)
     if scale != 1:
         canvas = canvas.resize((canvas.width * scale, canvas.height * scale), Image.LANCZOS)
     if mark_y is None:

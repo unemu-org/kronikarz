@@ -111,7 +111,8 @@ from _vlm import (  # noqa: E402,F401
     PORT_DOWN, PORT_IN, PORT_OUT, PORT_UP, PROMPTS, SCHEMAS, SLASH_GLYPHS, SYMBOL_BY_TYPE, XREF_BACK,
     XREF_DOWN, XREF_FWD, XREF_LEFT_BACK, XREF_LEFT_FWD, XREF_UP, Adapter, MlxAdapter, OcrAdapter,
     gate_crop_box, model_label, norm_conn, norm_label, norm_pages, norm_pins, norm_text, norm_type,
-    ocr_to_obj, parse_json_text, path_hash, png_bytes, render_box, to_pred,
+    ocr_to_obj, parse_json_text, path_hash, png_bytes, port_crop_box, render_box, to_pred,
+    xref_crop_box,
 )
 sys.dont_write_bytecode = _old_dwb
 
@@ -206,17 +207,11 @@ def gate_truth(g: dict, components: dict) -> dict:
 
 
 def port_bbox(p: dict) -> tuple[int, int, int, int]:
-    x, y = float(p["x"]), float(p["y"])
-    if p.get("side") == "right":
-        return (round(x - PORT_IN), round(y - PORT_UP), round(x + PORT_OUT), round(y + PORT_DOWN))
-    return (round(x - PORT_OUT), round(y - PORT_UP), round(x + PORT_IN), round(y + PORT_DOWN))
+    return port_crop_box(p["x"], p["y"], p.get("side"))
 
 
 def xref_bbox(c: dict) -> tuple[int, int, int, int]:
-    x, y = float(c["x"]), float(c["y"])
-    if c.get("side") == "left":
-        return (round(x - XREF_LEFT_BACK), round(y - XREF_UP), round(x + XREF_LEFT_FWD), round(y + XREF_DOWN))
-    return (round(x - XREF_BACK), round(y - XREF_UP), round(x + XREF_FWD), round(y + XREF_DOWN))
+    return xref_crop_box(c["x"], c["y"], c.get("side"))
 
 
 def build_items(gold_dir: Path = GOLD, pages=ALL_PAGES, overrides: bool = True) -> list[Item]:

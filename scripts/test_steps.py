@@ -296,3 +296,58 @@ def test_step_fingerprint_parity_with_steps_ts(tmp_path):
     # null i brak px to to samo; 0 — co innego
     text = [S.step_fingerprint(p, "text") for p in pages]
     assert text[3] == text[4] != text[6]
+
+
+def _label_variants():
+    port = {"connector": "B", "pin": 22, "label": "-W4", "net": "", "x": 190, "y": 580, "side": "left"}
+    xref = {"label": "-L", "pages": ["9"], "net": "", "x": 314, "y": 159, "side": "left"}
+    power = {"type": "+5V", "x": 700, "y": 120, "net": ""}
+
+    def page(po=None, xo=None, wo=None, drop=()):
+        p, x, w = {**port, **(po or {})}, {**xref, **(xo or {})}, {**power, **(wo or {})}
+        for d in drop:
+            for el in (p, x, w):
+                el.pop(d, None)
+        return {"gates": [], "nets": {}, "ports": [p], "cross_refs": [x], "power": [w]}
+
+    return [
+        page(), page({"src": "auto", "net": "N1", "net_src": "auto"}), page({"pin": 22.0}), page({"pin": 23}),
+        page({"pin": "22"}), page({"label": ""}), page({"label": None}), page({"x": 191}), page({"side": "right"}),
+        page(xo={"pages": ["9", "8"]}), page(xo={"pages": ["8", "9"]}), page(xo={"pages": [9]}),
+        page(xo={"pages": None}), page(xo={"x": 314.0}), page(wo={"rotation": 0}), page(wo={"rotation": 90}),
+        page(wo={"type": "+0V"}), page(wo={"rotation": None}), page(drop=("x",)),
+    ]
+
+
+def test_labels_fingerprint_parity_with_steps_ts(tmp_path):
+    """Odcisk kroku labels (porty / odsyłacze / zasilanie, bez netu): te same równości w Pythonie
+    i w steps.ts (kr-9p8.28)."""
+    import json
+    import shutil
+    import subprocess
+
+    import pytest
+
+    node = shutil.which("node")
+    ts = Path(__file__).resolve().parent.parent / "shared" / "src" / "steps.ts"
+    if not node or not ts.is_file():
+        pytest.skip("brak node albo shared/src/steps.ts")
+    pages = _label_variants()
+    inp, out, js = tmp_path / "in.json", tmp_path / "out.json", tmp_path / "fp.mjs"
+    inp.write_text(json.dumps(pages))
+    js.write_text(
+        "import fs from 'node:fs';\n"
+        f"const {{ stepFingerprint }} = await import({json.dumps(str(ts))});\n"
+        "const pages = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));\n"
+        "fs.writeFileSync(process.argv[3], JSON.stringify(pages.map((p) => stepFingerprint(p, 'labels'))));\n")
+    r = subprocess.run([node, "--experimental-strip-types", "--no-warnings", str(js), str(inp), str(out)],
+                       capture_output=True, text=True)
+    if r.returncode != 0 and "strip-types" in r.stderr:
+        pytest.skip("node bez --experimental-strip-types")
+    assert r.returncode == 0, r.stderr
+    ts_fp = json.loads(out.read_text())
+    py = [S.step_fingerprint(json.loads(json.dumps(p)), "labels") for p in pages]
+    for i in range(len(pages)):
+        for j in range(i + 1, len(pages)):
+            assert (py[i] == py[j]) == (ts_fp[i] == ts_fp[j]), (pages[i], pages[j])
+    assert py[0] == py[1] and py[0] == py[14] and py[0] != py[15]  # net / src i rotation 0 to nie treść ④

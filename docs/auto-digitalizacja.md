@@ -86,7 +86,7 @@ krok ⑥ (podgląd arkusza), a projekt KiCad całego pakietu powstaje z widoku p
 | ① | `gates` | skan | prostokąty bramek (bez tekstu) | `cv-gates.py` | dodaje / usuwa / zmienia ramki |
 | ② | `text` | ① | ref, typ, litera, numery i strony pinów | VLM na wycinkach + `ic_map` + rejestr pakietu | tekst, piny |
 | ③ | `wires` | ①② | odcinki, kropki, wolne końce | `cv-wires.py` (ramki z ① wymazane) | rysuje / usuwa druty i kropki |
-| ④ | `labels` | ③ | porty (złącze, pin, etykieta) i odsyłacze (etykieta, arkusze) na wolnych końcach | VLM na wycinkach | etykiety, typ końca |
+| ④ | `labels` | ③ | porty (złącze, pin, etykieta), odsyłacze (etykieta, arkusze) i zasilanie na wolnych końcach | CV + VLM na wycinkach (`_labels.py`) | etykiety, typ końca |
 | ⑤ | `nets` | ①–④ | nety: piny, porty, odsyłacze, nazwy | składanie grafu (kr-9p8.5) + samokorekta (kr-9p8.6) + walidator | błędy walidacji kroku |
 | ⑥ | — | ⑤ wszystkich stron pakietu dla eksportu | podgląd `.kicad_sch` arkusza | eksporter (kr-4rq) | nic — tylko podgląd |
 
@@ -149,16 +149,16 @@ przebieg → 409 `{error: 'busy', job}`, `GET /auto/status` pokazuje trwające z
 bez `dryRun` czeka na trwający PUT strony, a w trakcie przebiegu PUT / DELETE / make-bak /
 restore-bak tej strony dostają od razu 409 busy (viewer ponawia zapis; jeśli przebieg zmienił
 stronę, ponowienie kończy się zwykłym konfliktem → przeładowanie). Timeout 120 s × liczba
-stron (krok `text` i `next`: 600 s × liczba stron — `SCRIPT_TIMEOUTS.autoPerPageStep`,
-`autoPageTimeout`; kr-9p8.27), najwyżej 3000 s (proxy Vite: 3600 s) → 504 (proces zabity);
+stron (kroki `text`, `labels` i `next`: 600 s × liczba stron — `SCRIPT_TIMEOUTS.autoPerPageStep`,
+`autoPageTimeout`; kr-9p8.27, kr-9p8.28), najwyżej 3000 s (proxy Vite: 3600 s) → 504 (proces zabity);
 `text` na `all` mieści się więc w ~15 arkuszach po ~3 min — większe wsady z CLI; zamknięcie karty też
 zabija przebieg. Przebieg zabity między snapshotem a zapisem strony zostawia snapshot
 `.auto/<pkg>/<strona>/<krok>-<run>.yaml` bez zapisanej strony (strona nietknięta). Exit 0 → 200
 (podsumowanie JSON), 2 → 409 `{error: 'refused', reasons, result}`, 3 → 501, 1 albo wyjście bez
 pasującego JSON (np. błąd samego `uv`) → 500 z końcówką stderr. Przy `all` część stron mogła
 się zapisać mimo 409/500 — `result.pages[].written`. Potwierdzenie kosztu: hak
-`paidStepRefusal` w `server/index.js` (dziś nic nie kosztuje: `text` działa na lokalnym
-modelu, serwer nie przekazuje `--model` / `--allow-paid`; `labels` → 501).
+`paidStepRefusal` w `server/index.js` (dziś nic nie kosztuje: `text` i `labels` działają na
+lokalnym modelu, serwer nie przekazuje `--model` / `--allow-paid`; `nets` → 501).
 
 Ten sam kod z CLI (praca wsadowa, testy):
 
@@ -175,8 +175,9 @@ Każdy przebieg wypisuje: strony, krok, liczbę elementów `auto`, liczbę niepe
 
 `scripts/auto.py` — wspólne wejście CLI i (kr-9p8.19) serwera. Zaimplementowane kroki:
 ① `gates` (`cv-gates.py`), ② `text` (lokalny VLM na wycinkach bramek, kr-9p8.27 — niżej
-„Krok ② (kr-9p8.27)”) i ③ `wires` (`cv-wires.py` tryb (a) na **bieżących** bramkach
-strony, z pinami, jeśli są). `labels`, `nets` są rozpoznawane i odrzucane z exit 3.
+„Krok ② (kr-9p8.27)”), ③ `wires` (`cv-wires.py` tryb (a) na **bieżących** bramkach
+strony, z pinami, jeśli są) i ④ `labels` (niżej „Krok ④ (kr-9p8.28)”). `nets` jest
+rozpoznawany i odrzucany z exit 3.
 Reguły kroków (`canRun`, `nextRunnableStep`, `markStaleAfter`, `aspectEmpty`, druty po
 wartości, liczby jak w JS: 545.0 = 545, -0 = 0) są przeniesione do `scripts/_steps.py` — te
 same co w `shared/src/steps.ts`.
@@ -186,11 +187,12 @@ just auto PKG=P-R3-2 PAGE=2-58 STEP=gates [DATA=<kopia>] [--dry-run]   # bez --d
 uv run scripts/auto.py --data <DATA_ROOT> --pkg P-R3-2 --page 2-58|all \
     --step gates|wires [--force] [--draft] [--dry-run] [--json]
 UV_CACHE_DIR=/Volumes/Dane/llm/uv-cache uv run --with mlx-vlm==0.8.1 scripts/auto.py \
-    --data <DATA_ROOT> --pkg P-R3-2 --page 2-58|all --step text|next [...] \
+    --data <DATA_ROOT> --pkg P-R3-2 --page 2-58|all --step text|labels|next [...] \
     [--model mlx:/Volumes/Dane/llm/<katalog>] [--gate-timeout 120]
 PYTHONDONTWRITEBYTECODE=1 uv run --with pytest --with pyyaml --with numpy \
     --with opencv-python-headless --with pillow pytest -p no:cacheprovider \
-    scripts/test_auto.py scripts/test_auto_text.py scripts/test_steps.py scripts/test_jsyaml.py
+    scripts/test_auto.py scripts/test_auto_text.py scripts/test_auto_labels.py scripts/test_steps.py \
+    scripts/test_jsyaml.py
 ```
 
 - Pakiet: `<DATA_ROOT>/<moduł>/<pkg>/package.yaml`, gdzie moduł ma `project.yaml`
@@ -288,7 +290,7 @@ wycinka, prompty, parsowanie, adapter MLX); `vlm-bakeoff.py` go importuje.
   stronach (każda dostaje ten sam błąd, exit 1).
 - **mlx-vlm nie jest zależnością `auto.py`** (wtedy każdy przebieg ① / ③, `/auto` i test
   integracyjny serwera budowałyby ~0,8 GB środowiska, z `opencv-python` obok
-  `opencv-python-headless`). Dokłada je wywołujący, tylko dla `text` i `next`: serwer
+  `opencv-python-headless`). Dokłada je wywołujący, tylko dla `text`, `labels` i `next`: serwer
   (`AUTO_VLM_WITH` w `server/index.js`) i `just auto` uruchamiają `uv run --with
   mlx-vlm==0.8.1 scripts/auto.py …`; ręcznie trzeba to samo. Bez niego krok kończy się
   exit 1 z podpowiedzią. Serwer (i `just auto`) uruchamia każdy `uv` z
@@ -348,9 +350,9 @@ wycinka, prompty, parsowanie, adapter MLX); `vlm-bakeoff.py` go importuje.
   `--json`: `counts` (`gates`, `targets`, `filled`, `replaced`, `kept_human`, `uncertain`,
   `errors`, `empty_reads`, `pins_from_cv`, `pins_even`, `model_s`, `cv_pins`), `uncertain`,
   `time_s` strony, a na poziomie przebiegu `vlm` (model, `load_s`) i `time_s`.
-- **Serwer:** timeout `/auto` dla `text` (i `next`) 600 s × strony (`autoPerPageStep`), limit
+- **Serwer:** timeout `/auto` dla `text` (i `labels`, `next`) 600 s × strony (`autoPerPageStep`), limit
   3000 s bez zmian. Naraz najwyżej jeden przebieg ładujący model (~17 GB): każdy `text` /
-  `next` trzyma dodatkowo wirtualną blokadę `<DATA>/.auto/vlm` — drugi dostaje 409 `busy`
+  `labels` / `next` trzyma dodatkowo wirtualną blokadę `<DATA>/.auto/vlm` — drugi dostaje 409 `busy`
   z opisem trwającego zadania (także na innej stronie / w innym pakiecie); ① / ③ jej nie
   biorą.
 
@@ -382,6 +384,164 @@ held-out bake-offu — zredukowane do samych ramek z ręcznych stron: `ref: ""`,
 - **2-62** (bez wzorca, ręczna strona do porównania): 10 bramek, ref i litera zgodne z ręczną
   stroną na 10/10; oflagowane 3 (M24 A, M25 A `PIN_SIDE` — 74170 jak wyżej; M2 B
   `LETTER_WRONG_PAGE` — rejestr: 2-58); 67 s.
+
+### Krok ④ (kr-9p8.28)
+
+`auto.py --step labels` stawia porty, odsyłacze (cross-refy) i symbole zasilania na wolnych
+końcach drutów. Logika w `scripts/_labels.py` (czyste funkcje), odczyt tym samym lokalnym
+modelem co ② (Qwen3.8-27B 4-bit, `mlx-vlm` przez `--with`, hak płatnego modelu jak w ②).
+
+- **Kandydaci** (`free_ends`): końce odcinków **bieżącej** strony (druty po ③, także
+  poprawione przez człowieka), przy których nie ma innego odcinka (koniec albo wnętrze ≤ 8 px
+  — jak walidator: T bez kropki i przestrzał drutu o 3–8 px za drut łączą; przegląd: przy 3 px
+  43 z 560 końców były fałszywie wolne), pinu (≤ 8 px) ani ramki bramki (+6 px).
+  Odcinki ≤ 8 px (ręczne „dociągnięcie” końca do kotwicy, np. 2-61 `[1638, 810, 1638, 814]`)
+  nie łączą — koniec przesuwa się na ich drugi koniec. `cv_free` ze snapshotu ③ nie jest
+  używane: wejściem są zatwierdzone (poprawione) druty, a `cv_free` opisuje surowe CV.
+  Kierunek końca = na zewnątrz drutu; `stub` = odcinek ≤ 90 px od pinu (wyprowadzenie bramki).
+- **Klasyfikacja CV** (`classify_end`, binarny skan, okno ZA końcem):
+  - poziomy koniec, w 135 px wysoka (28–66 px) **skośna** kreska → **port** (szewron
+    `< A50 >`); skos = rozrzut środka tuszu w wierszach ≥ 8 px — bez tego pionowy drut z doklejoną
+    kreską przerywanej linii (2-69) udawał szewron;
+  - poziomy koniec, znaki 7–34 px przy wysokości drutu (od 6 px przed końcem — „1” bywa
+    wpisane w koniec drutu, 2-59) → **odsyłacz**;
+  - pionowy koniec: najpierw napis nad / pod końcem → **zasilanie** do przeczytania; bez
+    znaków krótka pozioma kreska w poprzek (14–70 px, ≥ 5 px po obu stronach, bez tuszu
+    3–12 px za nią — kółko zacisku „o +5V”, ramka, tekst — i bez końców schodzących w pion — róg
+    ramki / tabliczki; nie przy ramce bramki ±12 px) → kandydat **masy**; także kreska
+    narysowana w ③ jako krótki odcinek z pionem w środku (T). Masę zawsze potwierdza model
+    (`POWER_PROMPT`, pole `ground`); napis zasilania przy końcu wygrywa z kreską. Przegląd
+    (kopie stron z drutami ③, P-R3-2 2-62…2-69, SM-POSE11 2-100, SPP-32-16 2-137): przed
+    poprawką 13 kandydatów masy CV, w tym 1 prawdziwy (2-69); po poprawce 1 (ten prawdziwy);
+  - w tabliczce rysunkowej (x ≥ 0,62 W, y ≥ 0,76 H — cv-wires `TITLE` ma 0,66, ale tabliczka
+    SPP-32-16 2-137 sięga dalej) ani zasilania, ani masy;
+  - „napis” przy pionowym końcu to składowe szersze niż 5 px, razem ≥ 14 px szerokości — kreski
+    przerwanego drutu / ramki (2-137) nie są napisem (model „czytał” w nich `0V`);
+  - nic za końcem → `FREE_END` w `uncertain` (poza wyprowadzeniami bramek).
+  Na drutach ręcznych 2-58…2-61 i drutach ③ 2-62 klasyfikacja wszystkich końców przy
+  portach / odsyłaczach była zgodna z danymi (MEASURED, 0 pomyłek rodzaju).
+- **Odczyt:** port i odsyłacz promptami v3 bake-offu z kadrem bake-offu
+  (`_vlm.port_crop_box` / `xref_crop_box`, teraz wspólne z `vlm-bakeoff.py`), skala 2;
+  grot portu = koniec drutu − szerokość szewronu viewera (76 px), więc otwarty koniec portu
+  (`_port_open_end`) leży dokładnie na końcu drutu. Zasilanie: własny prompt
+  (`POWER_PROMPT`, kadr ±45 px wokół końca). Odsyłacz przeczytany jako napis zasilania bez
+  arkuszy (np. `+5V` przy poziomym drucie) → zasilanie. **Odsyłacz przy lewym końcu drutu**
+  („9 -L”: numer arkusza PRZED etykietą, wiersze co ~28 px — zgłoszenie opiekuna, 2-62 „-L9 [0, 8]”):
+  dwa wycinki — kolumna numerów (75 px przed końcem, `SHEETS_PROMPT`) i etykieta nad drutem
+  (`XREF_LABEL_PROMPT`), w obu sąsiednie wiersze tej kolumny zamalowane na biało
+  (`render_box(keep_rows=…)`, odstępy z `row_gaps`). Odsyłacz przy prawym końcu — jak w bake-offie.
+  Zły kształt odpowiedzi (np. `"sheets": 9`, obiekt zamiast listy) nie przerywa strony:
+  skalar jest normalizowany (`norm_pages` / `norm_pins`, także w ②), reszta = `MODEL_ERROR`.
+- **Typy zasilania:** jak w danych (2-64) i przycisku viewera: `+5V`, `+0V`; napis `0V`
+  i symbol masy → `+0V` (`GROUND_TYPE`; viewer rysuje `GND` / `+0V` / `0V` tym samym znakiem
+  masy). Rotacja = kierunek końca (góra 0, prawo 90, dół 180, lewo 270).
+- **Samokorekta** (odczyt zostaje, jaki jest; kody w `steps.labels.uncertain`, kształt
+  `{kind, label, x, y, why}` jak ② — format-spec v1.2): port — `CONN_EMPTY`, `CONN_INVALID`
+  (nie litera A–Z + styk 1–96), `CONN_UNKNOWN` (litera, której nie ma w portach innych stron
+  pakietu ani w backplane; pakiet bez znanych portów — każda litera, np. SM-POSE11 X / Y),
+  `PORT_NOT_ON_BACKPLANE` (gdy
+  backplane ma ten pakiet), `CONN_OTHER_PAGE` (to samo złącze z inną etykietą na innej stronie),
+  `CONN_DUPLICATE`, `LABEL_EMPTY`; odsyłacz — `SHEETS_EMPTY`, `SHEET_SELF`, `SHEET_UNKNOWN`
+  (spoza `package.yaml` `sheet`), `XREF_NO_RETURN` (strona arkusza ma opisane odsyłacze, ale
+  nie ten — z podpowiedzią mylonej etykiety); etykieta — `LABEL_FORMAT` (nie +/−),
+  `LABEL_CONFUSABLE` (jedna pomyłka R↔A/Q/D, P↔D/B, B↔8, 5↔S, 1/11↔H, 0↔O, Ł↔L daje
+  etykietę z innej strony pakietu; reguły „bez Q” nie ma — dane mają `+QS1`, `-DQB`, `+Q*NB`);
+  zasilanie — **każdy** symbol z kroku: `POWER_AUTO` (napis, także odsyłacz zamieniony na
+  zasilanie) albo `GROUND_CV` (masa z kreski), `POWER_UNKNOWN`; `MODEL_ERROR`, `MODEL_EMPTY`,
+  `FREE_END`, `NEAR_EXISTING` (nowy element ≤ 60 px od ludzkiego tego rodzaju — dubel?),
+  `PREVIOUS_KEPT`, `NO_WIRE_END` (niżej). Etykiety innych stron: tylko
+  ludzkie albo z zatwierdzonego ④. Słownik sygnałów (kr-wuy.1) jeszcze nie istnieje.
+  `--second-read` (drugi odczyt ×1, `LABEL_DISAGREE`) jest opcją, domyślnie wyłączoną: na
+  2-60 / 2-61 niezgodny w 3 z 47 końców, złapał 1 z 9 błędów (już oflagowany) i podwaja czas.
+- **Scalanie** (`label_plan`, `merge_labels`): ludzkie porty / odsyłacze / zasilanie (i `auto`
+  z netem z zatwierdzonego ⑤) zostają i zajmują najbliższy wolny koniec — wzdłuż drutu ≤ 45 px,
+  w poprzek ≤ 12 px (`claim_dist`; ręczne odsyłacze stoją 25–35 px od końca drutu z ③; przy
+  20 px Chebyshev przegląd znalazł dublet przy 18/19 odsyłaczy 2-62 i 38/39 2-63); element
+  z całym pustym aspektem (`aspectEmpty`, np. symbol zasilania z pustym typem) dostaje odczyt
+  swojego końca. Własne `src: auto` zajmują swój koniec i są czytane ponownie: udany odczyt je
+  zastępuje (w miejscu listy, gdy ten sam rodzaj); bez potwierdzenia (`FREE_END`, pusty odczyt,
+  brak końca drutu) znikają, a przy błędzie modelu zostają (`PREVIOUS_KEPT`). Wyjątek —
+  elementy **ludzkiego pochodzenia**: element z pustym aspektem wypełniony przez krok ma potem
+  `src: auto`, więc snapshot ④ zapisuje go w `human_filled` (`[rodzaj, x, y]`, przenoszone
+  z przebiegu na przebieg); taki element zastępuje tylko udany odczyt, inaczej zostaje
+  (`PREVIOUS_KEPT` / `NO_WIRE_END`). Nowe: `src: auto`, `net: ""`, bez
+  `net_src` (nety — ⑤). Bramek, drutów i netów krok nie rusza. `canRun`, `--force`,
+  `--draft`, stale (zmiana ④ → ⑤ `stale`; odcisk `labels` w `_steps.step_fingerprint`, test
+  parzystości z `steps.ts`).
+- **Snapshot** `labels-<run>.yaml`: elementy po kroku i `ends` — każdy wolny koniec z
+  klasyfikacją CV, kadrem (`crop`, `png_sha256`), surową odpowiedzią, `pred` i wynikiem.
+- **Serwer / just:** `labels` jak `text` — `--with mlx-vlm==0.8.1`, blokada `.auto/vlm`,
+  600 s × strony.
+
+Pomiar (MEASURED, 2026-11-28, kopie danych w scratchpadzie, Qwen3.8-27B 4-bit, M5 Pro;
+porównanie pole po polu z `data/gold` po normalizacji bake-offu):
+
+| wariant | porty znalezione | złącze | etyk. portu | odsyłacze znalezione | etykieta | arkusze | błędy oflagowane | flagi fałszywe |
+|---|---|---|---|---|---|---|---|---|
+| A: druty ręczne (2-60 + 2-61) | 16/16 | 16/16 | 16/16 | 33/35 | 28/33 (84,8 %) | 29/33 (87,9 %) | 9/9 | 2 |
+| B: druty z ③, bez ręcznych (2-60 + 2-61) | 16/16 | 16/16 | 16/16 | 35/35 | 31/35 (88,6 %) | 31/35 (88,6 %) | 8/8 | 2 |
+
+- A: strona ręczna z usuniętymi portami / odsyłaczami / zasilaniem, ①–③ zatwierdzone. Dwa
+  brakujące odsyłacze (2-60 `+RA` / `+RB`) to nie wolne końce: dane ręczne łączą oba druty
+  pionowym odcinkiem (i wzorzec daje obu net `+RA`). `eval-digitize`: 2-60 portF1 / pLbl /
+  pConn 1,000, xrefF1 0,929, xLbl 1,000, xPgs 0,923; 2-61 portF1 1,000, pLbl 1,000, xrefF1 1,000,
+  xLbl 0,750, xPgs 0,850.
+- B: nety i piny wyczyszczone, `--step wires`, potem `labels`. Końce drutów CV leżą ~30 px na
+  lewo od ręcznie postawionych odsyłaczy wzorca (2-61: wzorzec x = 381, drut na skanie zaczyna
+  się przy 350), więc dopasowanie z tolerancją 45 px w poziomie / 12 px w pionie;
+  `eval-digitize` (20 px) daje tu xrefF1 0,667 / 0,000 — to położenie wzorca, nie odczyt.
+- Błędy odczytu to te same klasy co w bake-offie (Qwen xref.label 83,8 %): R → A / Q / O / D
+  (`-PISZAN`, `-CZYTAN`, `+QPP`, `+OB`, `+DB`), zgubione R (`-PISZW`), `11` → `H` (`+LH`),
+  arkusze `[1000]`, `[1004]`, `[0]`, `[0, 1]`, `[]`, 7 zamiast 8. **Każdy błąd był w
+  `uncertain`**, głównie przez `XREF_NO_RETURN` / `LABEL_CONFUSABLE` (etykiety innych stron)
+  i `SHEET_UNKNOWN`; bez etykiet innych stron flagi łapią 4 z 9 (A). Fałszywe flagi (2-60
+  `-G`, 2-61 `+W8` — `XREF_NO_RETURN`) to braki w danych stron docelowych (2-66 nie ma
+  odsyłaczy `-G`, `+W8`).
+- **Czas** (ściana `uv run`, model ładowany raz ~14–18 s): 2-60 / 2-61 74 / 84 s w jednym
+  `--page all` (A), 85 / 96 s osobno (B); ~2,8 s na koniec drutu; 2-62 88 s (27 odczytów),
+  2-69 15 s (3 odczyty).
+- **2-62** (druty z ③, ręczne bramki; porównanie z ręczną stroną): 8/8 portów (złącze i etykieta
+  8/8), 19 odsyłaczy; 4 błędne etykiety i 5 błędnych list arkuszy — wszystkie oflagowane;
+  gęste wiersze co 28 px przy lewej krawędzi mylą wiersze (`-6` [5] zamiast `-G` [9], `-L9`
+  [0, 8] zamiast `-L` [9]). Ręczna strona ma tu `-CZYTAN`, model czyta `-CZYTRN` (nadruk —
+  do poprawy w danych).
+- **2-69** (①–③ z pipeline'u): `+5V` i `0V` na górnych końcach pionowych drutów i masa na
+  dole drutu 0 V → 3 symbole zasilania (`+5V`, `+0V`, `+0V`); żadnego portu ani odsyłacza —
+  także z tabeli „Zasilanie / Nr styku” (kr-p4g.7). `uncertain`: 11 × `FREE_END` — 4 końce
+  przerywanej linii (③ bierze ją za drut, kr-9p8.13), 6 końców linii tabeli, 1 wyprowadzenie
+  M64 bez pinu z ②.
+- Nakładki całego arkusza (ze skanem — tylko w scratchpadzie, poza repo): `overlay-2-62.png`,
+  `overlay-2-69.png`.
+
+Poprawki po przeglądzie (MEASURED, 2026-11-28, ten sam model, kopie danych; liczby wyżej w
+tabeli są sprzed tych poprawek):
+
+- **Odsyłacze przy lewym końcu** (osobna kolumna numerów i etykieta, sąsiednie wiersze
+  zamalowane; druty z ③):
+
+  | strona | arkusze przed → po | etykieta przed → po | błędy nieoflagowane po |
+  |---|---|---|---|
+  | 2-60 (wzorzec) | 13/15 → 15/15 | 15/15 → 15/15 | 0 |
+  | 2-61 (wzorzec) | 18/20 → 17/20 | 16/20 → 16/20 | 0 |
+  | 2-62 lewa kolumna (15, ręczna strona) | 10/15 → 14/15 | 11/15 → 10/15 | 2 |
+
+  Zgłoszenie opiekuna rozwiązane: 2-62 `-L` [9] (było `-L9` [0, 8]), `-E` [9] (było [6]);
+  `-G` nadal czytane jako `-6` (arkusz już 9). 2-61: dwa razy 8 → 6 w kolumnie numerów.
+  2-62 nieoflagowane: `-6` i `+RB` [4] — w danych ręcznych 2-66 jest odsyłacz `-6`, a 2-61 ma
+  `+RB`, więc sprawdzenie powrotu przechodzi (błąd danych ręcznych wzmacnia błąd odczytu).
+  Etykiety bez zmian w sumie; ten sam typ błędów (R → A / Q, `/` wstawiony w `-CZYTRW`).
+- **Masa i zasilanie** (strony z drutami ③ z przeglądu: P-R3-2 2-62…2-69, SM-POSE11 2-100,
+  SPP-32-16 2-137): kandydaci masy CV 13 → 1 (prawdziwy, 2-69); kandydaci napisu przy pionowym
+  końcu na 2-137 11 → 4. 2-137 z modelem: po pierwszym przebiegu (przed filtrem kresek) 6
+  symboli zasilania, wszystkie fałszywe (przerwane linie, tabliczka); ponowny przebieg po
+  poprawkach usunął 5 (bez potwierdzenia), został 1 (`+5V` na rogu ramki 2-137 (1743, 1185),
+  oflagowany `POWER_AUTO`); terminal „o +5V” (634, 307) model czyta jako `+5` → `FREE_END`.
+  2-69: `+5V`, `0V` i masa → 3 × `+0V`/`+5V` jak wcześniej (model przy kresce masy odpowiada
+  napisem `0V` zamiast `ground: true` — typ i tak `+0V`). Tabela „Zasilanie” (986, 1083): model
+  czyta `ACAG` → `FREE_END`, bez elementu.
+- **Złącza**: SM-POSE11 2-100 — 53 porty z literami X / Y bez `CONN_INVALID` (wcześniej każdy).
+- Czas po poprawkach (lewy odsyłacz = 2 wycinki): 2-60 / 2-61 / 2-62 100 / 106 / 108 s,
+  2-137 173 s (53 odczyty).
 
 ### Viewer
 

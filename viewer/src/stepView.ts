@@ -43,7 +43,7 @@ export const STEP_META: Readonly<Record<ViewStep, StepMeta>> = {
   gates: { glyph: '①', name: 'Ramki', source: 'CV: cv-gates.py' },
   text: { glyph: '②', name: 'Tekst i piny', source: 'VLM na wycinkach + ic_map (jeszcze niezaimplementowany)' },
   wires: { glyph: '③', name: 'Druty', source: 'CV: cv-wires.py na bieżących bramkach' },
-  labels: { glyph: '④', name: 'Etykiety', source: 'VLM: porty, odsyłacze (jeszcze niezaimplementowany)' },
+  labels: { glyph: '④', name: 'Etykiety', source: 'CV + lokalny VLM: porty, odsyłacze, zasilanie na wolnych końcach drutów' },
   nets: { glyph: '⑤', name: 'Nety', source: 'składanie grafu + walidator (jeszcze niezaimplementowany)' },
   kicad: { glyph: '⑥', name: 'KiCad', source: 'eksporter .kicad_sch (kr-4rq, jeszcze niezaimplementowany)' },
 };

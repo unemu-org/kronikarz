@@ -452,6 +452,25 @@ steps:
       - { ref: M18, gate: A, x: 1210, y: 640, why: ["TYPE_MISMATCH: nadruk 74 ≠ rejestr 174"] }
 ```
 
+`steps.labels.uncertain` (opcjonalne, kr-9p8.28) — ten sam kształt dla kroku ④:
+`{kind, label, x, y, why}` (port także `conn`, np. `B22`); `kind` to `port` |
+`cross_ref` | `power` albo `end` — wolny koniec drutu, przy którym nie ma etykiety,
+albo nieudany odczyt (`MODEL_ERROR`, `MODEL_EMPTY`). Klucz: położenie elementu (port:
+grot `x`, `y`), dla `end` — koniec drutu. Wpis dotyczy elementu, dopóki jego `src` jest
+`auto`; jak w ② nie jest treścią kroku.
+
+```yaml
+steps:
+  labels:
+    status: auto
+    run: "20261128T150000"
+    at: "2026-11-28T15:00:00Z"
+    uncertain:
+      - { kind: cross_ref, label: "-CZYTAN", x: 378, y: 409,
+          why: ["XREF_NO_RETURN: na arkuszu 1 (2-58) nie ma odsyłacza „-CZYTAN” — jest -CZYTRN"] }
+      - { kind: port, label: "-W4", conn: B22, x: 190, y: 582, why: ["CONN_OTHER_PAGE: …"] }
+```
+
 Reguły (`shared/src/steps.ts`):
 - krok przebiega, gdy poprzedni jest `approved` (wyjątek: `--draft`);
   krok `approved` tylko z `--force` (`canRun`);

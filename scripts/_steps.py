@@ -23,7 +23,7 @@ Port tych funkcji z `shared/src/steps.ts`, które są potrzebne przy ZAPISIE wyn
                                  dopasowanie `auto_segments` / `auto_junctions` po wartości,
                                  z krotnością
   step_fingerprint(page, step)   stepFingerprint dla kroków, które pisze Python (gates, text,
-                                 wires)
+                                 wires, labels)
 
 Klucze w Pythonie to krotki liczb `float` (110 == 110.0, jak w JS), nie JSON — porównujemy
 je tylko między sobą. Czyste funkcje, bez I/O.
@@ -230,7 +230,7 @@ def _pin_text_key(g: dict, p: dict) -> tuple:
 
 def step_fingerprint(page: dict, step: str) -> list:
     """Multizbiór kluczy aspektów kroku (jak stepFingerprint w steps.ts), posortowany.
-    Zaimplementowane: gates, text, wires."""
+    Zaimplementowane: gates, text, wires, labels."""
     out: list = []
     if step == "gates":
         for g in list_of(page.get("gates")):
@@ -248,6 +248,21 @@ def step_fingerprint(page: dict, step: str) -> list:
             n = n if isinstance(n, dict) else {}
             out += ["s" + repr(segment_key(s)) for s in list_of(n.get("segments"))]
             out += ["j" + repr(junction_key(j)) for j in list_of(n.get("junctions"))]
+    elif step == "labels":
+        # portLabelKey / crossRefLabelKey / powerLabelKey z steps.ts (bez net — to krok ⑤)
+        for p in list_of(page.get("ports")):
+            p = p if isinstance(p, dict) else {}
+            out.append("port" + repr(tuple(_num(p.get(f)) for f in ("connector", "pin", "label", "x", "y", "side"))))
+        for c in list_of(page.get("cross_refs")):
+            c = c if isinstance(c, dict) else {}
+            pages = c.get("pages")
+            pk = tuple(_num(v) for v in pages) if isinstance(pages, list) else _num(pages)
+            out.append("xref" + repr((_num(c.get("label")), pk) + tuple(_num(c.get(f)) for f in ("x", "y", "side"))))
+        for w in list_of(page.get("power")):
+            w = w if isinstance(w, dict) else {}
+            rot = w.get("rotation")
+            out.append("power" + repr((_num(w.get("type")), _num(w.get("x")), _num(w.get("y")),
+                                       _num(0 if rot is None else rot))))
     else:
         raise ValueError(f"step_fingerprint: krok {step!r} nie jest zaimplementowany w Pythonie")
     return sorted(out)

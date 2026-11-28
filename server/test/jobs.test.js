@@ -107,7 +107,7 @@ before(async () => {
   await fs.mkdir(root);
   server = await listen(createApp({
     root, spawn: fakeSpawn, uvCommand: fakeUv, killGraceMs: 50,
-    scriptTimeouts: { visionPage: 2000, autoPerPage: 2000, autoPerPageStep: { text: 2000 } },
+    scriptTimeouts: { visionPage: 2000, autoPerPage: 2000, autoPerPageStep: { text: 2000, labels: 2000 } },
   }));
   base = `http://127.0.0.1:${server.address().port}`;
 });
@@ -556,17 +556,19 @@ test('/auto timeout per page × pages is capped at autoMax', async () => {
   });
 });
 
-test('/auto timeout per page depends on the step (text: slow local VLM; next: the largest)', async () => {
+test('/auto timeout per page depends on the step (text / labels: slow local VLM; next: the largest)', async () => {
   assert.equal(SCRIPT_TIMEOUTS.autoPerPageStep.text, 600_000);
   assert.equal(autoPageTimeout('gates'), SCRIPT_TIMEOUTS.autoPerPage);
   assert.equal(autoPageTimeout('text'), 600_000);
+  assert.equal(autoPageTimeout('labels'), 600_000);
   assert.equal(autoPageTimeout('next'), 600_000);
   assert.equal(autoPageTimeout('wires', { autoPerPage: 7 }), 7);
   assert.equal(autoPageTimeout('text', { autoPerPage: 7, autoPerPageStep: { text: 9 } }), 9);
-  assert.equal(autoPageTimeout('next', { autoPerPage: 70, autoPerPageStep: { text: 9 } }), 70);
-  await withServer({ scriptTimeouts: { autoPerPage: 1000, autoPerPageStep: { text: 1300 }, autoMax: 2000 } }, async (b) => {
+  assert.equal(autoPageTimeout('next', { autoPerPage: 70, autoPerPageStep: { text: 9, labels: 8 } }), 70);
+  assert.equal(autoPageTimeout('next', { autoPerPage: 70, autoPerPageStep: { text: 9 } }), 600_000); // labels domyślnie
+  await withServer({ scriptTimeouts: { autoPerPage: 1000, autoPerPageStep: { text: 1300, labels: 1200 }, autoMax: 2000 } }, async (b) => {
     behave = hang;
-    for (const [step, page, want] of [['text', 'p1', 1300], ['gates', 'p1', 1000], ['next', 'p1', 1300], ['text', 'all', 2000]]) {
+    for (const [step, page, want] of [['text', 'p1', 1300], ['labels', 'p1', 1200], ['gates', 'p1', 1000], ['next', 'p1', 1300], ['text', 'all', 2000]]) {
       const job = post('/auto', { pkg: PKG, page, step }, b);
       await waitFor(() => calls.length === 1);
       assert.equal((await json(await fetch(`${b}/auto/status`))).body.jobs[0].timeoutMs, want, `${step} ${page}`);
@@ -577,9 +579,9 @@ test('/auto timeout per page depends on the step (text: slow local VLM; next: th
   });
 });
 
-test('/auto text/next: uv run --with mlx-vlm only for steps that load the model', async () => {
+test('/auto text/labels/next: uv run --with mlx-vlm only for steps that load the model', async () => {
   behave = replyWith(autoOut(0, []));
-  for (const [step, vlm] of [['text', true], ['next', true], ['gates', false], ['wires', false]]) {
+  for (const [step, vlm] of [['text', true], ['labels', true], ['next', true], ['gates', false], ['wires', false]]) {
     calls.length = 0;
     const r = await json(await post('/auto', { pkg: PKG, page: 'p1', step, draft: step === 'wires' }));
     assert.equal(r.status, 200, step);
@@ -591,11 +593,11 @@ test('/auto text/next: uv run --with mlx-vlm only for steps that load the model'
   assert.equal(AUTO_VLM_WITH, 'mlx-vlm==0.8.1');
 });
 
-test('/auto text/next: one model-loading job at a time (virtual lock), other steps unaffected', async () => {
+test('/auto text/labels/next: one model-loading job at a time (virtual lock), other steps unaffected', async () => {
   behave = hang;
   const a = post('/auto', { pkg: PKG, page: 'p1', step: 'text' });
   await waitFor(() => calls.length === 1);
-  for (const body of [{ page: 'p2', step: 'text' }, { page: 'p2', step: 'next' }]) {
+  for (const body of [{ page: 'p2', step: 'text' }, { page: 'p2', step: 'next' }, { page: 'p2', step: 'labels' }]) {
     const r = await json(await post('/auto', { pkg: PKG, ...body }));
     assert.equal(r.status, 409, body.step);
     assert.equal(r.body.error, 'busy');
@@ -884,9 +886,9 @@ test('integration: real auto.py --dry-run via POST /auto (synthetic data root)',
     assert.equal(await fs.readFile(path.join(pkgDir, 'pages', 's1.sch.yaml'), 'utf-8'), pageText, 'dry run wrote nothing');
     assert.equal(existsSync(path.join(iroot, '.auto')), false, 'no snapshot');
 
-    // (krok text nie tutaj: --with mlx-vlm zbudowałoby ciężkie środowisko — argumenty
-    // i odmowę kroku sprawdzają testy z fałszywym spawn i scripts/test_auto_text.py)
-    const nf = await json(await post('/auto', { pkg: 'P-I', page: 's1', step: 'labels', dryRun: true }, b));
+    // (kroki text / labels nie tutaj: --with mlx-vlm zbudowałoby ciężkie środowisko — argumenty
+    // i odmowę kroku sprawdzają testy z fałszywym spawn i scripts/test_auto_text.py / test_auto_labels.py)
+    const nf = await json(await post('/auto', { pkg: 'P-I', page: 's1', step: 'nets', dryRun: true }, b));
     assert.equal(nf.status, 501);
   } finally {
     await new Promise((r) => s.close(r));

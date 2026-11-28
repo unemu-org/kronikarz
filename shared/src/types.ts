@@ -122,7 +122,10 @@ export interface StepState {
   // z ic_map / rejestrem pakietu albo błąd modelu. Klucz: środek ramki (x, y), bo ② ramek
   // nie zmienia. Wpis dotyczy bramki tylko, dopóki jej `text_src` jest `auto` albo jej aspekt
   // tekstu jest pusty (MODEL_ERROR / MODEL_EMPTY — bramka niewypełniona).
-  uncertain?: StepUncertain[];
+  // Krok `labels` (kr-9p8.28): porty / odsyłacze / zasilanie do przejrzenia (`kind`, `label`,
+  // port także `conn`); klucz: położenie elementu (port: grot). `kind: 'end'` — wolny koniec
+  // drutu bez etykiety albo nieudany odczyt (x, y = koniec drutu).
+  uncertain?: Array<StepUncertain | LabelUncertain>;
 }
 
 export interface StepUncertain {
@@ -131,6 +134,15 @@ export interface StepUncertain {
   x: number;
   y: number;
   why: string[]; // „KOD: opis”, np. "TYPE_MISMATCH: nadruk 74 ≠ rejestr 174"
+}
+
+export interface LabelUncertain {
+  kind: 'port' | 'cross_ref' | 'power' | 'end';
+  label: string;
+  conn?: string; // port: złącze + styk, np. "B22"
+  x: number;
+  y: number;
+  why: string[]; // np. "XREF_NO_RETURN: na arkuszu 1 (2-58) nie ma odsyłacza „-CZYTAN” — jest -CZYTRN"
 }
 
 // Brak kroku (albo całej sekcji) = `todo`.

@@ -43,7 +43,7 @@ install:
 
 # Krok pipeline'u etapowego (scripts/auto.py, docs/auto-digitalizacja.md) — narzędzie opiekuna,
 # PISZE do prawdziwych danych (DATA, domyślnie $KRONIKARZ_DATA albo ./data).
-# just auto PKG=P-R3-2 PAGE=2-58|all STEP=gates|text|wires|next [DATA=<kopia>] [--force] [--draft] [--dry-run] [--json]
+# just auto PKG=P-R3-2 PAGE=2-58|all STEP=gates|text|wires|labels|next [DATA=<kopia>] [--force] [--draft] [--dry-run] [--json]
 [positional-arguments]
 auto *ARGS:
     #!/usr/bin/env bash
@@ -60,16 +60,16 @@ auto *ARGS:
         esac
     done
     if [ -z "$pkg" ] || [ -z "$page" ] || [ -z "$step" ]; then
-        echo "użycie: just auto PKG=<pakiet> PAGE=<strona|all> STEP=<gates|text|wires|next> [DATA=<katalog>] [--force] [--draft] [--dry-run] [--json]" >&2
+        echo "użycie: just auto PKG=<pakiet> PAGE=<strona|all> STEP=<gates|text|wires|labels|next> [DATA=<katalog>] [--force] [--draft] [--dry-run] [--json]" >&2
         exit 1
     fi
     if [ "$dry" = 0 ]; then
         echo "UWAGA: zapis do PRAWDZIWYCH danych w $data (strona + .bak obok, snapshot w $data/.auto). Próby: DATA=<kopia> albo --dry-run." >&2
     fi
-    # krok text (i next, który może na niego trafić) ładuje lokalny VLM: mlx-vlm dokładane tylko
-    # wtedy; ciężkie środowisko uv na dysku modeli (jak serwer: $UV_CACHE_DIR albo /Volumes/Dane/llm)
+    # kroki text / labels (i next, który może na nie trafić) ładują lokalny VLM: mlx-vlm dokładane
+    # tylko wtedy; ciężkie środowisko uv na dysku modeli (jak serwer: $UV_CACHE_DIR albo /Volumes/Dane/llm)
     with=()
-    case "$step" in text|next) with=(--with mlx-vlm==0.8.1) ;; esac
+    case "$step" in text|labels|next) with=(--with mlx-vlm==0.8.1) ;; esac
     if [ -z "${UV_CACHE_DIR:-}" ] && [ -d /Volumes/Dane/llm/uv-cache ]; then
         export UV_CACHE_DIR=/Volumes/Dane/llm/uv-cache
     fi

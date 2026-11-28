@@ -3,10 +3,10 @@
 # requires-python = ">=3.11"
 # dependencies = ["opencv-python-headless", "numpy", "pyyaml", "pillow"]
 # ///
-# Krok text potrzebuje też mlx-vlm (ciężkie, tylko macOS arm64) — NIE jest w zależnościach
-# skryptu, żeby gates / wires nie budowały jego środowiska. Dokłada je wywołujący:
-# `uv run --with mlx-vlm==0.8.1 scripts/auto.py … --step text|next` (robią to serwer /auto
-# i `just auto` dla STEP=text|next).
+# Kroki text i labels potrzebują też mlx-vlm (ciężkie, tylko macOS arm64) — NIE jest
+# w zależnościach skryptu, żeby gates / wires nie budowały jego środowiska. Dokłada je wywołujący:
+# `uv run --with mlx-vlm==0.8.1 scripts/auto.py … --step text|labels|next` (robią to serwer
+# /auto i `just auto` dla STEP=text|labels|next).
 """Pipeline etapowy (kr-9p8.21): jeden krok automatycznej digitalizacji na stronach pakietu.
 
 Jedno wejście dla CLI i (później, kr-9p8.19) serwera. Projekt: docs/auto-digitalizacja.md,
@@ -16,24 +16,27 @@ Jedno wejście dla CLI i (później, kr-9p8.19) serwera. Projekt: docs/auto-digi
 
 Usage:
   uv run scripts/auto.py --data <DATA_ROOT> --pkg P-R3-2 --page 2-58|all
-                         --step gates|wires|next [--force] [--draft] [--dry-run] [--json]
+                         --step gates|text|wires|labels|next [--force] [--draft] [--dry-run] [--json]
 
   DATA_ROOT  katalog danych (KRONIKARZ_DATA, np. ./data); pakiet = <DATA_ROOT>/<moduł>/<pkg>/
              package.yaml, strony i skany ze ścieżek w package.yaml
   --step     gates (①, scripts/cv-gates.py), text (②, lokalny VLM na wycinkach bramek,
              scripts/_vlm.py), wires (③, scripts/cv-wires.py tryb (a) na BIEŻĄCYCH bramkach
-             strony), next (na każdej stronie nextRunnableStep); labels / nets — jeszcze nie
-             zaimplementowane (exit 3)
+             strony), labels (④, wolne końce drutów → CV + lokalny VLM: porty, odsyłacze,
+             zasilanie; scripts/_labels.py), next (na każdej stronie nextRunnableStep); nets —
+             jeszcze nie zaimplementowany (exit 3)
   --force    przepuść krok zatwierdzony (wraca do 'auto'; późniejsze 'approved' → 'stale')
   --draft    bez wymogu zatwierdzonego poprzedniego kroku (próby)
   --dry-run  policz i wypisz podsumowanie; nic nie zapisuje (ani strony, ani snapshotu)
   --json     wynik jako JSON na stdout (dla serwera); postęp kroku ② zawsze na stderr
-  --model    text: mlx:<katalog modelu> (domyślnie $KRONIKARZ_VLM albo Qwen3.8-27B 4-bit
+  --model    text / labels: mlx:<katalog modelu> (domyślnie $KRONIKARZ_VLM albo Qwen3.8-27B 4-bit
              z /Volumes/Dane/llm); inny adapter = model płatny → odmowa (exit 2), z
              --allow-paid exit 3 (hak `paid_model_refusal`, adapter niepodłączony); katalog
              spoza /Volumes/Dane/llm = odmowa (exit 2). Wymaga mlx-vlm: uv run --with
              mlx-vlm==0.8.1 (brak = exit 1 z podpowiedzią)
-  --gate-timeout  text: limit czasu odpowiedzi modelu na jedną bramkę [s] (domyślnie 120)
+  --gate-timeout  text / labels: limit czasu odpowiedzi modelu na jeden wycinek [s] (domyślnie 120)
+  --second-read   labels: drugi odczyt każdego końca w skali 1; niezgodność → LABEL_DISAGREE
+                  (pomiar: łapie mało, podwaja czas — domyślnie wyłączony)
 
 Exit: 0 ok; 1 błąd; 2 odmowa (warunki canRun, ③ ruszyłby nety po kroku ⑤ bez --force, płatny
 model bez zgody); 3 krok niezaimplementowany. Przy kilku stronach wygrywa najpoważniejszy:
@@ -82,6 +85,14 @@ Reguły scalania (szczegóły w docs, „Uruchomienie” pipeline'u etapowego):
          nietknięte. Jeśli odcinki 'auto' do usunięcia leżą w necie spoza NET_AUTO_* albo
          w necie, którego używa końcówka (pin / port / odsyłacz / zasilanie) — praca kroku ⑤ —
          odmowa (exit 2) bez --force; z --force przebiega i raportuje te nety.
+  labels wolne końce BIEŻĄCYCH drutów strony (bez innego odcinka, pinu i ramki bramki); CV za
+         końcem: szewron portu, cyfry arkuszy odsyłacza, napis przy pionowym końcu (zasilanie),
+         kreska masy (GROUND_TYPE, bez modelu); odczyt promptami v3 bake-offu (port, xref, skala
+         2) i POWER_PROMPT; samokorekta (złącze, arkusze z package.yaml, etykiety innych stron
+         pakietu, mylone znaki) → steps.labels.uncertain. Ludzkie i chronione porty / odsyłacze /
+         zasilanie zostają i zajmują swój koniec (≤ 20 px); własne 'auto' (net pusty albo 'auto'
+         z niezatwierdzonego ⑤) są zastępowane; element z pustym aspektem dostaje odczyt. Nowe:
+         src 'auto', net "", bez net_src. Bramek, drutów i netów nie rusza.
 """
 from __future__ import annotations
 
@@ -105,6 +116,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 _old_dwb, sys.dont_write_bytecode = sys.dont_write_bytecode, True  # bez scripts/__pycache__
 import _jsyaml  # noqa: E402
+import _labels  # noqa: E402
 import _safe_write  # noqa: E402
 import _steps  # noqa: E402
 import _vlm  # noqa: E402
@@ -113,13 +125,17 @@ sys.dont_write_bytecode = _old_dwb
 EXIT_OK, EXIT_ERROR, EXIT_REFUSED, EXIT_NOT_IMPLEMENTED = 0, 1, 2, 3
 _SEVERITY = {EXIT_ERROR: 3, EXIT_NOT_IMPLEMENTED: 2, EXIT_REFUSED: 1, EXIT_OK: 0}
 
-IMPLEMENTED = ("gates", "text", "wires")
-NOT_IMPLEMENTED = ("labels", "nets")
+IMPLEMENTED = ("gates", "text", "wires", "labels")
+NOT_IMPLEMENTED = ("nets",)
+VLM_STEPS = ("text", "labels")  # kroki z lokalnym VLM (mlx-vlm, hak płatnego modelu)
 
 # Krok ② (kr-9p8.27): zwycięzca bake-offu kr-9p8.4 — prompt v3, skala 2, lokalny Qwen3.8-27B 4-bit.
 TEXT_PROMPT = "v3"
 TEXT_SCALE = 2
 GATE_TIMEOUT_S = 120.0  # na jeden wycinek (zwykle 4–20 s; max_tokens=300 i tak ogranicza)
+# Krok ④ (kr-9p8.28): typ symbolu masy (kreska na końcu drutu) — jak w danych i w przycisku
+# viewera „+ +0V” (pull-down / GND); napis „0V” daje ten sam typ.
+GROUND_TYPE = "+0V"
 # role z ic_map.gate_pins, które są wyjściami (prawa strona bramki); a/b (245) — dwukierunkowe
 OUT_ROLES = frozenset({"out", "nout", "q", "nq", "rco", "carry", "borrow"})
 BIDIR_ROLES = frozenset({"a", "b"})
@@ -730,7 +746,7 @@ MLX_VLM_REQ = "mlx-vlm==0.8.1"
 
 
 def model_refusal(spec: str, allow_paid: bool) -> tuple[int, str] | None:
-    """Model kroku ②: płatny → `paid_model_refusal`; lokalny tylko z katalogu pod
+    """Model kroków ② i ④: płatny → `paid_model_refusal`; lokalny tylko z katalogu pod
     `_vlm.LLM_ROOT` (/Volumes/Dane/llm — modele nigdy z ~/.cache ani spoza tego dysku) → exit 2."""
     paid = paid_model_refusal(spec, allow_paid)
     if paid:
@@ -755,9 +771,9 @@ def paid_model_refusal(spec: str, allow_paid: bool) -> tuple[int, str] | None:
     if spec.partition(":")[0] == "mlx":
         return None
     if not allow_paid:
-        return EXIT_REFUSED, (f"model {spec} nie jest lokalny — krok text działa lokalnie (mlx:<katalog>); "
+        return EXIT_REFUSED, (f"model {spec} nie jest lokalny — kroki text / labels działają lokalnie (mlx:<katalog>); "
                               "płatny VLM tylko z jawnym --allow-paid i potwierdzeniem kosztu")
-    return EXIT_NOT_IMPLEMENTED, (f"płatny VLM ({spec}) w kroku text: hak bez adaptera — "
+    return EXIT_NOT_IMPLEMENTED, (f"płatny VLM ({spec}) w krokach text / labels: hak bez adaptera — "
                                   "podłącz adapter i szacunek kosztu (paid_model_refusal)")
 
 
@@ -784,9 +800,9 @@ def get_vlm(ctx: dict):
             ctx["vlm_error"] = str(e)
             raise
         except ImportError as e:
-            ctx["vlm_error"] = (f"brak {MLX_VLM_REQ.split('==')[0]} ({e}) — krok text uruchamiaj przez "
+            ctx["vlm_error"] = (f"brak {MLX_VLM_REQ.split('==')[0]} ({e}) — kroki text / labels uruchamiaj przez "
                                 f"`uv run --with {MLX_VLM_REQ} scripts/auto.py …` (serwer /auto i "
-                                "`just auto STEP=text|next` robią to same)")
+                                "`just auto STEP=text|labels|next` robią to same)")
             raise AutoError(ctx["vlm_error"]) from e
         except Exception as e:  # noqa: BLE001 — zły katalog modelu, pamięć
             ctx["vlm_error"] = f"nie mogę załadować modelu {ctx['vlm_spec']}: {type(e).__name__}: {e}"
@@ -858,9 +874,15 @@ def read_gate(ad, scan_im, g: dict, cv_pins: list, timeout_s: float) -> dict:
     obj = _vlm.parse_json_text(raw.get("text") or "") if not err else None
     if obj is None and not err:
         err = "odpowiedź bez obiektu JSON"
+    pred = None
+    if obj is not None:
+        try:  # zły kształt pól (np. skalar zamiast listy) = błąd tej bramki, nie strony
+            pred = _vlm.to_pred("gate", obj)
+        except Exception as e:  # noqa: BLE001
+            err = f"zły kształt odpowiedzi: {type(e).__name__}: {e}"
     return {"crop": list(bbox), "scale": TEXT_SCALE, "png_sha256": hashlib.sha256(png).hexdigest(),
             "raw": raw.get("text") or "", "obj": obj,
-            "pred": _vlm.to_pred("gate", obj) if obj is not None else None,
+            "pred": pred,
             "error": err, "latency": raw.get("latency", time.perf_counter() - t0),
             "in_tok": raw.get("in_tok"), "out_tok": raw.get("out_tok"), "cv_pins": cv_pins}
 
@@ -920,6 +942,311 @@ def run_text(ctx: dict, pid: str, page: dict, scan: Path) -> tuple[list, dict, l
                       **(ad.params() if ad is not None and hasattr(ad, "params") else {}),
                       "cv_pins": cv_src}}
     return new_gates, counts, uncertain, det
+
+
+# --------------------------------------------------------------------------- krok ④ labels
+
+def _trusted(el: Any, page: dict) -> bool:
+    """Etykieta innej strony, której wierzymy przy samokorekcie: ludzka albo z zatwierdzonego ④."""
+    return isinstance(el, dict) and (_steps.element_src(el, "src") != "auto"
+                                     or _steps.step_status(page, "labels") == "approved")
+
+
+def label_context(ctx: dict, pid: str, entry: dict) -> _labels.LabelContext:
+    """Wiedza pakietu do samokorekty ④: arkusze z package.yaml, etykiety INNYCH stron pakietu
+    (tylko ludzkie / zatwierdzone), backplane projektu dla tego pakietu."""
+    pkg_dir: Path = ctx["pkg_dir"]
+    entries = package_pages(pkg_dir / "package.yaml")
+    sheets: dict[int, str] = {}
+    for e in entries:
+        if _steps._is_num(e.get("sheet")) and int(e["sheet"]) == e["sheet"]:
+            sheets[int(e["sheet"])] = str(e["id"])
+    own = entry.get("sheet")
+    own = int(own) if _steps._is_num(own) else None
+    others: dict[str, dict] = {}
+    for e in entries:
+        oid = str(e["id"])
+        if oid == pid:
+            continue
+        f = pkg_dir / str(e.get("file") or f"pages/{oid}.sch.yaml")
+        try:
+            doc = load_yaml(f.read_text(encoding="utf-8")) if f.is_file() else None
+        except Exception:  # noqa: BLE001 — zła strona obok nie blokuje kroku
+            doc = None
+        if isinstance(doc, dict):
+            others[oid] = {k: [el for el in _steps.list_of(doc.get(k)) if _trusted(el, doc)]
+                           for k in ("ports", "cross_refs")}
+    conns, bp = set(), set()  # litery z portów innych stron dokłada LabelContext
+    proj = pkg_dir.parent / "project.yaml"
+    try:
+        pdoc = load_yaml(proj.read_text(encoding="utf-8")) if proj.is_file() else None
+    except Exception:  # noqa: BLE001
+        pdoc = None
+    for sig in _steps.list_of(pdoc.get("backplane") if isinstance(pdoc, dict) else None):
+        for ep in _steps.list_of(sig.get("endpoints") if isinstance(sig, dict) else None):
+            if isinstance(ep, dict) and str(ep.get("package")) == ctx["pkg"] and ep.get("connector"):
+                c = str(ep["connector"]).strip().upper()
+                conns.add(c)
+                if _steps._is_num(ep.get("pin")):
+                    bp.add(f"{c}{int(ep['pin'])}")
+    return _labels.LabelContext(sheets, own, others, conns, bp)
+
+
+def _ask_crop(ad, scan_im, bbox, mark_y, scale: int, vkind: str, prompt: str, timeout_s: float,
+              keep_rows=None) -> dict:
+    """Jeden wycinek → odpowiedź modelu ({png_sha256, raw, obj, error, latency, …}); błąd
+    modelu / brak JSON = `error`, nigdy wyjątek."""
+    png = _vlm.png_bytes(_vlm.render_box(scan_im, bbox, mark_y, scale, keep_rows=keep_rows))
+    t0 = time.perf_counter()
+    try:
+        raw = ad.ask(png, vkind, prompt, timeout_s=timeout_s)
+    except Exception as e:  # noqa: BLE001 — błąd jednego wycinka nie psuje strony
+        raw = {"text": "", "error": f"{type(e).__name__}: {e}"}
+    err = raw.get("error")
+    obj = _vlm.parse_json_text(raw.get("text") or "") if not err else None
+    if obj is None and not err:
+        err = "odpowiedź bez obiektu JSON"
+    return {"crop": list(bbox), "keep_rows": list(keep_rows) if keep_rows else None,
+            "png_sha256": hashlib.sha256(png).hexdigest(), "raw": raw.get("text") or "", "obj": obj,
+            "error": err, "latency": raw.get("latency", time.perf_counter() - t0),
+            "in_tok": raw.get("in_tok"), "out_tok": raw.get("out_tok")}
+
+
+def read_label(ad, scan_im, kind: str, end: dict, timeout_s: float, scale: int = _labels.LABEL_SCALE,
+               gaps: tuple | None = None) -> dict:
+    """Wycinek końca drutu → odpowiedź modelu. kind: port (prompt v3 bake-offu, kadr
+    `_vlm.port_crop_box`) | cross_ref | power (`_labels.POWER_PROMPT`, z pytaniem o masę).
+    Odsyłacz przy prawym końcu drutu: prompt v3 i kadr bake-offu. Odsyłacz przy LEWEJ krawędzi
+    („9 -L”: numer arkusza PRZED etykietą, wiersze co ~28 px): dwa wycinki — kolumna numerów
+    (`_labels.xref_sheets_box`) i etykieta nad drutem (`_labels.xref_label_box`), z sąsiednimi
+    wierszami zamalowanymi (`gaps` = odstępy do sąsiednich końców w tej kolumnie)."""
+    side = _labels.side_of(end["dir"])
+    y = int(end["y"])
+    parts: list[dict] = []
+    pred = None
+    try:
+        if kind == "cross_ref" and side == "left":
+            gu, gd = gaps or (None, None)
+            bb, keep = _labels.xref_sheets_box(end["x"], y, gu, gd)
+            a = _ask_crop(ad, scan_im, bb, y, scale, "xref", _labels.SHEETS_PROMPT, timeout_s, keep)
+            a["part"] = "sheets"
+            bb, keep = _labels.xref_label_box(end["x"], y, gu)
+            b = _ask_crop(ad, scan_im, bb, y, scale, "xref", _labels.XREF_LABEL_PROMPT, timeout_s, keep)
+            b["part"] = "label"
+            parts = [a, b]
+            if not a["error"] and not b["error"]:
+                pred = {"label": _vlm.norm_label((b["obj"] or {}).get("label")),
+                        "pages": _vlm.norm_pages((a["obj"] or {}).get("sheets"))}
+        else:
+            if kind == "port":
+                tx, ty = _labels.port_tip(end["x"], y, side)
+                bb, prompt, vk = _vlm.port_crop_box(tx, ty, side), _vlm.PROMPTS[_labels.LABEL_PROMPT]["port"], "port"
+            elif kind == "cross_ref":
+                bb, prompt, vk = (_vlm.xref_crop_box(end["x"], y, side),
+                                  _vlm.PROMPTS[_labels.LABEL_PROMPT]["xref"], "xref")
+            else:
+                bb, prompt, vk = _labels.power_crop_box(end["x"], y, end["dir"]), _labels.POWER_PROMPT, "power"
+            a = _ask_crop(ad, scan_im, bb, y, scale, vk, prompt, timeout_s)
+            parts = [a]
+            if not a["error"]:
+                obj = a["obj"] or {}
+                if vk == "power":
+                    lab = obj.get("label")
+                    pred = {"label": _vlm.norm_text(lab) if isinstance(lab, (str, int, float)) else "",
+                            "ground": obj.get("ground") is True}
+                else:
+                    pred = _vlm.to_pred(vk, obj)
+        err = next((q["error"] for q in parts if q["error"]), None)
+    except Exception as e:  # noqa: BLE001 — zły kształt odpowiedzi (np. "sheets": {…}) = błąd wycinka
+        pred, err = None, f"zły kształt odpowiedzi: {type(e).__name__}: {e}"
+    first = parts[0] if parts else {}
+    return {"kind": kind, "crop": first.get("crop"), "scale": scale, "png_sha256": first.get("png_sha256"),
+            "raw": " | ".join(q["raw"] for q in parts), "obj": [q["obj"] for q in parts] if len(parts) > 1
+            else first.get("obj"), "pred": pred, "error": err,
+            "latency": sum(float(q["latency"] or 0) for q in parts),
+            "in_tok": sum(q["in_tok"] or 0 for q in parts), "out_tok": sum(q["out_tok"] or 0 for q in parts),
+            "parts": [{k: q[k] for k in ("part", "crop", "keep_rows", "png_sha256", "raw")} for q in parts]
+            if len(parts) > 1 else None}
+
+
+def _disagree(kind: str, a: dict | None, b: dict | None) -> str | None:
+    """Niezgodność odczytu ×2 i ×1 (pola tego rodzaju); None — zgodne albo brak drugiego."""
+    if not a or not b:
+        return None
+    fields = {"port": ("conn", "label"), "cross_ref": ("label", "pages"), "power": ("label",)}[kind]
+    diff = [f"{f} ×{_labels.LABEL_SCALE} „{a.get(f)}” vs ×1 „{b.get(f)}”" for f in fields if a.get(f) != b.get(f)]
+    return "LABEL_DISAGREE: " + "; ".join(diff) if diff else None
+
+
+def decide_label(kind: str, end: dict, rec: dict | None, lctx: _labels.LabelContext,
+                 second: dict | None = None, ground_cv: bool = False) -> dict:
+    """Odczyt końca → wynik dla `_labels.merge_labels`: {kind, el, why, error, empty, ground}.
+    Odczyt zostaje, jaki jest; samokorekta dopisuje „KOD: opis” do `why`. Każdy symbol zasilania
+    z kroku jest w `uncertain` (`POWER_AUTO`, masa: `GROUND_CV`) — przegląd kr-9p8.28. Masa
+    tylko, gdy CV widzi kreskę (`ground_cv`) i model ją potwierdza (pole `ground`) bez napisu."""
+    if rec is None or rec.get("error"):
+        err = rec.get("error") if rec else "brak odczytu"
+        return {"kind": kind, "el": None, "why": [f"MODEL_ERROR: {err}"], "error": True}
+    p = rec.get("pred") or {}
+    extra = [w for w in [_disagree(kind, p, (second or {}).get("pred") if second else None)] if w]
+    free_end = "FREE_END: wolny koniec drutu bez portu / odsyłacza / zasilania"
+    if kind == "power":
+        lab = p.get("label") or ""
+        chk = _labels.check_power(lab)
+        if chk["type"] is not None:
+            return {"kind": "power", "el": _labels.new_power(end, chk["type"]),
+                    "why": [f"POWER_AUTO: napis „{lab}” przy końcu drutu → {chk['type']}"] + extra}
+        if ground_cv and p.get("ground") is True and not lab:
+            return {"kind": "power", "el": _labels.new_power(end, GROUND_TYPE), "ground": True,
+                    "why": [f"GROUND_CV: kreska masy z CV, model potwierdził → {GROUND_TYPE}"] + extra}
+        if end.get("stub"):
+            return {"kind": None, "el": None, "why": [], "empty": not lab}
+        note = (f" (napis „{lab}” to nie zasilanie)" if lab else
+                " (kreska z CV — model nie potwierdził masy)" if ground_cv else "")
+        return {"kind": None, "el": None, "empty": not lab, "why": [free_end + note]}
+    if kind == "cross_ref":
+        lab, pages = p.get("label") or "", p.get("pages") or []
+        ptype = _labels.norm_power(lab) if lab else None
+        if ptype and not pages:  # napis zasilania przy końcu poziomego drutu
+            return {"kind": "power", "el": _labels.new_power(end, ptype),
+                    "why": [f"POWER_AUTO: odsyłacz „{lab}” bez arkuszy odczytany jako zasilanie {ptype}"] + extra}
+        if not lab and not pages:
+            return {"kind": "cross_ref", "el": None, "empty": True,
+                    "why": ["MODEL_EMPTY: przy końcu są znaki, model nie odczytał ani etykiety, ani arkuszy"]}
+        chk = _labels.check_xref(p, lctx)
+        return {"kind": "cross_ref", "el": _labels.new_xref(end, chk), "why": chk["why"] + extra}
+    if not p.get("conn") and not p.get("label"):
+        return {"kind": "port", "el": None, "empty": True,
+                "why": ["MODEL_EMPTY: szewron portu bez odczytanego złącza i etykiety"]}
+    chk = _labels.check_port(p, lctx)
+    return {"kind": "port", "el": _labels.new_port(end, chk), "why": chk["why"] + extra}
+
+
+def prev_human_filled(ctx: dict, pid: str, page: dict) -> list:
+    """Elementy ludzkiego pochodzenia z poprzedniego przebiegu ④ (`human_filled` snapshotu
+    `labels-<steps.labels.run>.yaml`: [rodzaj, x, y]) — pusty aspekt wypełniony przez krok ma
+    potem `src: auto`, a nie wolno go usunąć przy nieudanym ponownym odczycie. Brak / zły
+    snapshot = pusta lista."""
+    st = (page.get("steps") or {}).get("labels") if isinstance(page.get("steps"), dict) else None
+    run = st.get("run") if isinstance(st, dict) else None
+    if not (isinstance(run, str) and re.fullmatch(r"[0-9A-Za-z-]+", run)):
+        return []
+    snap = snapshot_path(ctx["data"], ctx["pkg"], pid, "labels", run)
+    if not snap.is_file() or snap.is_symlink():
+        return []
+    try:
+        doc = load_yaml(snap.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return []
+    return [v for v in _steps.list_of(doc.get("human_filled") if isinstance(doc, dict) else None)
+            if isinstance(v, list) and len(v) == 3]
+
+
+def row_gaps(ends: list[dict]) -> dict[int, tuple]:
+    """Odstępy (w górę, w dół) do sąsiednich lewych końców w tej samej kolumnie odsyłaczy
+    (|Δx| ≤ XREF_ROW_NEIGHBOUR) — do zamalowania sąsiednich wierszy w wycinkach."""
+    out = {}
+    lefts = [(j, e) for j, e in enumerate(ends) if e["dir"] == "left"]
+    for j, e in lefts:
+        ups = [e["y"] - f["y"] for k, f in lefts if k != j and abs(f["x"] - e["x"]) <= _labels.XREF_ROW_NEIGHBOUR
+               and f["y"] < e["y"]]
+        downs = [f["y"] - e["y"] for k, f in lefts if k != j and abs(f["x"] - e["x"]) <= _labels.XREF_ROW_NEIGHBOUR
+                 and f["y"] > e["y"]]
+        out[j] = (min(ups) if ups else None, min(downs) if downs else None)
+    return out
+
+
+def run_labels(ctx: dict, pid: str, page: dict, scan: Path, entry: dict) -> tuple[dict, dict, list, dict]:
+    """Krok ④ na stronie: wolne końce drutów → CV (szewron / cyfry / napis / masa) → odczyt
+    modelu → samokorekta → scalenie. Zwraca (listy ports / cross_refs / power, counts,
+    uncertain, det do snapshotu)."""
+    from PIL import Image
+
+    gates = [g for g in _steps.list_of(page.get("gates")) if _has_box(g)]
+    rects = [gate_rect(g) for g in gates]
+    ends = _labels.free_ends(page, rects, _labels.gate_pins_abs(gates))
+    plan = _labels.label_plan(page, ends, prev_human_filled(ctx, pid, page))
+    gray = read_gray(scan)
+    bw = _labels.binarize(gray)
+    h, w = gray.shape[:2]
+    lctx = label_context(ctx, pid, entry)
+    gaps = row_gaps(ends)
+    cls: dict[int, dict] = {}
+    results: dict[int, dict] = {}
+    done: set[int] = set()
+    targets = set(plan["targets"])
+    # (indeks końca, rodzaj odczytu, koniec do kadru, kreska masy z CV)
+    jobs: list[tuple[int, str, dict, bool]] = []
+    for gb in _labels.ground_bars(page, ends):  # masa narysowana drutami ③ (kreska + T)
+        a, b = gb["ends"]
+        if a in targets and b in targets and a not in done and b not in done and \
+                not _labels.in_title_block(gb["x"], gb["y"], gray.shape):
+            pt = {"x": gb["x"], "y": gb["y"], "dir": "down" if gb["rot"] == 180 else "up", "stub": False}
+            jobs.append((a, "power", pt, True))
+            done |= {a, b}
+            cls[a] = cls[b] = {"kind": "ground", "cv": {"bar_segment": True}}
+    for j in sorted(targets - done):
+        c = cls[j] = _labels.classify_end(bw, ends[j], rects)
+        k = c["kind"]
+        if k is None:
+            note = " (tabliczka rysunkowa)" if c["cv"].get("title_block") else ""
+            results[j] = {"kind": None, "el": None, "why": [] if ends[j]["stub"] else [
+                "FREE_END: wolny koniec drutu bez portu / odsyłacza / zasilania" + note]}
+        else:
+            jobs.append((j, {"port": "port", "xref": "cross_ref", "power": "power", "ground": "power"}[k],
+                         ends[j], k == "ground"))
+    kind_of = {"ports": "port", "cross_refs": "cross_ref", "power": "power"}
+    for key, _i, j in plan["fill"]:
+        if j is None:
+            continue
+        cls[j] = c = _labels.classify_end(bw, ends[j], rects)
+        jobs.append((j, kind_of[key], ends[j], c["kind"] == "ground"))
+    reads: dict[int, dict] = {}
+    seconds: dict[int, dict] = {}
+    t_model = 0.0
+    if jobs:
+        ad = get_vlm(ctx)
+        with Image.open(scan) as im0:
+            scan_im = im0.convert("L")
+        for n, (j, kind, e, gcv) in enumerate(jobs, 1):
+            g = gaps.get(j) if e is ends[j] else None
+            rec = reads[j] = read_label(ad, scan_im, kind, e, ctx["gate_timeout"], gaps=g)
+            t_model += float(rec["latency"] or 0)
+            if ctx.get("second_read"):
+                sec = seconds[j] = read_label(ad, scan_im, kind, e, ctx["gate_timeout"], scale=1, gaps=g)
+                t_model += float(sec["latency"] or 0)
+            p = rec.get("pred") or {}
+            what = (f"BŁĄD {rec['error']}" if rec["error"] else
+                    " ".join(f"{k}={v}" for k, v in p.items()))
+            progress(ctx, f"{ctx['pkg']} {pid} labels [{n}/{len(jobs)}] ({e['x']},{e['y']}) {e['dir']} "
+                          f"{kind}{' (masa CV)' if gcv else ''}: {what} — {float(rec['latency'] or 0):.1f} s")
+            results[j] = decide_label(kind, e, rec, lctx, seconds.get(j), ground_cv=gcv)
+    lists, counts, uncertain = _labels.merge_labels(page, ends, plan, results)
+    human_filled = counts.pop("human_filled")
+    counts["model_s"] = round(t_model, 1)
+    counts["reads"] = len(jobs)
+    snap_ends = []
+    for j, e in enumerate(ends):
+        res = results.get(j) or {}
+        snap_ends.append(_clean({
+            **e, "claimed": j in plan["claimed"], "cv": cls.get(j), "row_gaps": list(gaps[j]) if j in gaps else None,
+            "result": {"kind": res.get("kind"), "el": res.get("el"), "why": res.get("why") or []},
+            "vlm": {k: reads[j][k] for k in ("kind", "crop", "scale", "png_sha256", "raw", "obj", "pred",
+                                             "error", "latency", "in_tok", "out_tok", "parts")} if j in reads else None,
+            "vlm_x1": ({k: seconds[j][k] for k in ("crop", "scale", "png_sha256", "raw", "pred", "error",
+                                                   "latency")} if j in seconds else None),
+        }))
+    ad = ctx.get("vlm")
+    prompts = {**{k: _vlm.PROMPTS[_labels.LABEL_PROMPT][k] for k in ("port", "xref")}, "power": _labels.POWER_PROMPT,
+               "xref_left_sheets": _labels.SHEETS_PROMPT, "xref_left_label": _labels.XREF_LABEL_PROMPT}
+    det = {"shape": (h, w), "tool": "scripts/_labels.py + scripts/_vlm.py (mlx-vlm)", "ends": snap_ends,
+           "lists": lists, "human_filled": human_filled,
+           "params": {"model": ctx["vlm_spec"], "prompt": _labels.LABEL_PROMPT,
+                      "prompt_sha256": {k: hashlib.sha256(v.encode()).hexdigest() for k, v in prompts.items()},
+                      "scale": _labels.LABEL_SCALE, "second_read_scale": 1 if ctx.get("second_read") else None,
+                      "timeout_s": ctx["gate_timeout"], "ground_type": GROUND_TYPE,
+                      **(ad.params() if ad is not None and hasattr(ad, "params") else {})}}
+    return lists, counts, uncertain, det
 
 
 def set_step(page: dict, step: str, run: str, at: str, *, forced_approved: bool,
@@ -1023,6 +1350,11 @@ def snapshot_doc(page: dict, step: str, run: str, at: str, det: dict, scan: Path
         # surowe odpowiedzi modelu + kadry (bez obrazów wycinków) + wynik samokorekty
         body = {"gates": _plain(det["gates"]), "power": [], "ports": [], "cross_refs": [],
                 "nets": {}}
+    elif step == "labels":
+        # elementy strony po kroku + każdy wolny koniec: klasyfikacja CV, kadr, surowa odpowiedź
+        body = {"gates": [], "power": _plain(det["lists"]["power"]), "ports": _plain(det["lists"]["ports"]),
+                "cross_refs": _plain(det["lists"]["cross_refs"]), "nets": {}, "ends": _plain(det["ends"]),
+                "human_filled": _plain(det["human_filled"])}
     else:
         doc = det["doc"]
         nets = {}
@@ -1068,7 +1400,7 @@ def run_page(ctx: dict, entry: dict, step_arg: str) -> dict:
         if not ok:
             rep.update(status="refused", exit=EXIT_REFUSED, reason=why)
             return rep
-        if step == "text":
+        if step in VLM_STEPS:
             paid = model_refusal(ctx["vlm_spec"], ctx["allow_paid"])
             if paid:
                 code, why = paid
@@ -1090,6 +1422,13 @@ def run_page(ctx: dict, entry: dict, step_arg: str) -> dict:
         elif step == "text":
             gates, counts, uncertain, det = run_text(ctx, pid, page, scan)
             page["gates"] = gates
+            rep["uncertain"] = uncertain
+            extra = {"uncertain": uncertain} if uncertain else None
+        elif step == "labels":
+            lists, counts, uncertain, det = run_labels(ctx, pid, page, scan, entry)
+            for key in ("ports", "cross_refs", "power"):
+                if key in page or lists[key]:
+                    page[key] = lists[key]
             rep["uncertain"] = uncertain
             extra = {"uncertain": uncertain} if uncertain else None
         else:
@@ -1172,6 +1511,13 @@ def format_page(pkg: str, r: dict) -> str:
                 body += "; niepewne: " + ", ".join(
                     f"{u['ref'] or '?'}{u['gate'] or ''}" for u in r["uncertain"][:12]) + \
                     (" …" if len(r["uncertain"]) > 12 else "")
+        elif r["step"] == "labels":
+            body = (f"labels: wolnych końców {c['ends']} (zajęte przez zostające {c['claimed']}, "
+                    f"wyprowadzenia bramek {c['stubs']}), odczyty {c['reads']} — porty {c['ports']}, "
+                    f"odsyłacze {c['cross_refs']}, zasilanie {c['power']} (masa {c['ground']}); "
+                    f"zastąpione auto {c['replaced']}, zostawione {c['kept']}, wypełnione {c['filled']}; "
+                    f"niepewne {c['uncertain']} (wolne końce bez etykiety {c['unexplained']}), "
+                    f"błędy modelu {c['errors']}, puste odczyty {c['empty_reads']}; model {c['model_s']:.0f} s")
         elif r["step"] == "gates":
             body = (f"gates: wykryte {c['detected']}, usunięte auto {c['removed_auto']}, "
                     f"dodane auto {c['added_auto']}, zostawione {c['kept']} (ludzkie "
@@ -1221,7 +1567,9 @@ def main(argv=None) -> int:
     ap.add_argument("--allow-paid", action="store_true",
                     help="text: zgoda na model płatny (hak — adapter niepodłączony, exit 3)")
     ap.add_argument("--gate-timeout", type=float, default=GATE_TIMEOUT_S,
-                    help="text: limit odpowiedzi modelu na jedną bramkę [s]")
+                    help="text / labels: limit odpowiedzi modelu na jeden wycinek (bramka / koniec drutu) [s]")
+    ap.add_argument("--second-read", action="store_true",
+                    help="labels: drugi odczyt każdego końca w skali 1; niezgodność → LABEL_DISAGREE")
     a = ap.parse_args(argv)
     if a.step == "next" and a.force:
         ap.error("--force z --step next jest niejednoznaczne — podaj krok")
@@ -1264,6 +1612,7 @@ def main(argv=None) -> int:
                "draft": a.draft, "dry_run": a.dry_run, "at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
                "run": choose_run(data, a.pkg, [str(e["id"]) for e in entries], now),
                "vlm_spec": spec, "allow_paid": a.allow_paid, "gate_timeout": a.gate_timeout,
+               "second_read": a.second_read,
                "tmp_dir": Path(tmp), "vlm": None}
         for e in entries:
             res["pages"].append(run_page(ctx, e, a.step))
