@@ -44,3 +44,8 @@ data/.auto/
 data/scans-raw/
 data/MJC-400/*/scans/
 *.pdf
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
