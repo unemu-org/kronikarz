@@ -137,6 +137,23 @@ z timeoutem, przerwaniem i blokadą per strona (kr-0sn.7); viewer pokazuje post�
 przebiegu. Krok z płatnym VLM pokazuje przed startem szacowany koszt i wymaga potwierdzenia;
 limit budżetu w ustawieniach.
 
+Serwer (kr-9p8.19): `POST /auto {pkg, page: <id>|'all', step, force?, draft?, dryRun?}` →
+`auto.py --data <KRONIKARZ_DATA> … --json`. Pakiet i strona muszą być w `project.yaml` /
+`package.yaml` (inaczej 404, zły kształt pola 400, ścieżka strony poza danymi 403). Blokada:
+każdy plik strony przebiegu (`all` = wszystkie strony pakietu — te same klucze co przy jednej
+stronie i przy PUT, więc `all` i pojedyncza strona tego pakietu wykluczają się wprost); drugi
+przebieg → 409 `{error: 'busy', job}`, `GET /auto/status` pokazuje trwające zadania. Przebieg
+bez `dryRun` czeka na trwający PUT strony, a w trakcie przebiegu PUT / DELETE / make-bak /
+restore-bak tej strony dostają od razu 409 busy (viewer ponawia zapis; jeśli przebieg zmienił
+stronę, ponowienie kończy się zwykłym konfliktem → przeładowanie). Timeout 120 s × liczba
+stron, najwyżej 3000 s (proxy Vite: 3600 s) → 504 (proces zabity); zamknięcie karty też
+zabija przebieg. Przebieg zabity między snapshotem a zapisem strony zostawia snapshot
+`.auto/<pkg>/<strona>/<krok>-<run>.yaml` bez zapisanej strony (strona nietknięta). Exit 0 → 200
+(podsumowanie JSON), 2 → 409 `{error: 'refused', reasons, result}`, 3 → 501, 1 albo wyjście bez
+pasującego JSON (np. błąd samego `uv`) → 500 z końcówką stderr. Przy `all` część stron mogła
+się zapisać mimo 409/500 — `result.pages[].written`. Potwierdzenie kosztu: hak
+`paidStepRefusal` w `server/index.js` (dziś `text`/`labels` → 501, nic nie kosztuje).
+
 Ten sam kod z CLI (praca wsadowa, testy):
 
 ```bash

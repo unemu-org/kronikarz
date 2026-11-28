@@ -5,6 +5,7 @@ import { apiWrite } from './api.ts';
 import {
   createSaveQueue,
   rewriteOutcomeFor,
+  SaveBusyError,
   SaveConflictError,
   type FileIO,
   type RewriteOutcome,
@@ -115,12 +116,23 @@ function clone<T>(o: T): T {
 
 // Debounced auto-save (per-path, 500 ms) — logic in saveQueue.ts. Every PUT
 // goes through apiWrite (X-Kronikarz header) with If-Match = the last ETag the
-// queue knows (from the load, then from each PUT); 409 → SaveConflictError.
+// queue knows (from the load, then from each PUT); 409 → SaveConflictError,
+// 409 {error:'busy'} (server job on the page) → SaveBusyError (retried).
 // Status mirrors into the store (saveStatus/saveError → SaveToast).
 const DEBOUNCE_MS = 500;
 // Browsers cap the total body of in-flight keepalive requests at 64 KiB; past
 // that fetch() rejects, so larger bodies go as a plain PUT.
 const KEEPALIVE_MAX_BYTES = 60 * 1024;
+
+// 409 {error:'busy'} = a server job rewrites the file (not an ETag conflict).
+async function isBusy409(r: Response): Promise<boolean> {
+  if (r.status !== 409) return false;
+  try {
+    return (await r.clone().json())?.error === 'busy';
+  } catch {
+    return false;
+  }
+}
 
 const saveQueue: SaveQueue = createSaveQueue({
   async send(path, body, opts, ifMatch) {
@@ -128,6 +140,7 @@ const saveQueue: SaveQueue = createSaveQueue({
     const headers: Record<string, string> = { 'Content-Type': 'text/yaml' };
     if (ifMatch) headers['If-Match'] = ifMatch;
     const r = await apiWrite(`/files/${path}`, { method: 'PUT', headers, body, keepalive });
+    if (await isBusy409(r)) throw new SaveBusyError(`PUT ${path} → 409 busy`);
     if (r.status === 409) throw new SaveConflictError(`PUT ${path} → 409`);
     if (!r.ok) throw new Error(`PUT ${path} → ${r.status}`);
     return r.headers.get('ETag');
@@ -172,7 +185,7 @@ const fileIO: FileIO = {
     const headers: Record<string, string> = { 'Content-Type': 'text/yaml' };
     if (ifMatch) headers['If-Match'] = ifMatch;
     const r = await apiWrite(`/files/${path}`, { method: 'PUT', headers, body });
-    return { status: r.status, etag: r.headers.get('ETag') };
+    return { status: r.status, etag: r.headers.get('ETag'), busy: await isBusy409(r) };
   },
 };
 

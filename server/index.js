@@ -1,9 +1,9 @@
 import express from 'express';
-import { promises as fs, createReadStream, existsSync, readFileSync, realpathSync } from 'node:fs';
+import { promises as fs, createReadStream, existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 import { randomBytes, createHash } from 'node:crypto';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn, spawnSync, ChildProcess } from 'node:child_process';
 import yaml from 'js-yaml';
 
 // Repo root: server/ → ..
@@ -61,6 +61,30 @@ function parseJsonBody(req) {
     catch { return null; }
   }
   return req.body;
+}
+
+// The script's JSON result: the whole stdout, else the last top-level JSON
+// value starting at the beginning of a line — anything printed before it
+// (e.g. the `nix develop` shellHook banner of the uv fallback) is ignored.
+// Returns undefined when there is none.
+// Only the last PARSE_LAST_JSON_TRIES line starts are tried (no quadratic
+// parse of a large stdout full of `{` lines).
+export const PARSE_LAST_JSON_TRIES = 8;
+export function parseLastJson(s) {
+  const text = s.trim();
+  try { return JSON.parse(text); } catch { /* search below */ }
+  let tries = 0;
+  for (let i = text.length; tries < PARSE_LAST_JSON_TRIES && i > 0;) {
+    const nl = text.lastIndexOf('\n', i - 1); // a start is 0 or just after a newline
+    const start = nl + 1;
+    if (text[start] === '{' || text[start] === '[') {
+      tries++;
+      try { return JSON.parse(text.slice(start)); } catch { /* earlier line */ }
+    }
+    if (nl < 0) break;
+    i = nl;
+  }
+  return undefined;
 }
 
 // Bind loopback only by default: the viewer reaches the server through the
@@ -158,6 +182,19 @@ export function yamlBodyError(name, buf) {
 export const BACKUP_INTERVAL_MS = 10 * 60 * 1000;
 export const BACKUP_KEEP = 50;
 
+// Script timeouts (ms). Each Vite proxy timeout (viewer/vite.config.ts) is
+// this + 2 × killGraceMs + margin, so the client gets the server's 504 rather
+// than a proxy abort (which would also kill the job). /auto: per page of the
+// request, capped at autoMax (proxy: 3600 s).
+export const SCRIPT_TIMEOUTS = {
+  aiDetect: 110_000,
+  visionPage: 230_000,
+  visionZones: 290_000,
+  yoloExport: 110_000,
+  autoPerPage: 120_000,
+  autoMax: 3_000_000,
+};
+
 export function createApp({
   root,
   spawn: spawnFn = spawn,
@@ -166,24 +203,329 @@ export function createApp({
   now = () => Date.now(),
   backupIntervalMs = BACKUP_INTERVAL_MS,
   backupKeep = BACKUP_KEEP,
+  scriptTimeouts: timeoutsOpt = {},
+  killGraceMs = 5000,
+  maxStdout = 16 * 1024 * 1024,
+  maxStderr = 64 * 1024,
+  groupAlive: groupAliveOpt = null,
 } = {}) {
 const ROOT = path.resolve(root ?? path.join(REPO, 'data'));
+const TIMEOUTS = { ...SCRIPT_TIMEOUTS, ...timeoutsOpt };
+const groupAlive = groupAliveOpt ?? defaultGroupAlive;
 
-// Per-file write lock: writes to one absolute path run one at a time, in the
-// order their handlers started (= order the full request was received).
+// Canonical lock key of a path: realpath of its nearest existing ancestor
+// directory (case as on disk, symlinks resolved) + the rest, lower-cased on
+// a case-insensitive file system. Sync on purpose: callers take locks before
+// any await so arrival order holds.
+let caseInsensitiveFs = null;
+function isCaseInsensitiveFs() {
+  if (caseInsensitiveFs === null) {
+    try {
+      const real = realpathSync.native(ROOT);
+      const swapped = real.replace(/[a-z]/gi, (c) => (c === c.toLowerCase() ? c.toUpperCase() : c.toLowerCase()));
+      const a = statSync(real);
+      const b = statSync(swapped, { throwIfNoEntry: false });
+      caseInsensitiveFs = !!b && swapped !== real && a.ino === b.ino && a.dev === b.dev;
+    } catch {
+      return false; // root missing (yet): decide later
+    }
+  }
+  return caseInsensitiveFs;
+}
+function lockKeyOf(abs) {
+  let dir = path.dirname(abs);
+  const rest = [path.basename(abs)];
+  for (;;) {
+    try {
+      const key = path.join(realpathSync.native(dir), ...rest).normalize('NFC');
+      return isCaseInsensitiveFs() ? key.toLowerCase() : key;
+    } catch {
+      if (path.dirname(dir) === dir) return abs;
+      rest.unshift(path.basename(dir));
+      dir = path.dirname(dir);
+    }
+  }
+}
+
+// Per-file write lock: writes to one file run one at a time, in the order
+// their handlers started (= order the full request was received).
 const writeChains = new Map();
 function withFileLock(abs, fn) {
-  const prev = writeChains.get(abs) ?? Promise.resolve();
+  const key = lockKeyOf(abs);
+  const prev = writeChains.get(key) ?? Promise.resolve();
   const run = prev.then(fn);
   const tail = run.catch(() => {});
-  writeChains.set(abs, tail);
-  tail.then(() => { if (writeChains.get(abs) === tail) writeChains.delete(abs); });
+  writeChains.set(key, tail);
+  tail.then(() => { if (writeChains.get(key) === tail) writeChains.delete(key); });
   return run;
+}
+
+// A running script job that rewrites this file (vision, /auto without
+// dryRun), or null. Writes to such a file are refused at once (409 busy)
+// instead of queueing behind a job that may take minutes.
+function writingJobOn(abs) {
+  const j = runningJobs.get(lockKeyOf(abs));
+  return j && j.writes.has(lockKeyOf(abs)) ? j : null;
+}
+function busyOr(res, abs) {
+  const j = writingJobOn(abs);
+  if (j) res.status(409).json({ error: 'busy', job: jobView(j) });
+  return !!j;
+}
+
+// The same lock on several paths (sorted, so two multi-path holders always
+// take them in one order), held while `fn` runs.
+function withFileLocks(paths, fn) {
+  const byKey = new Map(paths.map((p) => [lockKeyOf(p), p]));
+  return [...byKey.keys()].sort().reduceRight((inner, k) => () => withFileLock(byKey.get(k), inner), fn)();
 }
 
 // Last-resort error reply for a handler whose promise rejected.
 function fail500(res, e) {
   if (!res.headersSent) res.status(500).json({ error: e.message });
+}
+
+// --- Script jobs: runScript (kr-0sn.7) --------------------------------------
+//
+// Every POST that runs a Python script goes through runScript:
+//  - per-key job lock (canonical keys, lockKeyOf): a second job whose lockKey
+//    overlaps a running one is refused at once (status 'busy' → 409
+//    {error:'busy', job}). Page-writing jobs lock the page file.
+//  - fileLocks: files the job rewrites. It holds withFileLock on them for the
+//    whole run (it starts only after a PUT in progress has finished), and
+//    PUT/DELETE/make-bak/restore-bak of them are refused with 409 busy while
+//    it runs (writingJobOn).
+//  - timeout: SIGTERM, SIGKILL after killGraceMs → 'timeout' (504).
+//  - signal (client disconnect): same kill sequence → 'aborted', no reply.
+//  - the process runs in its own process group (detached) and is killed as a
+//    group, so `uv run` / `nix develop` and the Python child under it die too.
+//    After a kill, SIGKILL goes to the group once more on exit (orphans).
+//  - no exit killGraceMs after SIGKILL: the client gets its 504 now, but while
+//    the process group still exists the job keeps its locks, marked `stuck`
+//    (in /auto/status); released once the group is gone.
+//  - resolves exactly once; stdin errors (EPIPE of a dead child) are absorbed;
+//    stdout (head) and stderr (tail) are capped.
+const runningJobs = new Map(); // canonical lock key -> job
+const runningProcs = new Set();
+let jobSeq = 0;
+
+const jobView = (j) => ({
+  id: j.id, kind: j.kind, ...j.info, startedAt: j.startedAt, timeoutMs: j.timeoutMs, ...(j.stuck ? { stuck: true } : {}),
+});
+const relPath = (p) => (path.isAbsolute(p) ? path.relative(ROOT, p) : p);
+
+const isRealChild = (proc) => proc instanceof ChildProcess && Number.isInteger(proc.pid);
+
+function killGroup(proc, sig) {
+  // Group kill only for a real child spawned detached; test fakes get kill().
+  if (isRealChild(proc)) {
+    try { process.kill(-proc.pid, sig); return; } catch { /* fall back */ }
+  }
+  try { proc.kill?.(sig); } catch { /* already gone */ }
+}
+
+// Does the process group still exist (signal 0)? Injectable for tests.
+function defaultGroupAlive(proc) {
+  if (!isRealChild(proc)) return false;
+  try {
+    process.kill(-proc.pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === 'EPERM';
+  }
+}
+
+function runScript(args, {
+  stdin = null, timeoutMs = 120000, lockKey = null, fileLocks = [], signal = null,
+  before = null, kind = 'script', info = {},
+} = {}) {
+  const paths = [...new Set([lockKey].flat().filter(Boolean))];
+  const keys = [...new Set(paths.map(lockKeyOf))];
+  for (const k of keys) {
+    const held = runningJobs.get(k);
+    if (held) return Promise.resolve({ status: 'busy', job: jobView(held) });
+  }
+  const job = {
+    id: ++jobSeq, kind, info: { ...info, locks: paths.map(relPath) },
+    startedAt: new Date(now()).toISOString(), timeoutMs, stuck: false,
+    writes: new Set(fileLocks.map(lockKeyOf)),
+  };
+  for (const k of keys) runningJobs.set(k, job);
+  const release = () => { for (const k of keys) if (runningJobs.get(k) === job) runningJobs.delete(k); };
+
+  let deliver;
+  const result = new Promise((r) => { deliver = r; });
+  const inner = async () => {
+    if (signal?.aborted) return { status: 'aborted' };
+    if (before) {
+      const early = await before();
+      if (early) return early;
+    }
+    if (signal?.aborted) return { status: 'aborted' };
+    return spawnAndWait(args, { stdin, timeoutMs, signal, job });
+  };
+  // The reply goes out as soon as the result is known; the locks (job and
+  // file) stay until `gone` — later than the reply only for a stuck process.
+  const body = async () => {
+    const r = await inner();
+    deliver(r);
+    if (r.gone) await r.gone;
+  };
+  (fileLocks.length ? withFileLocks(fileLocks, body) : body())
+    .catch((e) => deliver({ status: 'error', error: e.message }))
+    .finally(release);
+  return result;
+}
+
+function spawnAndWait(args, { stdin, timeoutMs, signal, job }) {
+  const { cmd, args: argv } = uvCmd(args);
+  if (!cmd) return Promise.resolve({ status: 'no-uv' });
+  return new Promise((resolve) => {
+    let proc;
+    try {
+      proc = spawnFn(cmd, argv, { cwd: REPO, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
+    } catch (e) {
+      return resolve({ status: 'spawn-error', error: e.message });
+    }
+    runningProcs.add(proc);
+    const out = [];
+    let outLen = 0;
+    let outTruncated = false;
+    let err = Buffer.alloc(0);
+    let errTruncated = false;
+    let killing = null; // 'timeout' | 'aborted'
+    let settled = false;
+    let closed = false;
+    const timers = [];
+
+    const finish = (r, gone = null) => {
+      if (settled) return;
+      settled = true;
+      for (const t of timers) clearTimeout(t);
+      signal?.removeEventListener('abort', onAbort);
+      if (!gone) runningProcs.delete(proc);
+      // Orphans of a killed group (python under a dead uv) get no second chance.
+      if (killing && !gone) killGroup(proc, 'SIGKILL');
+      resolve({
+        stdout: Buffer.concat(out).toString('utf-8'), stdoutTruncated: outTruncated,
+        stderr: err.toString('utf-8'), stderrTruncated: errTruncated, ...r, ...(gone ? { gone, stuck: true } : {}),
+      });
+    };
+    // No exit after SIGKILL + grace. Group gone → release now; else keep the
+    // locks (job marked stuck) until 'close' or the group disappears.
+    const giveUp = (why) => {
+      if (closed || !groupAlive(proc)) {
+        console.warn(`job ${job.id}: no exit ${killGraceMs} ms after SIGKILL; process group gone, releasing`);
+        return finish({ status: why, code: null, signal: 'SIGKILL' });
+      }
+      console.warn(`job ${job.id}: process group still alive after SIGKILL; job stuck, locks kept`);
+      job.stuck = true;
+      const gone = new Promise((done) => {
+        const end = () => { clearInterval(poll); runningProcs.delete(proc); done(); };
+        const poll = setInterval(() => {
+          killGroup(proc, 'SIGKILL');
+          if (!groupAlive(proc)) end();
+        }, killGraceMs);
+        proc.once('close', end);
+      });
+      finish({ status: why, code: null, signal: 'SIGKILL' }, gone);
+    };
+    const kill = (why) => {
+      if (killing || settled) return;
+      killing = why;
+      killGroup(proc, 'SIGTERM');
+      timers.push(setTimeout(() => {
+        killGroup(proc, 'SIGKILL');
+        timers.push(setTimeout(() => giveUp(why), killGraceMs));
+      }, killGraceMs));
+    };
+    function onAbort() { kill('aborted'); }
+
+    proc.stdout?.on('data', (b) => {
+      if (outLen + b.length > maxStdout) {
+        out.push(b.subarray(0, Math.max(0, maxStdout - outLen)));
+        outLen = maxStdout;
+        outTruncated = true;
+      } else {
+        out.push(b);
+        outLen += b.length;
+      }
+    });
+    proc.stderr?.on('data', (b) => {
+      err = Buffer.concat([err, b]);
+      if (err.length > maxStderr) { err = err.subarray(err.length - maxStderr); errTruncated = true; }
+    });
+    proc.stdout?.on('error', () => {});
+    proc.stderr?.on('error', () => {});
+    proc.on('error', (e) => {
+      // Not spawned at all (ENOENT …): no 'close' is guaranteed — answer now.
+      // A running child that errors (e.g. a failed kill) still ends in 'close'.
+      if (!Number.isInteger(proc.pid)) finish({ status: 'spawn-error', error: e.message });
+    });
+    proc.on('close', (code, sig) => {
+      closed = true;
+      finish(killing ? { status: killing, code, signal: sig } : { status: 'exit', code, signal: sig });
+    });
+
+    timers.push(setTimeout(() => kill('timeout'), timeoutMs));
+    if (signal) {
+      if (signal.aborted) kill('aborted');
+      else signal.addEventListener('abort', onAbort, { once: true });
+    }
+
+    if (proc.stdin) {
+      proc.stdin.on?.('error', () => {}); // EPIPE: child exited before reading
+      try {
+        if (stdin != null) proc.stdin.write(stdin);
+        proc.stdin.end();
+      } catch { /* destroyed stream; 'close' reports the exit */ }
+    }
+  });
+}
+
+// Signal that aborts when the client goes away before the reply is sent.
+// (res 'close', not req 'close': the latter fires once the body is read.)
+function clientGone(res) {
+  const ac = new AbortController();
+  res.on('close', () => { if (!res.writableFinished) ac.abort(); });
+  return ac.signal;
+}
+
+const tail = (s, n = 4000) => (s.length > n ? `…${s.slice(-n)}` : s);
+
+
+// Default reply for a successful exit: stdout must be JSON.
+function replyJson(res, r) {
+  if (r.code !== 0) return res.status(500).json({ error: `exit ${r.code ?? r.signal}`, stderr: tail(r.stderr) });
+  const out = parseLastJson(r.stdout);
+  if (out === undefined) {
+    return res.status(500).json({ error: 'bad JSON from script', raw: r.stdout.slice(0, 500), truncated: r.stdoutTruncated, stderr: tail(r.stderr) });
+  }
+  res.json(out);
+}
+
+// Map a runScript result to the (single) HTTP reply.
+function replyScript(res, r, onExit = replyJson) {
+  if (r.status === 'aborted') {
+    console.log(`${res.req?.method} ${res.req?.url} → aborted by client, job killed`);
+    if (!res.writableEnded) res.end();
+    return;
+  }
+  if (res.headersSent || res.writableEnded || res.destroyed) return;
+  switch (r.status) {
+    case 'busy': return res.status(409).json({ error: 'busy', job: r.job });
+    case 'timeout': return res.status(504).json({ error: 'timeout', ...(r.stuck ? { stuck: true } : {}), stderr: tail(r.stderr ?? '') });
+    case 'no-uv': return res.status(500).json({ error: 'uv not found; start server inside `nix develop` or install uv' });
+    case 'spawn-error': return res.status(500).json({ error: `spawn: ${r.error}` });
+    case 'error': return res.status(r.httpStatus ?? 500).json({ error: r.error });
+    case 'exit': return onExit(res, r);
+    default: return res.status(500).json({ error: `unexpected job state ${r.status}` });
+  }
+}
+
+// Kill every running script (server shutdown).
+function killJobs(sig = 'SIGTERM') {
+  for (const p of runningProcs) killGroup(p, sig);
 }
 
 // abs path -> time of the last autosave backup of it. In memory only: after
@@ -293,6 +635,7 @@ app.get('/files/*', async (req, res) => {
 app.put('/files/*', (req, res) => {
   const key = safeResolve(req.params[0]);
   if (!key) return res.status(403).json({ error: 'path traversal' });
+  if (busyOr(res, key)) return;
   // Lock taken synchronously, before any await, so arrival order holds.
   return withFileLock(key, () => putFile(req, res)).catch((e) => fail500(res, e));
 });
@@ -353,6 +696,7 @@ async function putFile(req, res) {
 app.delete('/files/*', (req, res) => {
   const key = safeResolve(req.params[0]);
   if (!key) return res.status(403).json({ error: 'path traversal' });
+  if (busyOr(res, key)) return;
   return withFileLock(key, () => deleteFile(req, res)).catch((e) => fail500(res, e));
 });
 
@@ -396,6 +740,7 @@ app.get('/list/*', (req, res) => listDir(req.params[0], res));
 
 // --- AI-assisted ROI detection ----------------------------------------------
 
+// Read-only (writes no page): no job lock — two ROI detections may run at once.
 app.post('/ai-detect', async (req, res) => {
   const body = parseJsonBody(req);
   const { package: pkg, page, x, y, w, h } = body || {};
@@ -405,28 +750,32 @@ app.post('/ai-detect', async (req, res) => {
   if (!(await pageYamlOr(res, pkg, page))) return;
   const script = path.join(REPO, 'scripts/ai-detect-roi.py');
   if (!existsSync(script)) return res.status(500).json({ error: 'detect script missing' });
-
-  const { cmd, args } = uvCmd(['run', script]);
-  if (!cmd) return res.status(500).json({ error: 'uv not found; start server inside `nix develop` or install uv' });
-  const proc = spawnFn(cmd, args, { cwd: REPO });
-  let out = '';
-  let err = '';
-  proc.stdout.on('data', (b) => (out += b.toString()));
-  proc.stderr.on('data', (b) => (err += b.toString()));
-  proc.on('error', (e) => res.status(500).json({ error: `spawn: ${e.message}` }));
-  proc.on('close', (code) => {
-    if (code !== 0) return res.status(500).json({ error: `exit ${code}`, stderr: err });
-    try {
-      res.json(JSON.parse(out));
-    } catch (e) {
-      res.status(500).json({ error: 'bad JSON from script', raw: out.slice(0, 500), stderr: err });
-    }
+  const r = await runScript(['run', script], {
+    stdin: JSON.stringify({ package: pkg, page, x, y, w, h }),
+    timeoutMs: TIMEOUTS.aiDetect, signal: clientGone(res), kind: 'ai-detect', info: { pkg, page },
   });
-  proc.stdin.write(JSON.stringify({ package: pkg, page, x, y, w, h }));
-  proc.stdin.end();
+  replyScript(res, r);
 });
 
 // --- Vision page digitalization --------------------------------------------
+
+// Page-rewriting script: job lock + file lock on the page; the rolling .bak
+// is made under both, so a refused second click never touches it.
+function runPageRewrite(res, { yamlPath, script, args, stdin = null, timeoutMs, kind, info }) {
+  return runScript(['run', script, ...args], {
+    stdin, timeoutMs, kind, info, lockKey: yamlPath, fileLocks: [yamlPath], signal: clientGone(res),
+    before: async () => {
+      // Backup BEFORE running vision — rolling .bak + timestamped (only if file exists).
+      if (!existsSync(yamlPath)) return null;
+      try {
+        await backupPage(yamlPath, now());
+        return null;
+      } catch (e) {
+        return { status: 'error', error: `backup failed: ${e.message}` };
+      }
+    },
+  });
+}
 
 app.post('/vision-page', async (req, res) => {
   const body = parseJsonBody(req);
@@ -434,32 +783,12 @@ app.post('/vision-page', async (req, res) => {
   if (!pkg || !page) return res.status(400).json({ error: 'need {package, page}' });
   const yamlPath = await pageYamlOr(res, pkg, page);
   if (!yamlPath) return;
-
-  // Backup BEFORE running vision — keep rolling .bak + timestamped (only if file exists).
-  if (existsSync(yamlPath)) {
-    try {
-      await backupPage(yamlPath, now());
-    } catch (e) {
-      return res.status(500).json({ error: `backup failed: ${e.message}` });
-    }
-  }
-
   const script = path.join(REPO, 'scripts/vision-page.py');
   if (!existsSync(script)) return res.status(500).json({ error: 'vision-page script missing' });
-  const { cmd, args } = uvCmd(['run', script, pkg, page]);
-  if (!cmd) return res.status(500).json({ error: 'uv not found' });
-
-  const proc = spawnFn(cmd, args, { cwd: REPO });
-  let out = '';
-  let err = '';
-  proc.stdout.on('data', (b) => (out += b.toString()));
-  proc.stderr.on('data', (b) => (err += b.toString()));
-  proc.on('error', (e) => res.status(500).json({ error: `spawn: ${e.message}` }));
-  proc.on('close', (code) => {
-    if (code !== 0) return res.status(500).json({ error: `exit ${code}`, stderr: err });
-    try { res.json(JSON.parse(out)); }
-    catch (e) { res.status(500).json({ error: 'bad JSON', raw: out.slice(0, 500), stderr: err }); }
+  const r = await runPageRewrite(res, {
+    yamlPath, script, args: [pkg, page], timeoutMs: TIMEOUTS.visionPage, kind: 'vision-page', info: { pkg, page },
   });
+  replyScript(res, r);
 });
 
 // --- Vision per-zone digitalization ----------------------------------------
@@ -470,33 +799,13 @@ app.post('/vision-page-zones', async (req, res) => {
   if (!pkg || !page || !Array.isArray(zones)) return res.status(400).json({ error: 'need {package, page, zones[]}' });
   const yamlPath = await pageYamlOr(res, pkg, page);
   if (!yamlPath) return;
-
-  if (existsSync(yamlPath)) {
-    try {
-      await backupPage(yamlPath, now());
-    } catch (e) {
-      return res.status(500).json({ error: `backup failed: ${e.message}` });
-    }
-  }
-
   const script = path.join(REPO, 'scripts/vision-zones.py');
   if (!existsSync(script)) return res.status(500).json({ error: 'vision-zones script missing' });
-  const { cmd, args } = uvCmd(['run', script, pkg, page]);
-  if (!cmd) return res.status(500).json({ error: 'uv not found' });
-
-  const proc = spawnFn(cmd, args, { cwd: REPO });
-  let out = '';
-  let err = '';
-  proc.stdout.on('data', (b) => (out += b.toString()));
-  proc.stderr.on('data', (b) => (err += b.toString()));
-  proc.on('error', (e) => res.status(500).json({ error: `spawn: ${e.message}` }));
-  proc.on('close', (code) => {
-    if (code !== 0) return res.status(500).json({ error: `exit ${code}`, stderr: err });
-    try { res.json(JSON.parse(out)); }
-    catch (e) { res.status(500).json({ error: 'bad JSON', raw: out.slice(0, 500), stderr: err }); }
+  const r = await runPageRewrite(res, {
+    yamlPath, script, args: [pkg, page], stdin: JSON.stringify({ zones }),
+    timeoutMs: TIMEOUTS.visionZones, kind: 'vision-page-zones', info: { pkg, page },
   });
-  proc.stdin.write(JSON.stringify({ zones }));
-  proc.stdin.end();
+  replyScript(res, r);
 });
 
 // --- Manual backup ----------------------------------------------------------
@@ -514,6 +823,7 @@ app.post('/make-bak', (req, res) => {
   if (!pkg || !page) return res.status(400).json({ error: 'need {package, page}' });
   const yamlPath = pageKeyOr(res, pkg, page);
   if (!yamlPath) return;
+  if (busyOr(res, yamlPath)) return;
   // Per-file lock (as PUT): the copy never sees a half-finished write.
   return withFileLock(yamlPath, () => makeBak(res, yamlPath)).catch((e) => fail500(res, e));
 });
@@ -535,6 +845,7 @@ app.post('/restore-bak', (req, res) => {
   if (!pkg || !page) return res.status(400).json({ error: 'need {package, page}' });
   const yamlPath = pageKeyOr(res, pkg, page);
   if (!yamlPath) return;
+  if (busyOr(res, yamlPath)) return;
   // Same per-file lock as PUT, taken before any await: a restore never
   // interleaves with a write.
   return withFileLock(yamlPath, () => restoreBak(res, yamlPath)).catch((e) => fail500(res, e));
@@ -587,19 +898,11 @@ app.post('/yolo-export', async (req, res) => {
   if (!existsSync(script)) return res.status(500).json({ error: 'export script missing' });
   const args = ['run', script];
   if (allFlag) args.push('--all');
-  const { cmd, args: uvArgs } = uvCmd(args);
-  if (!cmd) return res.status(500).json({ error: 'uv not found; start server inside `nix develop` or install uv' });
-  const proc = spawnFn(cmd, uvArgs, { cwd: REPO });
-  let out = '';
-  let err = '';
-  proc.stdout.on('data', (b) => (out += b.toString()));
-  proc.stderr.on('data', (b) => (err += b.toString()));
-  proc.on('error', (e) => res.status(500).json({ error: `spawn: ${e.message}` }));
-  proc.on('close', (code) => {
-    if (code !== 0) return res.status(500).json({ error: `exit ${code}`, stderr: err });
-    try { res.json(JSON.parse(out)); }
-    catch (e) { res.status(500).json({ error: 'bad JSON', raw: out.slice(0, 500), stderr: err }); }
+  // Rewrites the whole dataset dir: one export at a time.
+  const r = await runScript(args, {
+    timeoutMs: TIMEOUTS.yoloExport, lockKey: YOLO_DIR, signal: clientGone(res), kind: 'yolo-export', info: { all: allFlag },
   });
+  replyScript(res, r);
 });
 
 app.get('/yolo-stats', async (_req, res) => {
@@ -627,6 +930,147 @@ app.get('/yolo-stats', async (_req, res) => {
   }
 });
 
+// --- Pipeline step: POST /auto (kr-9p8.19) -----------------------------------
+//
+// Body {pkg, page: <id>|'all', step, force?, draft?, dryRun?} → scripts/auto.py
+// --json. Lock = every page file the run may write (for 'all': all pages of
+// the package), the same keys as a single-page job and as PUT's withFileLock,
+// so 'all' and a single page of that package exclude each other directly.
+// A real run also holds withFileLock on those pages (it starts after a PUT in
+// progress) and PUT/DELETE/make-bak/restore-bak of them get 409 busy while it
+// runs. A dry run writes nothing → job lock only.
+// Exit: 0 → 200, 2 → 409 refused, 3 → 501, 1 (or no JSON) → 500.
+
+const AUTO_SCRIPT = path.join(REPO, 'scripts/auto.py');
+const AUTO_STEPS = new Set(['gates', 'text', 'wires', 'labels', 'nets', 'next']);
+
+// Cost hook for paid VLM steps (text, labels; also `next` landing on them).
+// auto.py does not implement them yet (exit 3 → 501, nothing spent). When it
+// does: estimate the cost (dry run), require an explicit confirmation field
+// in the body and a budget limit here, and refuse (e.g. 402) without them —
+// docs/auto-digitalizacja.md „Uruchamianie”.
+function paidStepRefusal(_body) {
+  return null;
+}
+
+const isFile = (p) => fs.stat(p).then((s) => s.isFile(), () => false);
+
+// The package as auto.py's find_package sees it: <ROOT>/<module>/<pkg>/
+// package.yaml next to <module>/project.yaml, which must also list it.
+// Returns {pkgDir, pages: [{id, abs}]} or {status, error}.
+async function findAutoPackage(pkg) {
+  const hits = [];
+  for (const m of await fs.readdir(ROOT, { withFileTypes: true })) {
+    if (m.name.startsWith('.')) continue;
+    const proj = path.join(ROOT, m.name, 'project.yaml');
+    const pkgYaml = path.join(ROOT, m.name, pkg, 'package.yaml');
+    if ((await isFile(proj)) && (await isFile(pkgYaml))) hits.push({ proj, pkgYaml });
+  }
+  if (hits.length === 0) return { status: 404, error: `unknown package ${pkg}` };
+  if (hits.length > 1) return { status: 500, error: `package ${pkg} found in several modules` };
+  const { proj, pkgYaml } = hits[0];
+  if (!(await isConfined(pkgYaml))) return { status: 403, error: 'path escapes data root' };
+  let projDoc;
+  let pkgDoc;
+  try {
+    projDoc = yaml.load(await fs.readFile(proj, 'utf-8'));
+    pkgDoc = yaml.load(await fs.readFile(pkgYaml, 'utf-8'));
+  } catch (e) {
+    return { status: 500, error: `cannot read project/package: ${e.message.split('\n')[0]}` };
+  }
+  const listed = Array.isArray(projDoc?.packages) && projDoc.packages.some((p) => String(p?.id) === pkg);
+  if (!listed) return { status: 404, error: `package ${pkg} is not listed in ${path.relative(ROOT, proj)}` };
+  const entries = pkgDoc?.package?.pages;
+  if (!Array.isArray(entries)) return { status: 500, error: `${path.relative(ROOT, pkgYaml)}: no package.pages` };
+  const pkgDir = path.dirname(pkgYaml);
+  // Same defaults as auto.py run_page.
+  const pages = entries
+    .filter((e) => e && typeof e === 'object' && e.id != null)
+    .map((e) => {
+      const id = String(e.id);
+      return { id, abs: path.resolve(pkgDir, String(e.file || `pages/${id}.sch.yaml`)) };
+    });
+  return { pkgDir, pages };
+}
+
+app.post('/auto', (req, res) => postAuto(req, res).catch((e) => fail500(res, e)));
+
+async function postAuto(req, res) {
+  const body = parseJsonBody(req);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return res.status(400).json({ error: 'need JSON {pkg, page, step, force?, draft?, dryRun?}' });
+  }
+  const { pkg, page, step, force = false, draft = false, dryRun = false } = body;
+  if (!isSafeSegment(pkg)) return res.status(400).json({ error: 'invalid pkg' });
+  if (page !== 'all' && !isSafeSegment(page)) return res.status(400).json({ error: 'invalid page' });
+  if (!AUTO_STEPS.has(step)) return res.status(400).json({ error: 'invalid step', steps: [...AUTO_STEPS] });
+  for (const [k, v] of Object.entries({ force, draft, dryRun })) {
+    if (typeof v !== 'boolean') return res.status(400).json({ error: `${k} must be a boolean` });
+  }
+  if (step === 'next' && force) return res.status(400).json({ error: 'force with step next is ambiguous — name the step' });
+  const paid = paidStepRefusal(body);
+  if (paid) return res.status(paid.status).json(paid.body);
+
+  const found = await findAutoPackage(pkg);
+  if (found.error) return res.status(found.status).json({ error: found.error });
+  const targets = page === 'all' ? found.pages : found.pages.filter((p) => p.id === page);
+  if (page !== 'all' && targets.length === 0) return res.status(404).json({ error: `unknown page ${page} in ${pkg}` });
+  for (const t of targets) {
+    if (!t.abs.startsWith(ROOT + path.sep) || !(await isConfined(t.abs))) {
+      return res.status(403).json({ error: `page ${t.id}: path escapes data root` });
+    }
+  }
+  if (!existsSync(AUTO_SCRIPT)) return res.status(500).json({ error: 'auto script missing' });
+
+  const keys = targets.map((t) => t.abs);
+  const args = ['run', AUTO_SCRIPT, '--data', ROOT, '--pkg', pkg, '--page', page, '--step', step];
+  if (force) args.push('--force');
+  if (draft) args.push('--draft');
+  if (dryRun) args.push('--dry-run');
+  args.push('--json');
+  const r = await runScript(args, {
+    lockKey: keys,
+    fileLocks: dryRun ? [] : keys,
+    timeoutMs: Math.min(TIMEOUTS.autoPerPage * Math.max(1, targets.length), TIMEOUTS.autoMax),
+    signal: clientGone(res),
+    kind: 'auto',
+    info: { pkg, page, step, dryRun, pages: targets.map((t) => t.id) },
+  });
+  replyScript(res, r, replyAuto);
+}
+
+const AUTO_EXIT = { 0: [200, null], 1: [500, 'failed'], 2: [409, 'refused'], 3: [501, 'not_implemented'] };
+
+function replyAuto(res, r) {
+  const out = parseLastJson(r.stdout);
+  // Exit code and JSON must agree: `uv` itself also exits 1/2 on its own errors.
+  const mapped = AUTO_EXIT[r.code];
+  if (!mapped || !out || typeof out !== 'object' || out.exit !== r.code) {
+    return res.status(500).json({
+      error: `auto.py exit ${r.code ?? r.signal} without a matching JSON summary`,
+      stderr: tail(r.stderr), raw: r.stdout.slice(0, 500),
+    });
+  }
+  const [status, error] = mapped;
+  if (!error) return res.json(out);
+  const reasons = [
+    ...(out.reason ? [{ page: out.page, step: out.step, reason: out.reason }] : []),
+    ...(Array.isArray(out.pages) ? out.pages : [])
+      .filter((p) => p.exit !== 0)
+      .map((p) => ({ page: p.page, step: p.step, status: p.status, reason: p.reason })),
+  ];
+  const reply = { error, reasons, result: out };
+  if (r.code === 1) reply.stderr = tail(r.stderr);
+  res.status(status).json(reply);
+}
+
+// Running script jobs (all kinds), so the viewer can show "running".
+app.get('/auto/status', (_req, res) => {
+  const jobs = [...new Set(runningJobs.values())].map(jobView);
+  res.json({ running: jobs.length > 0, jobs });
+});
+
+app.killJobs = killJobs;
 return app;
 }
 
@@ -635,6 +1079,7 @@ export function startServer({ root, port = 8080, host = process.env.KRONIKARZ_HO
   const app = createApp({ root, ...opts });
   return new Promise((resolve, reject) => {
     const server = app.listen(port, host);
+    server.killJobs = app.killJobs;
     server.once('listening', () => resolve(server));
     server.once('error', reject);
   });
@@ -651,6 +1096,14 @@ async function main() {
   else console.warn('uv NOT found. AI features will fail. Start server inside `nix develop` or install uv.');
 
   const server = await startServer({ root, port });
+  // Scripts run in their own process group (runScript), so Ctrl-C / watchexec
+  // restart does not reach them: kill them on the way out.
+  for (const [sig, n] of [['SIGINT', 2], ['SIGTERM', 15], ['SIGHUP', 1]]) {
+    process.once(sig, () => {
+      server.killJobs();
+      process.exit(128 + n);
+    });
+  }
   const { address, port: boundPort } = server.address();
   const shown = address.includes(':') ? `[${address}]` : address;
   console.log(`kronikarz-server: http://${shown}:${boundPort}`);

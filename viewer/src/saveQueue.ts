@@ -5,7 +5,9 @@
 // always wins. Per path:
 //   pending  — debounce timer running, body not sent yet
 //   inflight — PUT sent, not settled; PUTs to one path are chained, never parallel
-//   failed   — last PUT failed and no newer body superseded it
+//   failed   — last PUT failed and no newer body superseded it; a PUT refused
+//              with 409 busy (server job on the file) is failed too, shown as
+//              "zapis czeka", and re-sent by a timer every busyRetryMs
 //   conflict — the server answered 409 (file changed outside this tab, its
 //              ETag no longer matches): the newest body is kept, never sent
 //              again and not retried by flush — only a reload resolves it
@@ -40,10 +42,29 @@ export function conflictMessage(path: string): string {
   return `${path}: plik zmieniony poza tą kartą — przeładuj stronę; zmiany nie zostały zapisane`;
 }
 
+/**
+ * send() rejects with this on 409 `{error:'busy'}`: a server job (pipeline
+ * step, vision) is rewriting the file. Not a conflict — the body is kept and
+ * re-sent every busyRetryMs; once the job ends, the retry either lands (job
+ * left the file alone) or gets a real conflict (job changed it → reload).
+ */
+export class SaveBusyError extends Error {
+  constructor(message = 'busy') {
+    super(message);
+    this.name = 'SaveBusyError';
+  }
+}
+
+/** Status shown for a path whose PUT waits for a server job. */
+export function busyMessage(path: string): string {
+  return `${path}: strona zajęta przez zadanie na serwerze — zapis czeka`;
+}
+
 /** Transport for SaveQueue.updateFile (GET + conditional PUT of one file). */
 export interface FileIO {
   get(path: string): Promise<{ status: number; text: string; etag: string | null }>;
-  put(path: string, body: string, ifMatch: string | undefined): Promise<{ status: number; etag: string | null }>;
+  /** `busy`: the 409 was `{error:'busy'}` (server job on the file), not a conflict. */
+  put(path: string, body: string, ifMatch: string | undefined): Promise<{ status: number; etag: string | null; busy?: boolean }>;
 }
 
 /**
@@ -64,12 +85,15 @@ export interface SaveQueueDeps {
   /**
    * Write `body` to `path`, with `If-Match: ifMatch` when given. Resolves with
    * the new ETag from the response (null/undefined if none). Must reject on
-   * any failure (network or non-2xx); with SaveConflictError on 409.
+   * any failure (network or non-2xx); with SaveConflictError on 409, with
+   * SaveBusyError on 409 `{error:'busy'}`.
    */
   send: (path: string, body: string, opts: SendOptions, ifMatch?: string) => Promise<string | null | void>;
   setTimer: (fn: () => void, ms: number) => unknown;
   clearTimer: (handle: unknown) => void;
   delayMs: number;
+  /** Retry interval for a PUT refused with SaveBusyError (default 3000 ms). */
+  busyRetryMs?: number;
   onStatus?: (status: SaveStatus, error: string | null) => void;
 }
 
@@ -236,6 +260,19 @@ export function createSaveQueue(deps: SaveQueueDeps): SaveQueue {
             return;
           }
           if (pending.has(path)) return; // superseded
+          if (err instanceof SaveBusyError) {
+            // Unsaved like a failure (flush retries it, and reports it), plus
+            // its own retry timer while the server job runs.
+            const entry = { body, error: busyMessage(path) };
+            failed.set(path, entry);
+            deps.setTimer(() => {
+              if (failed.get(path) !== entry || pending.has(path) || inflight.has(path)) return;
+              failed.delete(path);
+              fire(path, body, {});
+              emit();
+            }, deps.busyRetryMs ?? 3000);
+            return;
+          }
           failed.set(path, { body, error: err instanceof Error ? err.message : String(err) });
         }
       })
@@ -386,6 +423,9 @@ export function createSaveQueue(deps: SaveQueueDeps): SaveQueue {
         if (body === null) return { status: 'unchanged' };
         if (q.isFenced(path)) return { status: 'not-started', error: fencedMsg };
         const r = await io.put(path, body, got.etag ?? undefined);
+        if (r.status === 409 && r.busy) {
+          return { status: 'error', error: `${path}: strona zajęta przez zadanie na serwerze — nie zapisano, spróbuj po jego zakończeniu` };
+        }
         if (r.status === 409) {
           return { status: 'error', error: `${path}: plik zmieniony w międzyczasie (inna karta lub zapis) — nie zapisano` };
         }

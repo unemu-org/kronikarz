@@ -2,9 +2,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  busyMessage,
   conflictMessage,
   createSaveQueue,
   rewriteOutcomeFor,
+  SaveBusyError,
   SaveConflictError,
   type FileIO,
   type RewriteDeps,
@@ -612,6 +614,109 @@ test('409 → error with Polish message, dirty, not retried by flush, later edit
   h.tick();
   await settle();
   assert.deepEqual(h.calls.map((c) => c.path), ['a.yaml', 'b.yaml']);
+});
+
+// --- 409 busy (server job on the page, kr-9p8.19) ----------------------------
+
+test('409 busy → "zapis czeka" (not the conflict error), retried by timer, lands when the job is over', async () => {
+  const h = harness();
+  h.q.setLoadedEtag('a.yaml', '"e0"', 0);
+  h.q.schedule('a.yaml', 'v1');
+  h.tick();
+  await settle();
+  h.calls[0]!.reject(new SaveBusyError());
+  await settle();
+  const msg = busyMessage('a.yaml');
+  assert.match(msg, /strona zajęta przez zadanie na serwerze — zapis czeka/);
+  assert.deepEqual(h.statuses.at(-1), ['error', msg]);
+  assert.notEqual(msg, conflictMessage('a.yaml'));
+  assert.equal(h.q.isDirty(), true);
+  // retry timer (busyRetryMs default 3000)
+  assert.deepEqual(h.liveTimers().map((t) => t.ms), [3000]);
+  h.tick();
+  await settle();
+  assert.equal(h.calls.length, 2);
+  assert.equal(h.calls[1]!.body, 'v1');
+  assert.equal(h.calls[1]!.ifMatch, '"e0"', 'same If-Match: a job that rewrote the page turns this into a conflict');
+  h.calls[1]!.reject(new SaveBusyError()); // still busy → another retry
+  await settle();
+  h.tick();
+  await settle();
+  h.calls[2]!.resolve('"e1"');
+  await settle();
+  assert.equal(h.q.isDirty(), false);
+  assert.equal(h.q.status(), 'idle');
+  assert.equal(h.q.etag('a.yaml'), '"e1"');
+});
+
+test('409 busy, then a conflict on retry → the usual conflict state', async () => {
+  const h = harness();
+  h.q.schedule('a.yaml', 'v1');
+  h.tick();
+  await settle();
+  h.calls[0]!.reject(new SaveBusyError());
+  await settle();
+  h.tick();
+  await settle();
+  h.calls[1]!.reject(new SaveConflictError());
+  await settle();
+  assert.deepEqual(h.statuses.at(-1), ['error', conflictMessage('a.yaml')]);
+  h.tick();
+  await settle();
+  assert.equal(h.calls.length, 2, 'no more retries after a conflict');
+});
+
+test('409 busy: a newer edit supersedes the waiting body; the old retry timer sends nothing', async () => {
+  const h = harness();
+  h.q.schedule('a.yaml', 'v1');
+  h.tick();
+  await settle();
+  h.calls[0]!.reject(new SaveBusyError());
+  await settle();
+  h.q.schedule('a.yaml', 'v2'); // debounce timer + stale retry timer are live
+  h.tick();
+  await settle();
+  assert.deepEqual(h.calls.map((c) => c.body), ['v1', 'v2']);
+});
+
+test('409 busy: flush tries once more and reports the wait', async () => {
+  const h = harness();
+  h.q.schedule('a.yaml', 'v1');
+  h.tick();
+  await settle();
+  h.calls[0]!.reject(new SaveBusyError());
+  await settle();
+  const f = h.q.flush();
+  await settle();
+  h.calls[1]!.reject(new SaveBusyError());
+  await assert.rejects(f, /zapis czeka/);
+});
+
+for (const how of ['fence', 'discard'] as const) {
+  test(`409 busy, then ${how}(path): the retry timer sends nothing`, async () => {
+    const h = harness();
+    h.q.schedule('a.yaml', 'v1');
+    h.tick();
+    await settle();
+    h.calls[0]!.reject(new SaveBusyError());
+    await settle();
+    assert.equal(h.liveTimers().length, 1, 'retry timer armed');
+    h.q[how]('a.yaml');
+    h.tick();
+    await settle();
+    assert.equal(h.calls.length, 1, `no PUT after ${how}`);
+  });
+}
+
+test('updateFile: 409 busy gets its own message', async () => {
+  const h = harness({ autoResolve: true });
+  const io: FileIO = {
+    get: async () => ({ status: 200, text: 'x', etag: '"e"' }),
+    put: async () => ({ status: 409, etag: null, busy: true }),
+  };
+  const res = await h.q.updateFile('b.yaml', (t) => `${t}+`, io);
+  assert.equal(res.status, 'error');
+  assert.match((res as { error: string }).error, /zajęta przez zadanie/);
 });
 
 // --- kr-pfj.2: updateFile (read-modify-write of another page) ---------------

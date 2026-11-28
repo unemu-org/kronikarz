@@ -134,7 +134,7 @@ test('DELETE /files without header → 403 (file kept), with → 200', async () 
 
 test('every POST endpoint without header → 403, no spawn', async () => {
   const body = { package: 'P-A3-2', page: '2-85', x: 1, y: 1, w: 1, h: 1, zones: [] };
-  for (const ep of ['/ai-detect', '/vision-page', '/vision-page-zones', '/make-bak', '/restore-bak', '/yolo-export']) {
+  for (const ep of ['/ai-detect', '/vision-page', '/vision-page-zones', '/make-bak', '/restore-bak', '/yolo-export', '/auto']) {
     // text/plain = "simple" CORS request, no preflight in the browser
     const r = await fetch(base + ep, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body) });
     assert.equal(r.status, 403, ep);
