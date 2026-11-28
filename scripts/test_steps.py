@@ -182,3 +182,55 @@ def test_numbers_normalised_like_js():
     w1 = {"nets": {"A": {"segments": [[0.0, -0.0, 5.0, 0]], "junctions": [[-0.0, 0]]}}}
     w2 = {"nets": {"A": {"segments": [[5, 0, 0, 0]], "junctions": [[0, 0]]}}}
     assert S.step_fingerprint(w1, "wires") == S.step_fingerprint(w2, "wires")
+
+
+def _labels_page():
+    """Jak FIXTURE w steps.test.ts: port A50 (10,90) left, odsyłacz -X (900,100), zasilanie (50,20)."""
+    return {
+        "steps": {"labels": {"status": "approved"}, "nets": {"status": "approved"}},
+        "power": [{"type": "VCC", "x": 50, "y": 20, "net": "VCC"}],
+        "ports": [{"connector": "A", "pin": 50, "label": "-BLR", "net": "N1", "x": 10, "y": 90, "side": "left"}],
+        "cross_refs": [{"net": "N2", "label": "-X", "pages": ["2"], "x": 900, "y": 100, "side": "right"}],
+        "nets": {"N1": {"segments": [[10, 90, 70, 90]]},
+                 "N2": {"segments": [[130, 100, 200, 100], [200, 100, 270, 100], [200, 100, 200, 150]]}},
+    }
+
+
+def test_label_anchor_ends_and_stale_targets_like_ts():
+    p = _labels_page()
+    assert S.label_anchor_ends(p) == []
+    q = copy.deepcopy(p)
+    q["nets"]["N2"]["segments"].append([800, 100, 900, 100])
+    assert S.label_anchor_ends(q) == [(900.0, 100.0)]  # punkt kotwicy (odsyłacz)
+    assert S.label_ends_changed(p, q)
+    moved = copy.deepcopy(q)
+    moved["nets"]["N2"]["segments"][3][2] = 905  # ≤ 8 px: bez zmiany
+    assert not S.label_ends_changed(q, moved)
+    moved["nets"]["N2"]["segments"][3][2] = 880  # > 8 px: zmiana
+    assert S.label_ends_changed(q, moved)
+    joined = copy.deepcopy(q)
+    joined["nets"]["N2"]["segments"].append([900, 100, 900, 200])  # dwa końce tego samego netu
+    assert S.label_anchor_ends(joined) == [(900.0, 100.0)] and not S.label_ends_changed(q, joined)
+    other = copy.deepcopy(q)
+    other["nets"]["X"] = {"segments": [[905, 104, 905, 300]]}  # koniec innego netu ≤ 8 px
+    other["nets"]["N2"]["segments"][3][2] = 700
+    assert not S.label_ends_changed(q, other)
+    other["nets"]["X"]["segments"] = [[950, 100, 950, 300]]
+    assert S.label_ends_changed(q, other)
+    # Port: otwarty koniec (10 + 76, 90) — jak PortLayer / steps.ts; pin 50.0 jak 50 w JS.
+    r = copy.deepcopy(p)
+    r["ports"][0]["pin"] = 50.0
+    r["nets"]["N1"]["segments"].append([86.0, 90.0, 86, 200])
+    assert S.label_anchor_ends(r) == [(86.0, 90.0)]
+    # Brak klucza pin: JS `${undefined}` = "undefined" → "Aundefined" (10 znaków): 10·16+12 = 172,
+    # bw = 188 → x = 198 (jak w steps.test.ts); jawny null → "Anull": 5·16+12 = 92, bw = 108 → 118.
+    no_pin = {k: v for k, v in r["ports"][0].items() if k != "pin"}
+    assert S._port_open_end(no_pin) == (198.0, 90.0)
+    assert S._port_open_end({**no_pin, "pin": None}) == (118.0, 90.0)
+    no_pin_page = {"ports": [no_pin], "nets": {"Q": {"segments": [[198, 90, 300, 90]]}}}
+    assert S.label_anchor_ends(no_pin_page) == [(198.0, 90.0)]
+    assert S.stale_targets("wires", False) == ["nets"]
+    assert S.stale_targets("wires", True) == ["labels", "nets"]
+    assert S.stale_targets("text", False) == ["wires", "labels", "nets"]
+    assert S.mark_stale(p, ["nets"], "T") == ["nets"]
+    assert p["steps"]["labels"]["status"] == "approved" and p["steps"]["nets"] == {"status": "stale", "at": "T"}

@@ -18,6 +18,7 @@ import {
   uniqueNetName,
   type EndpointRef,
 } from './netOps.ts';
+import { deleteSegment, deleteWires } from './wireEdit.ts';
 
 const ROTATIONS: Array<0 | 90 | 180 | 270> = [0, 90, 180, 270];
 const SIDES: Side[] = ['left', 'right', 'top', 'bottom'];
@@ -86,6 +87,7 @@ export function SelectionPanel(): JSX.Element | null {
   const editPage = useDocStore((s) => s.editPage);
   const editPackage = useDocStore((s) => s.editPackage);
   const issues = useDocStore((s) => s.issues);
+  const wireSel = useDocStore((s) => s.wireSel);
   const editing = tool === 'edit';
   // Bieżący krok: panel elementu spoza kroku (albo strona zablokowana przez
   // trwający krok) jest tylko do odczytu — <fieldset disabled> wyłącza pola i przyciski.
@@ -132,7 +134,8 @@ export function SelectionPanel(): JSX.Element | null {
         </div>
       )}
       <fieldset disabled={readOnly} className="m-0 min-w-0 border-0 p-0">
-      {!gate && netName === null && selection?.kind !== 'segment' && selection?.kind !== 'port' && selection?.kind !== 'cross_ref' && selection?.kind !== 'power' && selection?.kind !== 'annotation' && selection?.kind !== 'decoration' && (
+      <WireSelPanel />
+      {!gate && netName === null && !wireSel && selection?.kind !== 'segment' && selection?.kind !== 'port' && selection?.kind !== 'cross_ref' && selection?.kind !== 'power' && selection?.kind !== 'annotation' && selection?.kind !== 'decoration' && (
         <div className="text-text-dim">brak zaznaczenia</div>
       )}
 
@@ -1291,13 +1294,10 @@ function SegmentPanel({ netName, segmentIdx }: { netName: string; segmentIdx: nu
         </button>
         <button
           className="w-full bg-error/40 px-2 py-0.5 text-left text-error hover:bg-error/60"
+          title="usuwa odcinek; rozcięty net dzieli się (mniejsza część → NET_AUTO_n), pusty net znika"
           onClick={() => {
-            editPage((p) => {
-              const segs = p.nets[netName]?.segments;
-              if (!segs) return;
-              segs.splice(segmentIdx, 1);
-            });
-            setSelection({ kind: 'net', name: netName });
+            setSelection(null);
+            editPage((p) => void deleteSegment(p, netName, segmentIdx));
           }}
         >
           usuń segment
@@ -1400,5 +1400,32 @@ function Asp({ off, children }: { off: boolean; children: ReactNode }): JSX.Elem
     <fieldset disabled={off} className="contents">
       {children}
     </fieldset>
+  );
+}
+
+/** Zaznaczenie drutów (prostokąt / Shift+klik, kr-9p8.25): liczba i „usuń” (= Delete). */
+function WireSelPanel(): JSX.Element | null {
+  const wireSel = useDocStore((s) => s.wireSel);
+  const setWireSel = useDocStore((s) => s.setWireSel);
+  const editPage = useDocStore((s) => s.editPage);
+  if (!wireSel) return null;
+  const nets = new Set([...wireSel.segs.map((e) => e.net), ...wireSel.juncs.map((e) => e.net)]);
+  return (
+    <div className="mb-2 space-y-1" data-testid="wire-sel">
+      <h2 className="font-bold text-selected">DRUTY ×{wireSel.segs.length}</h2>
+      <div className="text-text-dim">
+        odcinków: {wireSel.segs.length} · kropek: {wireSel.juncs.length} · netów: {nets.size}
+      </div>
+      <button
+        className="w-full bg-error/40 px-2 py-0.5 text-left text-error hover:bg-error/60"
+        onClick={() => {
+          setWireSel(null);
+          editPage((p) => void deleteWires(p, wireSel));
+        }}
+      >
+        usuń zaznaczone (Del)
+      </button>
+      <div className="text-[10px] text-text-dim">Shift+prostokąt / Shift+klik = dodaj / zdejmij · Alt+prostokąt = także dotknięte</div>
+    </div>
   );
 }

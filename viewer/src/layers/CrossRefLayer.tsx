@@ -156,12 +156,7 @@ export function CrossRefLayer({ refs, zoom }: Props): JSX.Element {
         const y2 = r.y + dy * stubLen;
 
         const onClick = (alt: boolean) => {
-          if (tool === 'wire') {
-            window.dispatchEvent(new CustomEvent('kronikarz:wire-endpoint-click', {
-              detail: { x: r.x, y: r.y, netName: r.net, autoNet: r.net || `NET_${r.label}` },
-            }));
-            return;
-          }
+          if (tool === 'wire') return; // W: klik obsługuje płótno (useWireEditing — przyciąganie po danych strony).
           if (canNavigate && pkgDir && alt) {
             navigate({ mode: 'page', pkg: pkgDir, page: r.pages[0]! });
             return;

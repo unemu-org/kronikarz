@@ -31,14 +31,7 @@ export function PowerLayer({ power, zoom }: Props): JSX.Element {
         const stroke = isSelected ? '#2196F3' : sv.prov('label', elementSrc(p, srcField)) ?? '#39ff14';
         const onWireClick = (e: { cancelBubble?: boolean } & object) => {
           (e as { cancelBubble: boolean }).cancelBubble = true;
-          if (tool === 'wire') {
-            window.dispatchEvent(
-              new CustomEvent('kronikarz:wire-endpoint-click', {
-                detail: { x: p.x, y: p.y, netName: p.net, autoNet: p.net || p.type },
-              }),
-            );
-            return;
-          }
+          if (tool === 'wire') return; // W: klik obsługuje płótno (useWireEditing — przyciąganie po danych strony).
           setSelection({ kind: 'power', idx: i });
         };
         return (

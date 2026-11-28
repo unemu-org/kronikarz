@@ -14,6 +14,7 @@ import {
   type UpdateResult,
 } from './saveQueue.ts';
 import { canEditElement, defaultStep, toolAllowed, type OthersMode, type ViewStep } from './stepView.ts';
+import type { WireSel } from './wireEdit.ts';
 export {
   packageFilePath,
   pageFilePath,
@@ -76,6 +77,8 @@ export interface DocState {
   loading: boolean;
   selection: Selection;
   multi: MultiSelect;
+  /** Wires picked by the rectangle / Shift+click (by value — wireEdit.ts); Delete removes them in one step. */
+  wireSel: WireSel | null;
   scanOpacity: number;
   overlaysVisible: boolean;
   wireOrtho: boolean;
@@ -113,6 +116,7 @@ export interface DocState {
   setLoading: (b: boolean) => void;
   setSelection: (s: Selection) => void;
   setMulti: (m: MultiSelect) => void;
+  setWireSel: (w: WireSel | null) => void;
   toggleMulti: (kind: MultiKind, i: number) => void;
   setScanOpacity: (n: number) => void;
   setOverlaysVisible: (b: boolean) => void;
@@ -322,6 +326,7 @@ export const useDocStore = create<DocState>((set, get) => ({
   loading: false,
   selection: null,
   multi: null,
+  wireSel: null,
   scanOpacity: 0.7,
   overlaysVisible: true,
   wireOrtho: true,
@@ -348,6 +353,7 @@ export const useDocStore = create<DocState>((set, get) => ({
         past: [],
         future: [],
         selection: null,
+        wireSel: null,
         currentStep,
         tool: toolAllowed(currentStep, s.tool) ? s.tool : 'select',
       };
@@ -359,13 +365,14 @@ export const useDocStore = create<DocState>((set, get) => ({
   setTool: (tool) => set((s) => (toolAllowed(s.currentStep, tool) ? { tool } : {})),
   setLoadError: (loadError) => set({ loadError }),
   setLoading: (loading) => set({ loading }),
-  setSelection: (selection) => set({ selection, multi: null }),
-  setMulti: (multi) => set({ multi }),
+  setSelection: (selection) => set({ selection, multi: null, wireSel: null }),
+  setMulti: (multi) => set(multi ? { multi, wireSel: null } : { multi }),
+  setWireSel: (wireSel) => set(wireSel ? { wireSel, selection: null, multi: null } : { wireSel }),
   toggleMulti: (kind, i) => set((s) => {
     // Shift+klik: tylko elementy, które wolno w bieżącym kroku przesuwać.
     if (!canEditElement(s.currentStep, kind, kind === 'gate' ? 'box' : 'label')) return {};
     if (!s.multi || s.multi.kind !== kind) {
-      return { multi: { kind, indices: [i] }, selection: null };
+      return { multi: { kind, indices: [i] }, selection: null, wireSel: null };
     }
     const has = s.multi.indices.includes(i);
     const indices = has ? s.multi.indices.filter((x) => x !== i) : [...s.multi.indices, i];
@@ -386,6 +393,7 @@ export const useDocStore = create<DocState>((set, get) => ({
       currentStep,
       selection: null,
       multi: null,
+      wireSel: null,
       past: [],
       future: [],
       tool: toolAllowed(currentStep, s.tool) ? s.tool : 'select',

@@ -75,7 +75,47 @@ export function StepBar(): JSX.Element | null {
 
   return (
     <div className="shrink-0 border-b border-bg-accent bg-bg-panel text-xs">
+      {/* „Uruchom krok” zawsze pierwszy, w tym samym miejscu (kr-9p8.25: przy kroku ④ spadał
+          do drugiej linii i ginął); kroki i reszta paska zawijają się za nim. */}
       <div className="flex flex-wrap items-center gap-1 px-2 py-1">
+        <span className="flex items-center gap-1 whitespace-nowrap" data-testid="run-controls">
+          <button
+            onClick={run}
+            disabled={!step || !needs || !!running || locked || anyRun}
+            className="border border-phosphor-dim bg-phosphor-dim/30 px-2 py-0.5 text-text-main hover:bg-phosphor-dim disabled:opacity-40"
+            title={
+              step
+                ? `POST /auto — krok ${STEP_META[step].glyph} ${step} tej strony${opts.dryRun ? ' (podgląd: nic nie zapisuje)' : ''}`
+                : 'wybierz krok ①–⑤, aby go uruchomić'
+            }
+            data-testid="run-step"
+          >
+            {running ? '⏳ trwa…' : `▶ Uruchom krok${step ? ` ${STEP_META[step].glyph}` : ''}`}
+          </button>
+          {step && needs && (
+            <>
+              {(needs.needsForce || opts.force) && (
+                <Opt label="wymuś" title="krok zatwierdzony — przepuść go jeszcze raz (wraca do „do przeglądu”)" on={opts.force} set={(v) => setOpts({ ...opts, force: v })} />
+              )}
+              {(needs.needsDraft || opts.draft) && (
+                <Opt label="szkic" title="szkic (--draft): poprzedni krok nie jest zatwierdzony — przebieg próbny" on={opts.draft} set={(v) => setOpts({ ...opts, draft: v })} />
+              )}
+              <Opt label="podgląd" title="podgląd (dry-run): policz wynik bez zapisu strony i snapshotu" on={opts.dryRun} set={(v) => setOpts({ ...opts, dryRun: v })} />
+              {needs.blocked && !running && (
+                <span className="text-warning" title={`${needs.blocked} — inaczej serwer odmówi`}>
+                  ⚠ zaznacz {needs.needsForce && !opts.force ? '„wymuś”' : '„szkic”'}
+                </span>
+              )}
+              {running && (
+                <span className="text-text-dim">
+                  {Math.round((running.now - running.since) / 1000)} s
+                  {running.job ? ` · zadanie #${running.job.id ?? '?'} ${running.job.step ?? ''}${running.job.dryRun ? ' (podgląd)' : ''}` : ''}
+                </span>
+              )}
+            </>
+          )}
+        </span>
+        <span className="mx-1 h-4 w-px bg-bg-accent" />
         <button
           onClick={() => setCurrentStep(null)}
           className={`px-2 py-0.5 ${currentStep === null ? 'bg-bg-accent text-text-main outline outline-1 outline-text-dim' : 'text-text-dim hover:bg-bg-accent'}`}
@@ -121,38 +161,6 @@ export function StepBar(): JSX.Element | null {
             </button>
           ))}
         </span>
-        {step && needs && (
-          <>
-            <span className="mx-2 h-4 w-px bg-bg-accent" />
-            <button
-              onClick={run}
-              disabled={!!running || locked || anyRun}
-              className="border border-phosphor-dim bg-phosphor-dim/30 px-2 py-0.5 text-text-main hover:bg-phosphor-dim disabled:opacity-50"
-              title={`POST /auto — krok ${STEP_META[step].glyph} ${step} tej strony${opts.dryRun ? ' (podgląd: nic nie zapisuje)' : ''}`}
-              data-testid="run-step"
-            >
-              {running ? '⏳ trwa…' : `▶ Uruchom krok ${STEP_META[step].glyph}`}
-            </button>
-            {(needs.needsForce || opts.force) && (
-              <Opt label="wymuś" title="krok zatwierdzony — przepuść go jeszcze raz (wraca do „do przeglądu”)" on={opts.force} set={(v) => setOpts({ ...opts, force: v })} />
-            )}
-            {(needs.needsDraft || opts.draft) && (
-              <Opt label="szkic (draft)" title="poprzedni krok nie jest zatwierdzony — przebieg próbny" on={opts.draft} set={(v) => setOpts({ ...opts, draft: v })} />
-            )}
-            <Opt label="podgląd (dry-run)" title="policz wynik bez zapisu strony i snapshotu" on={opts.dryRun} set={(v) => setOpts({ ...opts, dryRun: v })} />
-            {needs.blocked && !running && (
-              <span className="text-warning" title={needs.blocked}>
-                ⚠ {needs.needsForce && !opts.force ? 'zaznacz „wymuś”' : 'zaznacz „szkic”'} — inaczej serwer odmówi
-              </span>
-            )}
-            {running && (
-              <span className="text-text-dim">
-                {Math.round((running.now - running.since) / 1000)} s
-                {running.job ? ` · zadanie #${running.job.id ?? '?'} ${running.job.step ?? ''}${running.job.dryRun ? ' (podgląd)' : ''}` : ''}
-              </span>
-            )}
-          </>
-        )}
         {currentStep === 'kicad' && (
           <span className="ml-2 text-text-dim">⑥ podgląd .kicad_sch — eksporter jeszcze niezaimplementowany (kr-4rq)</span>
         )}

@@ -71,16 +71,7 @@ export function PinLayer({ gates }: Props): JSX.Element {
   const selectedGateIdx = selection?.kind === 'gate' ? selection.idx : -1;
 
   const onPinClick = (gi: number, pi: number) => {
-    if (tool === 'wire') {
-      const g = gates[gi];
-      const pin = g?.pins[pi];
-      if (!pin) return;
-      const autoNet = `NET_${g!.ref}${g!.gate ? `_${g!.gate}` : ''}_${pin.num}`;
-      window.dispatchEvent(new CustomEvent('kronikarz:wire-endpoint-click', {
-        detail: { x: pin.px, y: pin.py, netName: pin.net, autoNet },
-      }));
-      return;
-    }
+    if (tool === 'wire') return; // W: klik obsługuje płótno (useWireEditing — przyciąganie po danych strony).
     if (!editing || !canConnect) {
       setSelection({ kind: 'gate', idx: gi });
       return;

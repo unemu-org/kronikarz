@@ -438,8 +438,16 @@ Reguły (`shared/src/steps.ts`):
   aspekty całkiem puste (`aspectEmpty`); niepustych aspektów `edited` nie rusza;
 - **każda edycja człowieka** w viewerze (`applyHumanEdit`, wołane w
   `editPage`): zmienione pola `auto` → `edited`; jeśli zmieniła się treść
-  kroku X, każdy **późniejszy** krok `approved` → `stale` (`markStaleAfter`;
-  sam X zostaje, jaki był). Przeniesienie niezmienionego odcinka do innego
+  kroku X, każdy **późniejszy** krok `approved` → `stale` (`staleTargets` +
+  `markStale`; sam X zostaje, jaki był). Wyjątek (kr-9p8.25): zmiana kroku
+  `wires` unieważnia tylko `nets`, a `labels` tylko wtedy, gdy zmienił się
+  zbiór **kotwic z końcem drutu** (`labelAnchorEnds`): otwarty koniec portu,
+  odsyłacz albo symbol zasilania, przy którym w ≤ 8 px (Chebyshev) jest
+  jakikolwiek koniec odcinka (dowolnego netu, także kilka końców w jednym
+  punkcie) — zmiana = przy kotwicy koniec pojawił się albo zniknął
+  (odsunął o więcej niż 8 px). Brak klucza `pin` / `connector` portu liczy
+  się jak w JS (`${undefined}` = „undefined”). To
+  samo przy ponownym przebiegu `wires` w `auto.py` (`_steps.stale_targets`). Przeniesienie niezmienionego odcinka do innego
   netu (scalenie, zmiana nazwy) to zmiana kroku `nets`, nie `wires` — odcinek
   zostaje `auto`.
 

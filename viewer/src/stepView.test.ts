@@ -36,6 +36,7 @@ import {
   pageActionAllowed,
   panelEditable,
   rubberBand,
+  bandSelection,
   shouldRefreshPackage,
   fieldAspect,
   fieldEditable,
@@ -486,8 +487,15 @@ test('canEditElement: tylko aspekt bieżącego kroku; kontekst do odczytu; ⑥ n
   assert.equal(canEditElement('wires', 'pin', 'text'), false); // pin w ③ to kontekst
   assert.equal(canEditElement('nets', 'pin', 'net'), true);
   assert.equal(canEditElement('wires', 'segment'), true);
-  assert.equal(canEditElement('labels', 'segment'), false); // druty w ④ / ⑤ do odczytu
-  assert.equal(canEditElement('nets', 'segment', 'geom'), false);
+  assert.equal(canEditElement('labels', 'segment'), false); // druty w ④ do odczytu
+  assert.equal(canEditElement('nets', 'segment', 'geom'), true); // kr-9p8.25: druty poprawiane też w ⑤
+  assert.equal(canEditElement('nets', 'junction'), true);
+  assert.equal(canEditElement('text', 'segment'), false);
+  // net bez aspektu = przypisanie netu (⑤); geometria netu jawnie 'geom'
+  assert.equal(canEditElement('wires', 'net'), false);
+  assert.equal(canEditElement('nets', 'net'), true);
+  assert.equal(canEditElement('wires', 'net', 'geom'), true);
+  assert.equal(editStepFor('net'), 'nets');
   assert.equal(canEditElement('labels', 'port'), true);
   assert.equal(canEditElement('nets', 'port'), false);
   assert.equal(canEditElement('nets', 'port', 'net'), true);
@@ -506,7 +514,7 @@ test('panelEditable / editStepFor: panel zaznaczenia i krok do przełączenia', 
   assert.equal(panelEditable('nets', 'gate'), true); // nety pinów
   assert.equal(panelEditable('labels', 'gate'), false);
   assert.equal(panelEditable('wires', 'segment'), true);
-  assert.equal(panelEditable('nets', 'segment'), false);
+  assert.equal(panelEditable('nets', 'segment'), true);
   assert.equal(panelEditable('wires', 'net'), true);
   assert.equal(panelEditable('nets', 'net'), true);
   assert.equal(panelEditable('labels', 'net'), false);
@@ -534,6 +542,26 @@ test('rubberBand: tylko elementy edytowalne w kroku; w ④ porty mimo bramek w p
   assert.equal(rubberBand(p, r, 'wires'), null);
   assert.equal(rubberBand(p, r, 'text'), null); // ramki w ② tylko do odczytu
   assert.deepEqual(rubberBand(mkPage({ cross_refs: [{ label: 'S', pages: [], net: '', x: 5, y: 5, side: 'left' }] } as Partial<Page>), { x: 0, y: 0, w: 10, h: 10 }, 'labels'), { kind: 'cross_ref', indices: [0] });
+});
+
+test('bandSelection: w ③ druty z prostokąta; bez kroku najpierw bramki; Shift przełącza druty; ④⑤ bez drutów', () => {
+  const p = mkPage({
+    nets: { N: { pins: [], segments: [[10, 10, 50, 10], [50, 10, 400, 10]], junctions: [[50, 10]] } },
+  } as Partial<Page>);
+  const r = { x: 0, y: 0, w: 200, h: 200 }; // bramka M1 (100,100) w środku
+  const plain = { shift: false, alt: false };
+  assert.deepEqual(bandSelection(p, r, 'wires', plain, null), {
+    wire: { segs: [{ net: 'N', seg: [10, 10, 50, 10] }], juncs: [{ net: 'N', x: 50, y: 10 }] },
+  });
+  assert.equal((bandSelection(p, r, 'wires', { shift: false, alt: true }, null) as { wire: { segs: unknown[] } }).wire.segs.length, 2);
+  assert.deepEqual(bandSelection(p, r, null, plain, null), { multi: { kind: 'gate', indices: [0] } });
+  // Shift: tylko druty, przełączenie względem bieżącego zaznaczenia.
+  const cur = { segs: [{ net: 'N', seg: [10, 10, 50, 10] as [number, number, number, number] }], juncs: [] };
+  assert.deepEqual(bandSelection(p, r, null, { shift: true, alt: false }, cur), {
+    wire: { segs: [], juncs: [{ net: 'N', x: 50, y: 10 }] },
+  });
+  assert.equal('wire' in bandSelection(p, r, 'nets', plain, null), true); // ⑤: druty też
+  assert.deepEqual(bandSelection(p, r, 'labels', plain, null), { multi: null });
 });
 
 test('pageActionAllowed: cleanup w ③ / ⑤ / bez kroku; vision i .bak tylko bez kroku', () => {
@@ -596,7 +624,8 @@ test('fieldEditable: pola panelu zaznaczenia per aspekt', () => {
     assert.equal(fieldEditable('nets', k, 'delete'), false);
   }
   assert.equal(fieldEditable('wires', 'segment', 'delete'), true);
-  assert.equal(fieldEditable('nets', 'segment', 'delete'), false);
+  assert.equal(fieldEditable('nets', 'segment', 'delete'), true);
+  assert.equal(fieldEditable('labels', 'segment', 'delete'), false);
   assert.equal(fieldEditable(null, 'annotation', 'text'), true);
   assert.equal(fieldEditable('gates', 'annotation', 'text'), false);
   assert.equal(fieldAspect('gate', 'delete'), 'box');

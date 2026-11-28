@@ -5,8 +5,10 @@ import type { Page, Gate, Port } from '@kronikarz/shared';
 import { autoJunctionMask, autoSegmentMask } from '@kronikarz/shared';
 import { canEditElement, issueRelevant } from '../stepView.ts';
 import { useStepView } from './stepLook.ts';
-import { useDocStore } from '../store.ts';
-import { moveNetPoint, withNetPointMoved, type NetPoint } from '../netOps.ts';
+import { isLocked, useDocStore } from '../store.ts';
+import { withNetPointMoved, type NetPoint } from '../netOps.ts';
+import { combineWireSel, movePointTo, planMerge, snapPoint, snapRadius, targetNets, wireSelHas } from '../wireEdit.ts';
+import { askMerge, noteMerge, useWireUi } from '../useWireEditing.tsx';
 import { createPointDragSession, type PointDrag, type PointDragSession } from '../netPointDrag.ts';
 import { useEvent } from '../useEvent.ts';
 import { gateBox } from './box.ts';
@@ -88,44 +90,15 @@ function highlightedNets(_page: Page, selection: ReturnType<typeof useDocStore.g
   return out;
 }
 
-function dispatchSegmentClick(
-  e: Konva.KonvaEventObject<MouseEvent>,
-  netName: string,
-  seg?: [number, number, number, number],
-): void {
-  const stage = e.target.getStage();
-  if (!stage) return;
-  const ptr = stage.getPointerPosition();
-  if (!ptr) return;
-  const sx = stage.x();
-  const sy = stage.y();
-  const sc = stage.scaleX();
-  let x = Math.round((ptr.x - sx) / sc);
-  let y = Math.round((ptr.y - sy) / sc);
-  if (seg) {
-    // Projekcja kliku na linie segmentu — kolejne kliki w to samo miejsce
-    // dadza dokladnie te same koordy => 3+ endpointy w jednym punkcie => junction
-    const dx = seg[2] - seg[0];
-    const dy = seg[3] - seg[1];
-    const len2 = dx * dx + dy * dy;
-    if (len2 > 0) {
-      let t = ((x - seg[0]) * dx + (y - seg[1]) * dy) / len2;
-      t = Math.max(0, Math.min(1, t));
-      x = Math.round(seg[0] + t * dx);
-      y = Math.round(seg[1] + t * dy);
-    }
-  }
-  window.dispatchEvent(new CustomEvent('kronikarz:wire-endpoint-click', {
-    detail: { x, y, netName, autoNet: netName },
-  }));
-}
-
 export function NetLayer({ page, zoom }: Props): JSX.Element {
   const selection = useDocStore((s) => s.selection);
   const setSelection = useDocStore((s) => s.setSelection);
   const tool = useDocStore((s) => s.tool);
   const editPage = useDocStore((s) => s.editPage);
+  const wireSel = useDocStore((s) => s.wireSel);
   const active = highlightedNets(page, selection);
+  const flash = useWireUi((s) => s.flash); // ~1 s after a merge (useWireEditing.noteMerge)
+  if (flash) active.add(flash);
   const w = 2.2 / zoom;
   const wActive = 4 / zoom;
   // Geometria drutów (przeciąganie, podział, kropki) tylko w ③ / bez kroku; w ④⑤ do odczytu.
@@ -162,13 +135,22 @@ export function NetLayer({ page, zoom }: Props): JSX.Element {
   // and the handlers are useEvent callbacks.
   const [pointDrag, setPointDrag] = useState<PointDrag | null>(null);
   const sessionRef = useRef<PointDragSession | null>(null);
+  // The end snaps like a W wire end (pin / port open end / wire end / inside a
+  // wire = T with a dot); joining another net follows planMerge (+ prompt).
   sessionRef.current ??= createPointDragSession({
     preview: setPointDrag,
     commit: (netName, from, to) => {
-      useDocStore.getState().editPage((p) => {
-        const net = p.nets[netName];
-        if (net) moveNetPoint(net, from, to);
-      });
+      const st = useDocStore.getState();
+      if (!st.page || isLocked(st)) return;
+      const t = snapPoint(st.page, to, snapRadius(st.zoom), { net: netName, at: from });
+      const end = t ? { x: t.x, y: t.y } : to;
+      if (end.x === from.x && end.y === from.y) return;
+      const before = st.page;
+      const plan = planMerge(before, [netName, ...targetNets(before, t)]);
+      const res = askMerge(before, plan, netName);
+      if (!res) return;
+      st.editPage((p) => movePointTo(p, netName, from, end, t, res.into, res.from));
+      noteMerge(before, plan, res, end);
     },
   });
   const session = sessionRef.current;
@@ -180,8 +162,15 @@ export function NetLayer({ page, zoom }: Props): JSX.Element {
   const onPointDragStart = (netName: string, x: number, y: number): void => {
     session.start(netName, { x, y });
   };
+  // Preview shows where the end will snap (the commit snaps the same way).
+  const snapDrag = (pt: NetPoint): NetPoint => {
+    const cur = session.current();
+    const pg = useDocStore.getState().page;
+    const t = cur && pg ? snapPoint(pg, pt, snapRadius(zoom), { net: cur.net, at: cur.from }) : null;
+    return t ? { x: t.x, y: t.y } : pt;
+  };
   const onPointDragMove = useEvent((e: Konva.KonvaEventObject<DragEvent>): void => {
-    session.move(dragPos(e));
+    session.move(snapDrag(dragPos(e)));
   });
   const onPointDragEnd = useEvent((e: Konva.KonvaEventObject<DragEvent>): void => {
     session.end(dragPos(e));
@@ -306,10 +295,11 @@ export function NetLayer({ page, zoom }: Props): JSX.Element {
         return (
           <>
             {segments.map((s, si) => {
-              const selected = selectedSegment === si;
+              const inWireSel = wireSelHas(wireSel, name, s);
+              const selected = selectedSegment === si || inWireSel;
               // W trybie view: nawet zaznaczony segment renderujemy jak caly net
-              // (zeby widziec spojnosc geometrii). Niebieski tylko w edit.
-              const showAsSelected = selected && editing;
+              // (zeby widziec spojnosc geometrii). Niebieski tylko w edit i w zaznaczeniu drutów.
+              const showAsSelected = (selected && editing) || inWireSel;
               const segActive = selected || isActive;
               return (
                 <Line
@@ -321,8 +311,11 @@ export function NetLayer({ page, zoom }: Props): JSX.Element {
                   hitStrokeWidth={Math.max(8, w * 4)}
                   onClick={(e) => {
                     e.cancelBubble = true;
-                    if (tool === 'wire') {
-                      dispatchSegmentClick(e, name, s);
+                    if (tool === 'wire') return; // W: płótno (useWireEditing)
+                    // Shift+klik = dodaj / zdejmij drut z zaznaczenia drutów (Delete usuwa wszystkie).
+                    if (e.evt.shiftKey && canEditElement(curStep, 'segment', 'geom')) {
+                      const st = useDocStore.getState();
+                      st.setWireSel(combineWireSel(st.wireSel, { segs: [{ net: name, seg: [...s] }], juncs: [] }, true));
                       return;
                     }
                     // Alt+klik w trybie edit = split segmentu w miejscu kliku (projekcja na linie)
@@ -376,10 +369,7 @@ export function NetLayer({ page, zoom }: Props): JSX.Element {
                 hitStrokeWidth={Math.max(8, w * 4)}
                 onClick={(e) => {
                   e.cancelBubble = true;
-                  if (tool === 'wire') {
-                    dispatchSegmentClick(e, name, s);
-                    return;
-                  }
+                  if (tool === 'wire') return;
                   setSelection({ kind: 'net', name });
                 }}
               />
@@ -402,12 +392,7 @@ export function NetLayer({ page, zoom }: Props): JSX.Element {
                     onDragEnd={onPointDragEnd}
                     onClick={(e) => {
                       e.cancelBubble = true;
-                      if (tool === 'wire') {
-                        window.dispatchEvent(new CustomEvent('kronikarz:wire-endpoint-click', {
-                          detail: { x: j[0], y: j[1], netName: name, autoNet: name },
-                        }));
-                        return;
-                      }
+                      if (tool === 'wire') return;
                       setSelection({ kind: 'net', name });
                     }}
                   />
@@ -438,6 +423,8 @@ export function NetLayer({ page, zoom }: Props): JSX.Element {
                   y={j[1]}
                   radius={4}
                   fill={juncColor(ji)}
+                  stroke={wireSel?.juncs.some((w) => w.net === name && w.x === j[0] && w.y === j[1]) ? '#2196F3' : undefined}
+                  strokeWidth={3 / zoom}
                   draggable={editing && nearestSeg >= 0}
                   dragBoundFunc={function (this: Konva.Node, absPos) {
                     const stage = this.getStage();
@@ -468,12 +455,7 @@ export function NetLayer({ page, zoom }: Props): JSX.Element {
                   }}
                   onClick={(e) => {
                     e.cancelBubble = true;
-                    if (tool === 'wire') {
-                      window.dispatchEvent(new CustomEvent('kronikarz:wire-endpoint-click', {
-                        detail: { x: j[0], y: j[1], netName: name, autoNet: name },
-                      }));
-                      return;
-                    }
+                    if (tool === 'wire') return;
                     if (editing) {
                       editPage((p) => {
                         const js = p.nets[name]?.junctions;

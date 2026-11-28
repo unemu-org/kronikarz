@@ -120,7 +120,10 @@ krok ⑥ (podgląd arkusza), a projekt KiCad całego pakietu powstaje z widoku p
   `shared/src/steps.ts`; szczegóły w `format-spec.md` v1.2.
 - Każda zmiana treści kroku (w viewerze — także kroku niezatwierdzonego — albo przez ponowny
   przebieg z `--force`) oznacza wszystkie późniejsze zatwierdzone kroki jako `stale`; sam
-  zmieniony krok zachowuje swój stan. Viewer to pokazuje, a opiekun decyduje: zatwierdzić
+  zmieniony krok zachowuje swój stan. Wyjątek (kr-9p8.25, USER): zmiana drutów ③ oznacza tylko ⑤,
+  a ④ tylko gdy zmieniło się, które porty / odsyłacze / zasilanie mają przy sobie (≤ 8 px)
+  koniec drutu (pojawił się albo zniknął / odsunął o > 8 px) — `staleTargets` w `steps.ts`, `stale_targets` w
+  `_steps.py`; szczegóły w `format-spec.md` v1.2. Viewer to pokazuje, a opiekun decyduje: zatwierdzić
   ponownie albo przepuścić krok jeszcze raz. `verified`, `note` i stan kroków nie są treścią.
 - Zapis przez `_safe_write` (atomowo, `.bak`). Krok uruchomiony z viewera: viewer najpierw
   robi flush zapisów, serwer blokuje stronę na czas przebiegu, po zakończeniu viewer
@@ -212,7 +215,8 @@ PYTHONDONTWRITEBYTECODE=1 uv run --with pytest --with pyyaml --with numpy \
   i jeszcze raz tuż przed zapisem strony; w drugim przypadku świeży snapshot jest usuwany. Także
   nieudany zapis strony usuwa snapshot — snapshot istnieje tylko dla zapisanego przebiegu.
 - `steps[krok] = {status: auto, run, at}`. Późniejsze kroki `approved` → `stale`, gdy krok był
-  zatwierdzony (`--force`) albo zmieniła się jego treść (`stepFingerprint`).
+  zatwierdzony (`--force`) albo zmieniła się jego treść (`stepFingerprint`); po `wires` — tylko
+  `nets`, a `labels` tylko przy zmianie kotwic z końcem drutu (`label_anchor_ends`).
 - **① gates.** Bramka znika tylko, gdy jej ramka jest `auto`, `note` pusta, a każdy inny aspekt
   na niej (tekst, piny, nety pinów) jest pusty albo `auto` z kroku, który nie jest `approved` /
   `stale` (zatwierdzony tekst jest sprawdzony przez człowieka — zostaje). `verified` nie chroni
@@ -286,12 +290,12 @@ Zrobione (kr-9p8.20; logika w `viewer/src/stepView.ts`, testy `stepView.test.ts`
 - Części rysunku i kroki (`partRole`): ramka bramki ①; tekst bramki i piny ② (`text_src`,
   `pin.src`); odcinki / kropki ③ (`auto_segments`); porty, odsyłacze, zasilanie ④ (`src`); nety
   pinów / portów / odsyłaczy / zasilania i strzałki `pin.cross` ⑤ (`net_src`). Kontekst
-  (pełny, zwykłe kolory): ramki w ②③⑤, piny w ③, druty w ④⑤, tekst bramek w ⑤ — tylko do
-  odczytu (klik zaznacza, W przyciąga drut; bez przeciągania, zmiany rozmiaru, usuwania). Reszta,
+  (pełny, zwykłe kolory): ramki w ②③⑤, piny w ③, druty w ④⑤ (w ⑤ edytowalne — niżej), tekst
+  bramek w ⑤ — tylko do odczytu (klik zaznacza, W przyciąga drut; bez przeciągania, zmiany rozmiaru, usuwania). Reszta,
   także adnotacje i dekoracje, wyszarzona bez interakcji albo ukryta.
 - Edycja w kroku (`canEditElement(krok, rodzaj, aspekt)`): wolno zmienić tylko aspekt bieżącego
-  kroku — ramkę w ①, tekst bramki / pinu w ②, geometrię drutu w ③, etykietę końcówki w ④, net
-  w ⑤; bez kroku wszystko, w ⑥ nic. Prostokąt (V) i Shift+klik zaznaczają tylko elementy
+  kroku — ramkę w ①, tekst bramki / pinu w ②, geometrię drutu w ③ i w ⑤ (kr-9p8.25, USER),
+  etykietę końcówki w ④, net w ⑤; bez kroku wszystko, w ⑥ nic. Prostokąt (V) i Shift+klik zaznaczają tylko elementy
   edytowalne (w ④ porty, choć w prostokącie są też środki bramek); Delete, K, wklejanie (jak
   przyciski „+ …”) sprawdzają to samo. Panel zaznaczenia elementu spoza kroku jest tylko do
   odczytu (`panelEditable`: bramka ①②⑤, odcinek ③, net ③⑤, końcówka ④⑤) z przyciskiem „przełącz”
@@ -332,6 +336,86 @@ Zrobione (kr-9p8.20; logika w `viewer/src/stepView.ts`, testy `stepView.test.ts`
   netu) i osobno „inne (bez kroku)”: rejestr pakietu (także `Issue.scope: 'package'`), projekt,
   format, kody nieznane; problemy innych kroków i innych stron (`Issue.page`) ukryte, przełącznik
   „wszystkie”.
+- Pasek kroków: „▶ Uruchom krok” (z opcjami „wymuś” / „szkic” / „podgląd”) stoi zawsze pierwszy
+  z lewej, także bez kroku (wtedy nieaktywny) — kroki i reszta paska zawijają się za nim
+  (kr-9p8.25; wcześniej przy kroku ④ przycisk spadał do drugiej linii i ginął).
+- Poprawianie drutów po ③ (kr-9p8.25; logika w `viewer/src/wireEdit.ts` i `wireDraft.ts`, testy
+  `wireEdit.test.ts`, `wireDraft.test.ts`; klawisze, mysz i nakładka `useWireEditing.tsx`).
+  Wszędzie, gdzie geometria drutów jest edytowalna — `canEditElement(krok, 'segment', 'geom')`:
+  ③, ⑤ (USER: poprawki drutów przy składaniu netów) i „wszystko” — w V / E / W kursor nad drutem
+  podświetla go (różowy), a pierścień pokazuje kropkę do dodania (turkus) / usunięcia (czerwony).
+  Podświetlenie, kursor W i rysowany drut są w osobnym małym store (`useWireUi`) i rysuje je
+  `WireOverlay` — ruch myszy nie przerysowuje całego płótna, a stan zmienia się tylko, gdy zmieni
+  się to, co jest pod kursorem. Każda akcja = jeden krok cofania; klawisz bez efektu (albo
+  przytrzymany — autorepeat jest pomijany) nie zostawia wpisu w historii.
+  - `X` — usuń drut pod kursorem (bez kursora nad drutem: zaznaczone druty / odcinek). `Delete` /
+    `Backspace` — najpierw zaznaczenie (zaznaczone druty, odcinek), bez zaznaczenia drut pod
+    kursorem; zaznaczona bramka / port itd. jak dotąd.
+  - `J` — kropka pod kursorem: skrzyżowanie albo T (koniec drutu we wnętrzu innego) bez kropki →
+    oba druty dzielone w punkcie, kropka w `junctions`, nety scalone; istniejąca kropka (z
+    `junctions` albo ≥ 3 końce netu w punkcie) → usunięta, przeciwległe współliniowe odcinki
+    złączone z powrotem w jeden (T: przelotowy drut cały, odnoga tylko go dotyka; skrzyżowanie:
+    dwa krzyżujące się druty), nety rozdzielone. Dwa razy `J` na skrzyżowaniu dwóch netów z
+    etykietami wraca do tych samych nazw. Alt+klik w E (podział + kropka) zostaje.
+  - `T` (tnij) — przetnij drut pod kursorem: przerwa ≥ 12 px wzdłuż drutu i > 8 px na którejś osi
+    (spójność liczona jak w walidatorze, Chebyshev — drut pod 45° dostaje dłuższą przerwę); dwie
+    strony to osobne druty. Za krótki drut = nic (bez wpisu w historii).
+  - `W` — klik = początek (przyciąga w promieniu ~10 px ekranu: pin, otwarty koniec portu,
+    odsyłacz, zasilanie; potem koniec drutu / kropka; potem wnętrze drutu = T), klik na pustym =
+    wierzchołek (orto), klik na celu = koniec; podwójny klik = wolny koniec w tym miejscu, `Enter`
+    = koniec przy kursorze, `Backspace` cofa wierzchołek, `Esc` anuluje, Shift = bez orto.
+    Podwójny klik to drugi mouse-up z `detail` = 2 w tym samym miejscu (≤ 4 px), nie `dblclick`
+    Konvy (ten przychodził przed mouse-up, bez sprawdzenia odległości, i drut zapisywał się dwa
+    razy) — `wireDraft.draftClick`; drugi klik po zakończeniu drutu na celu jest pomijany. Cel
+    początku zostaje zapamiętany w szkicu (T na skośnym drucie nie ginie przy zapisie). Koniec
+    ≤ 8 px poza osią → jeden prosty (lekko skośny) odcinek, dalej narożnik L omijający wnętrza
+    drutów; T w drucie przesuwa się wzdłuż niego do osi poprzedniego punktu. Piny i porty nigdy
+    nie są przesuwane (dawny „nudge” pinu o ≤ 8 px usunięty — w ③ piny są tylko do odczytu).
+    Koniec na wnętrzu drutu = podział + kropka; piny / końcówki na końcach dostają net drutu.
+    Nowy net bez nazwy: typ symbolu zasilania albo `NET_AUTO_<n>`.
+  - `E` — przeciągnięcie końca zaznaczonego odcinka (i kropki-auto) przyciąga się jak koniec W
+    (pin, koniec, wnętrze drutu = T z kropką) i łączy nety; podgląd pokazuje przyciągnięty punkt.
+    Koniec leżący pod pinem nie da się chwycić (pin jest wyżej) — znane, jak dotąd.
+  - Prostokąt w V i w E (przeciągnięcie po pustym płótnie; w E poza wstawianiem): bez Shift jak
+    dotąd bramki / porty / odsyłacze (tylko edytowalne w kroku), gdy żadnych — druty: odcinek,
+    którego oba końce są w prostokącie, i kropki w nim; Alt = także odcinki, których prostokąt
+    dotyka; Shift = tylko druty, dodaj / zdejmij z zaznaczenia. Shift+klik na drut — to samo dla
+    jednego. Zaznaczenie drutów (store `wireSel`, po wartości) jest niebieskie przerywane, panel
+    „DRUTY ×n”, `Delete` usuwa wszystkie naraz (`deleteWires`, jeden krok cofania).
+  - Łączenie netów (`planMerge`; USER): okno z pytaniem **tylko**, gdy trzeba wybrać nazwę — dwie
+    prawdziwe nazwy (nie `NET_*`) albo różne etykiety portów / odsyłaczy. Litera A / B / … wybiera
+    nazwę (litera spoza listy — pytanie jeszcze raz), inny tekst to nowa nazwa; nazwa netu, który
+    już jest na stronie, wymaga potwierdzenia scalenia także z nim; strona zablokowana (trwa krok)
+    — bez pytania i bez zmian. Pytanie także wtedy, gdy zbiory etykiet (etykiety portów /
+    odsyłaczy, typy zasilania) dwóch netów nie są zgodne — zgodne = równe albo jeden pusty.
+    Poza tym scalenie od razu: net martwy wchłaniany; najpierw wygrywa nazwa prawdziwa (także typ
+    symbolu zasilania, również zasilania jeszcze bez netu — GND wygrywa z `NET_AUTO_3`), potem
+    zastępcza z etykietą — nazwa prawdziwa nigdy nie przegrywa z zastępczą z etykietą; same
+    zastępcze — ta z większą liczbą końcówek + odcinków.
+    Po każdym scaleniu (W, `J`, przeciągnięcie końca) cały wynikowy net miga ~1 s, a na dole
+    płótna jest nieblokujący komunikat „połączono NET_AUTO_3 z -RC (5 końców) — Ctrl+Z cofa”.
+    Scalenie dwóch netów, z których każdy miał ≥ 2 końcówki, jest „podejrzane”: lista w pamięci
+    karty (`useWireUi.suspicious` — tylko ta sesja, bez zmiany formatu pliku) pokazuje je w
+    kolejce przeglądu ③ / ⑤ (⚠, klik = zaznacz net i przybliż); wpis znika, gdy scalenie cofnięto
+    (któryś ze scalonych netów znów istnieje) albo net zniknął. Panel netu i E pin→pin
+    (`planConnect`) bez zmian.
+  - Podział netu (usunięcie, cięcie, zdjęcie kropki): spójność jak walidator — końce odcinków
+    ≤ 8 px; koniec we wnętrzu odcinka tylko z kropką netu w tym punkcie. Gdy kawałek netu, który
+    był spójny, rozpada się na kilka, nazwę zachowuje kawałek z największą liczbą końcówek
+    opisanych nazwą tego netu, potem końcówek z etykietą (port / odsyłacz z etykietą, symbol
+    zasilania), potem końcówek, potem odcinków. Pozostałe dostają nowe nety razem z kropkami i
+    końcówkami (pin / port / odsyłacz / zasilanie) leżącymi na ich końcach — nazwane najczęstszą
+    etykietą / typem zasilania na kawałku (`uniqueNetName`, np. `-RB`, a gdy zajęta `-RB_2`),
+    a bez etykiet `NET_AUTO_<n>` (najmniejszy wolny numer, jak krok ③). Kawałki rozłączne już
+    przed edycją zostają (walidator dalej je zgłasza). Kropka, która po usunięciu łączy < 3
+    druty, znika; net bez odcinków, końcówek i kropek znika (`pruneNetIfDead`). Wybrano podział
+    zamiast tej samej nazwy: zostawienie nazwy dawałoby `NET_DISCONNECTED` po każdym usunięciu
+    i wymagało ręcznego „split off”; `NET_AUTO_n` jest od razu widać jako net do nazwania w ⑤.
+  - Zmiana drutów w ⑤ nie unieważnia niepotrzebnie ④: oznacza `stale` tylko ⑤, a ④ dopiero
+    wtedy, gdy zmieni się, które porty / odsyłacze / zasilanie mają przy sobie koniec drutu
+    (wyżej). Druga warstwa W wzdłuż istniejącego drutu (np. po własnym drucie) nic nie dodaje —
+    bez podziału, bez kropki, bez wpisu w historii.
+  - Panel przeglądu ③ pokazuje linię skrótów; pomoc `?` też.
 - Lista stron i widok pakietu: znaczki ①–⑤ (`✓ ● ◐ ○`). Widok pakietu: „Uruchom następny krok na
   wszystkich stronach” (POST `/auto {page: 'all', step: 'next'}`, z potwierdzeniem i podglądem),
   wynik per strona, potem ponowne wczytanie pakietu — tylko gdy nadal otwarty jest widok tego

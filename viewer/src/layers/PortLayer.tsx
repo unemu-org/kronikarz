@@ -68,10 +68,6 @@ export function PortLayer({ ports, zoom }: Props): JSX.Element {
         const pid = `${p.connector}${p.pin}`;
         const labelWidth = Math.max(60, pid.length * 16 + 12);
         const bw = labelWidth + 16;
-        // Open-end scan coords: where the wire actually connects (opposite the chevron tip)
-        const rad = (rotationForSide(p.side) * Math.PI) / 180;
-        const openX = p.x + bw * Math.cos(rad);
-        const openY = p.y + bw * Math.sin(rad);
         const bh = 26;
         const shoulder = 20;
         const points = [
@@ -92,12 +88,7 @@ export function PortLayer({ ports, zoom }: Props): JSX.Element {
             draggable={editing}
             onClick={(e) => {
               e.cancelBubble = true;
-              if (tool === 'wire') {
-                window.dispatchEvent(new CustomEvent('kronikarz:wire-endpoint-click', {
-                  detail: { x: openX, y: openY, netName: p.net, autoNet: p.net || `NET_${pid}` },
-                }));
-                return;
-              }
+              if (tool === 'wire') return; // W: klik obsługuje płótno (useWireEditing — przyciąganie po danych strony).
               if (e.evt.shiftKey || e.evt.metaKey || e.evt.ctrlKey) {
                 toggleMulti('port', i);
                 return;
@@ -105,12 +96,7 @@ export function PortLayer({ ports, zoom }: Props): JSX.Element {
               setSelection({ kind: 'port', idx: i });
             }}
             onTap={() => {
-              if (tool === 'wire') {
-                window.dispatchEvent(new CustomEvent('kronikarz:wire-endpoint-click', {
-                  detail: { x: openX, y: openY, netName: p.net, autoNet: p.net || `NET_${pid}` },
-                }));
-                return;
-              }
+              if (tool === 'wire') return; // W: klik obsługuje płótno (useWireEditing — przyciąganie po danych strony).
               setSelection({ kind: 'port', idx: i });
             }}
             onDragEnd={(e) => {

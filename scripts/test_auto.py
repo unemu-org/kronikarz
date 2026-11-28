@@ -656,3 +656,16 @@ def test_cli_duplicate_key_in_page_exit_1(data, fake_cv, capsys):
     assert run(data, "--page", "2-1", "--step", "gates") == 1
     assert "duplicated mapping key" in capsys.readouterr().err
     assert page_path(data).read_bytes() == b0 and not (data / ".auto").exists()
+
+
+def test_set_step_wires_marks_labels_stale_only_when_anchor_ends_change():
+    page = page_doc()
+    page["steps"] = {"wires": {"status": "approved"}, "labels": {"status": "approved"},
+                     "nets": {"status": "approved"}}
+    assert auto.set_step(page, "wires", "R", "T", forced_approved=False, changed=True,
+                         label_ends_changed=False) == ["nets"]
+    assert page["steps"]["labels"]["status"] == "approved"
+    page["steps"]["wires"] = {"status": "approved"}
+    page["steps"]["nets"] = {"status": "approved"}
+    assert auto.set_step(page, "wires", "R2", "T2", forced_approved=False, changed=True,
+                         label_ends_changed=True) == ["labels", "nets"]

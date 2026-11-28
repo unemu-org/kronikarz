@@ -452,6 +452,83 @@ export function changedSteps(prev: Page, next: Page): StepName[] {
   return STEP_ORDER.filter((s) => stepFingerprint(prev, s) !== stepFingerprint(next, s));
 }
 
+// --- które kroki unieważnia zmiana kroku (kr-9p8.25) ---
+
+/** Tolerancja spójności drutów (px, Chebyshev) — jak walidator / viewer (wireEdit.CONNECT_TOL). */
+export const CONNECT_TOL = 8;
+
+/** Otwarty koniec portu (tam wchodzi drut; przeciwnie do grotu) — jak PortLayer. */
+function portOpenEnd(p: Port): Pt | null {
+  if (!Number.isFinite(p?.x) || !Number.isFinite(p?.y)) return null;
+  const labelWidth = Math.max(60, `${p.connector}${p.pin}`.length * 16 + 12);
+  const bw = labelWidth + 16;
+  const rot = p.side === 'left' ? 0 : p.side === 'right' ? 180 : p.side === 'top' ? 90 : 270;
+  const rad = (rot * Math.PI) / 180;
+  return [Math.round(p.x + bw * Math.cos(rad)), Math.round(p.y + bw * Math.sin(rad))];
+}
+
+const near = (a: Pt, b: Pt): boolean =>
+  Math.abs(a[0] - b[0]) <= CONNECT_TOL && Math.abs(a[1] - b[1]) <= CONNECT_TOL;
+
+/**
+ * Wejście kroku ④ z geometrii drutów: kotwice końcówek — otwarty koniec
+ * portu, odsyłacz, symbol zasilania — przy których (≤ CONNECT_TOL,
+ * Chebyshev) jest jakikolwiek koniec odcinka (dowolnego netu, także kilka
+ * końców w jednym punkcie). Posortowane punkty kotwic.
+ */
+export function labelAnchorEnds(page: Page): Pt[] {
+  const anchors: Pt[] = [];
+  for (const p of listOf(page.ports) as Port[]) {
+    const o = p && typeof p === 'object' ? portOpenEnd(p) : null;
+    if (o) anchors.push(o);
+  }
+  for (const e of [...listOf(page.cross_refs), ...listOf(page.power)] as Array<CrossRef | PowerSymbol>)
+    if (e && Number.isFinite(e.x) && Number.isFinite(e.y)) anchors.push([e.x, e.y]);
+  if (!anchors.length) return [];
+  const ends: Pt[] = [];
+  for (const n of Object.values(page.nets ?? {}))
+    for (const sg of listOf(n?.segments))
+      if (isSegment(sg)) ends.push([sg[0], sg[1]], [sg[2], sg[3]]);
+  return anchors.filter((a) => ends.some((e) => near(e, a))).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+}
+
+/**
+ * Czy zmieniło się, które kotwice ④ mają koniec drutu: koniec przy kotwicy
+ * pojawił się albo zniknął (odsunął o więcej niż CONNECT_TOL).
+ */
+export function labelEndsChanged(prev: Page, next: Page): boolean {
+  return k(labelAnchorEnds(prev)) !== k(labelAnchorEnds(next));
+}
+
+/**
+ * Kroki unieważniane (approved → stale) przez zmianę treści kroku `step`:
+ * zwykle każdy późniejszy. Zmiana drutów (③) — tylko ⑤ (nety); ④ tylko gdy
+ * zmieniło się, które porty / odsyłacze / zasilanie mają przy sobie koniec
+ * drutu (`labelEnds` = labelEndsChanged): pojawił się, zniknął albo odsunął o
+ * więcej niż CONNECT_TOL. Poprawka drutu w ⑤ nie unieważnia więc etykiet.
+ */
+export function staleTargets(step: StepName, labelEnds: boolean): StepName[] {
+  const later = STEP_ORDER.slice(STEP_ORDER.indexOf(step) + 1);
+  if (step !== 'wires') return later;
+  return later.filter((s) => s !== 'labels' || labelEnds);
+}
+
+/** Zatwierdzone kroki z `which` → `stale`. Zwraca kroki, które zmienił. */
+export function markStale(page: Page, which: readonly StepName[], at?: string): StepName[] {
+  const changed: StepName[] = [];
+  const steps = page.steps;
+  if (!steps) return changed;
+  for (const s of which) {
+    const st = steps[s];
+    if (st && st.status === 'approved') {
+      st.status = 'stale';
+      if (at !== undefined) st.at = at;
+      changed.push(s);
+    }
+  }
+  return changed;
+}
+
 export interface HumanEditResult {
   /** Kroki, które oznaczono jako `stale`. */
   stale: StepName[];
@@ -461,7 +538,9 @@ export interface HumanEditResult {
  * Wywoływane po każdej edycji człowieka (`next` = `prev` po mutacji, osobne
  * obiekty): (1) `auto` aspekty, które się zmieniły — oraz elementy bez pary —
  * stają się `edited`; (2) każdy krok, którego treść się zmieniła, oznacza
- * późniejsze zatwierdzone kroki jako `stale`. Mutuje `next`.
+ * zatwierdzone kroki z `staleTargets` jako `stale` (zwykle wszystkie
+ * późniejsze; druty — ⑤, a ④ tylko przy zmianie wolnych końców przy
+ * kotwicach). Mutuje `next`.
  * Ograniczenie: dopasowanie jest po indeksie i treści — jedna mutacja, która
  * naraz usuwa i zmienia elementy, może zostawić `auto` na zmienionym.
  */
@@ -474,7 +553,7 @@ export function applyHumanEdit(prev: Page, next: Page, at?: string): HumanEditRe
       const later = STEP_ORDER.slice(STEP_ORDER.indexOf(s) + 1);
       if (!later.some((l) => stepStatus(next, l) === 'approved')) continue;
       if (stepFingerprint(prev, s) !== stepFingerprint(next, s))
-        stale.push(...markStaleAfter(next, s, at));
+        stale.push(...markStale(next, staleTargets(s, s === 'wires' && labelEndsChanged(prev, next)), at));
     }
   }
   return { stale };

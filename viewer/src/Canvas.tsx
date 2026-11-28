@@ -34,7 +34,8 @@ import { AnnotationLayer } from './layers/AnnotationLayer.tsx';
 import { DecorationLayer } from './layers/DecorationLayer.tsx';
 import type { Decoration } from '@kronikarz/shared';
 import { AIDetectDialog, type AiDetection, type RoiRect } from './AIDetectDialog.tsx';
-import { canEditElement, placeAllowed, rubberBand, type Box } from './stepView.ts';
+import { bandSelection, canEditElement, placeAllowed, type Box } from './stepView.ts';
+import { useWireEditing, WireOverlay, WireToast } from './useWireEditing.tsx';
 import { LOCK_RUNNING } from './autoRun.ts';
 
 export function Canvas(): JSX.Element {
@@ -99,14 +100,6 @@ export function Canvas(): JSX.Element {
       console.warn(`zones: ${path}: ${error} — strefy tej strony nie będą zapisywane`);
     },
   });
-  const [wireDraft, setWireDraft] = useState<{
-    netName: string;
-    startX: number;
-    startY: number;
-    vertices: Array<{ x: number; y: number }>;
-  } | null>(null);
-  const [wireCursor, setWireCursor] = useState<{ x: number; y: number } | null>(null);
-  const wireOrtho = useDocStore((s) => s.wireOrtho);
   const page = useDocStore((s) => s.page);
   const pagePath = useDocStore((s) => s.pagePath);
   const route = useDocStore((s) => s.route);
@@ -125,6 +118,8 @@ export function Canvas(): JSX.Element {
   const redo = useDocStore((s) => s.redo);
   const selection = useDocStore((s) => s.selection);
   const tool = useDocStore((s) => s.tool);
+  // W tool + hover keys x / j / t + wire selection delete (useWireEditing.tsx, wireEdit.ts).
+  const wire = useWireEditing({ ptrScan, zoom: view.scale, panning: spaceDown || middlePanning || !!ctrlDragging });
 
   useEffect(() => {
     const el = containerRef.current;
@@ -255,7 +250,7 @@ export function Canvas(): JSX.Element {
   });
 
   // Window-level handlers below are useEvent callbacks: registered once, and
-  // every call sees the current render's state (view, wireDraft, placing*,
+  // every call sees the current render's state (view, placing*,
   // page, pkg, selection, tool…) — no dependency list to keep in sync.
   const onKeyDown = useEvent((e: KeyboardEvent) => {
     const t = e.target as HTMLElement | null;
@@ -264,6 +259,7 @@ export function Canvas(): JSX.Element {
       setSpaceDown(true);
       e.preventDefault();
     }
+    if (wire.onKeyDown(e)) return;
     // Single-key hotkeys: null while Ctrl/Cmd/Alt is held (chords below).
     const key = plainKey(e);
     const chord = chordAction(e);
@@ -280,12 +276,7 @@ export function Canvas(): JSX.Element {
       else if (placingAnn) setPlacingAnn(false);
       else if (placingDeco) { setPlacingDeco(null); setDecoDraft(null); decoDragRef.current = null; }
       else if (placingPower) setPlacingPower(null);
-      else if (wireDraft) { setWireDraft(null); setWireCursor(null); }
       else setSelection(null);
-    }
-    if (e.key === 'Backspace' && wireDraft && wireDraft.vertices.length > 0) {
-      e.preventDefault();
-      setWireDraft({ ...wireDraft, vertices: wireDraft.vertices.slice(0, -1) });
     }
     if (key === 'c') {
       if (tool === 'edit' && placeAllowed(useDocStore.getState().currentStep, 'gate')) setPlacingGate(true);
@@ -308,18 +299,15 @@ export function Canvas(): JSX.Element {
       }
     }
     // Usuwanie tylko elementów edytowalnych w bieżącym kroku (stepView.canEditElement).
-    if ((e.key === 'Delete' || e.key === 'Backspace') && (!selection || canEditElement(useDocStore.getState().currentStep, selection.kind))) {
+    // Zaznaczenie drutów / odcinek / bez zaznaczenia → druty (zaznaczone, inaczej pod kursorem).
+    const del = e.key === 'Delete' || e.key === 'Backspace';
+    if (del && (!selection || selection.kind === 'segment' || selection.kind === 'net')) {
+      if (wire.deleteFallback()) e.preventDefault();
+    } else if (del && selection && canEditElement(useDocStore.getState().currentStep, selection.kind)) {
       if (tool === 'edit' && selection?.kind === 'gate') {
         const idx = selection.idx;
         editPage((p) => { p.gates.splice(idx, 1); });
         setSelection(null);
-      } else if (tool === 'edit' && selection?.kind === 'segment') {
-        const { netName, segmentIdx } = selection;
-        editPage((p) => {
-          const segs = p.nets[netName]?.segments;
-          if (segs) segs.splice(segmentIdx, 1);
-        });
-        setSelection({ kind: 'net', name: netName });
       } else if (tool === 'edit' && selection?.kind === 'power') {
         const idx = selection.idx;
         editPage((p) => { p.power.splice(idx, 1); });
@@ -542,8 +530,6 @@ export function Canvas(): JSX.Element {
     setPlacingDeco(null);
     setDecoDraft(null);
     setPlacingPower(null);
-    setWireDraft(null);
-    setWireCursor(null);
   }, [currentStep]);
   const lockMsg = useDocStore(lockReason);
   const lock = lockMsg !== null ? { reason: lockMsg } : null;
@@ -612,382 +598,6 @@ export function Canvas(): JSX.Element {
     return { x: (ptr.x - view.x) / view.scale, y: (ptr.y - view.y) / view.scale };
   }
 
-  // Snap a candidate point to horizontal/vertical from a reference. Picks the
-  // axis with the larger delta and locks the other to match the reference.
-  function portOpenEndScan(p: { x: number; y: number; side: string; connector: string; pin: number }): { x: number; y: number } {
-    const pid = `${p.connector}${p.pin}`;
-    const labelWidth = Math.max(60, pid.length * 16 + 12);
-    const bw = labelWidth + 16;
-    const rot = p.side === 'left' ? 0 : p.side === 'right' ? 180 : p.side === 'top' ? 90 : 270;
-    const rad = (rot * Math.PI) / 180;
-    return { x: Math.round(p.x + bw * Math.cos(rad)), y: Math.round(p.y + bw * Math.sin(rad)) };
-  }
-
-  function snapOrtho(ref: { x: number; y: number }, p: { x: number; y: number }, free: boolean): { x: number; y: number } {
-    if (free) return p;
-    if (Math.abs(p.x - ref.x) >= Math.abs(p.y - ref.y)) {
-      return { x: p.x, y: ref.y };
-    }
-    return { x: ref.x, y: p.y };
-  }
-
-  function lastWireAnchor(): { x: number; y: number } | null {
-    if (!wireDraft) return null;
-    if (wireDraft.vertices.length > 0) return wireDraft.vertices[wireDraft.vertices.length - 1]!;
-    return { x: wireDraft.startX, y: wireDraft.startY };
-  }
-
-  // Net "wygrywa" gdy ma port/cross_ref label — taki net dziedziczy nazwę
-  // bez pytania. Jeśli oba mają label albo żaden, pytamy usera.
-  function netLabel(p: typeof page, name: string): string | null {
-    if (!p) return null;
-    for (const port of p.ports ?? []) {
-      if (port.net === name && port.label && port.label.trim()) return port.label;
-    }
-    for (const cr of p.cross_refs ?? []) {
-      if (cr.net === name && cr.label && cr.label.trim()) return cr.label;
-    }
-    return null;
-  }
-
-  function pickWinner(p: typeof page, a: string, b: string): string | null {
-    if (a === b) return a;
-    const la = netLabel(p, a);
-    const lb = netLabel(p, b);
-    if (la && !lb) return a;
-    if (lb && !la) return b;
-    if (la && lb && la === lb) return a;
-    return null;
-  }
-
-  function commitWire(end: { x: number; y: number; netName?: string }): void {
-    if (!wireDraft || !page) return;
-
-    // If ortho mode and endpoint is off-axis from last anchor:
-    //   maly delta (<= PIN_NUDGE) -> snap koniec do osi (pin sie przesunie)
-    //   wiekszy delta             -> wstaw L-corner
-    const PIN_NUDGE = 8;
-    const pts: Array<{ x: number; y: number }> = [
-      { x: wireDraft.startX, y: wireDraft.startY },
-      ...wireDraft.vertices,
-    ];
-    const last = pts[pts.length - 1]!;
-    let endX = end.x;
-    let endY = end.y;
-    if (wireOrtho && last.x !== endX && last.y !== endY) {
-      const dx = Math.abs(endX - last.x);
-      const dy = Math.abs(endY - last.y);
-      const minDelta = Math.min(dx, dy);
-      if (minDelta <= PIN_NUDGE) {
-        if (dx <= dy) endX = last.x;
-        else endY = last.y;
-      } else {
-        // Wybierz corner, ktory NIE ladowal by na istniejacym segmencie
-        // (inaczej powstaje zbedna odnoga po splicie).
-        const c1 = { x: endX, y: last.y };  // pierwszy leg poziomy
-        const c2 = { x: last.x, y: endY };  // pierwszy leg pionowy
-        const pointOnAnySegment = (px: number, py: number): boolean => {
-          for (const net of Object.values(page.nets)) {
-            for (const s of net.segments ?? []) {
-              if (s[1] === s[3] && py === s[1] && px > Math.min(s[0]!, s[2]!) && px < Math.max(s[0]!, s[2]!)) return true;
-              if (s[0] === s[2] && px === s[0] && py > Math.min(s[1]!, s[3]!) && py < Math.max(s[1]!, s[3]!)) return true;
-            }
-          }
-          return false;
-        };
-        const c1bad = pointOnAnySegment(c1.x, c1.y);
-        const c2bad = pointOnAnySegment(c2.x, c2.y);
-        let corner: { x: number; y: number };
-        if (c1bad && !c2bad) corner = c2;
-        else if (c2bad && !c1bad) corner = c1;
-        else corner = dx >= dy ? c1 : c2;
-        pts.push(corner);
-      }
-    }
-    pts.push({ x: endX, y: endY });
-
-    const netA = wireDraft.netName;
-    const netB = end.netName && end.netName.trim() ? end.netName : null;
-
-    // Decide winner name BEFORE editPage (need to maybe prompt user).
-    let winner = netA;
-    let loser: string | null = null;
-    if (netB && netB !== netA) {
-      const w = pickWinner(page, netA, netB);
-      if (w !== null) {
-        winner = w;
-        loser = w === netA ? netB : netA;
-      } else {
-        const choice = window.prompt(
-          `Łączysz dwie sieci o różnych nazwach. Którą zachować?\n` +
-          `A: ${netA}\nB: ${netB}\n` +
-          `Wpisz A, B, lub nową nazwę:`,
-          netA,
-        );
-        if (!choice) {
-          setWireDraft(null);
-          setWireCursor(null);
-          return;
-        }
-        const c = choice.trim();
-        if (c === 'A' || c === 'a') { winner = netA; loser = netB; }
-        else if (c === 'B' || c === 'b') { winner = netB; loser = netA; }
-        else { winner = c; loser = null; }
-      }
-    }
-
-    editPage((p) => {
-      // Ensure winner exists
-      const target = (p.nets[winner] ??= { pins: [], segments: null, junctions: null });
-      const segs = target.segments ?? [];
-      for (let i = 0; i < pts.length - 1; i++) {
-        const a = pts[i]!;
-        const b = pts[i + 1]!;
-        if (a.x === b.x && a.y === b.y) continue;
-        segs.push([Math.round(a.x), Math.round(a.y), Math.round(b.x), Math.round(b.y)]);
-      }
-      target.segments = segs;
-
-      // --- Defensive cleanup helpers ---
-      const MERGE_TOL = 3;
-      const snapClose = (): void => {
-        // Snap endpointy ktore sa w obrebie MERGE_TOL od siebie do wspolnego punktu.
-        const segs = target.segments ?? [];
-        if (segs.length === 0) return;
-        const reps: Array<[number, number]> = [];
-        const repFor = (x: number, y: number): [number, number] => {
-          for (const r of reps) {
-            if (Math.abs(r[0] - x) <= MERGE_TOL && Math.abs(r[1] - y) <= MERGE_TOL) return r;
-          }
-          const r: [number, number] = [x, y];
-          reps.push(r);
-          return r;
-        };
-        for (const s of segs) {
-          const a = repFor(s[0]!, s[1]!);
-          const b = repFor(s[2]!, s[3]!);
-          s[0] = a[0]; s[1] = a[1]; s[2] = b[0]; s[3] = b[1];
-        }
-        // Drop zerowe (oba endpointy ten sam punkt)
-        target.segments = segs.filter((s) => !(s[0] === s[2] && s[1] === s[3])) as Array<[number, number, number, number]>;
-      };
-      const collapseColinear = (): void => {
-        // Polacz pary segmentow ktore lacza sie w punkcie deg=2 i sa wspolliniowe.
-        let segs = target.segments ?? [];
-        let changed = true;
-        while (changed) {
-          changed = false;
-          const deg = new Map<string, number>();
-          for (const s of segs) {
-            const k1 = `${s[0]},${s[1]}`;
-            const k2 = `${s[2]},${s[3]}`;
-            deg.set(k1, (deg.get(k1) ?? 0) + 1);
-            deg.set(k2, (deg.get(k2) ?? 0) + 1);
-          }
-          // junctions z manual list — nie zwijaj jezeli punkt jest junctionem
-          const manualJ = new Set((target.junctions ?? []).map((j) => `${j[0]},${j[1]}`));
-          for (let i = 0; i < segs.length && !changed; i++) {
-            for (let j = i + 1; j < segs.length && !changed; j++) {
-              const a = segs[i]!;
-              const b = segs[j]!;
-              const aH = a[1] === a[3];
-              const bH = b[1] === b[3];
-              if (aH !== bH) continue;
-              if (aH && a[1] !== b[1]) continue;
-              if (!aH && a[0] !== b[0]) continue;
-              // Find shared endpoint
-              const aEnds: Array<[number, number]> = [[a[0]!, a[1]!], [a[2]!, a[3]!]];
-              const bEnds: Array<[number, number]> = [[b[0]!, b[1]!], [b[2]!, b[3]!]];
-              let sharedKey = '';
-              let ai = -1; let bi = -1;
-              for (let p = 0; p < 2; p++) for (let q = 0; q < 2; q++) {
-                if (aEnds[p]![0] === bEnds[q]![0] && aEnds[p]![1] === bEnds[q]![1]) {
-                  sharedKey = `${aEnds[p]![0]},${aEnds[p]![1]}`;
-                  ai = p; bi = q;
-                }
-              }
-              if (!sharedKey) continue;
-              if ((deg.get(sharedKey) ?? 0) !== 2) continue;
-              if (manualJ.has(sharedKey)) continue;
-              const aOther = aEnds[1 - ai]!;
-              const bOther = bEnds[1 - bi]!;
-              const merged: [number, number, number, number] = [aOther[0], aOther[1], bOther[0], bOther[1]];
-              segs = segs.filter((_, k) => k !== i && k !== j);
-              segs.push(merged);
-              changed = true;
-            }
-          }
-        }
-        target.segments = segs as Array<[number, number, number, number]>;
-      };
-
-      // Split istniejacych segmentow w punktach gdzie nowy wire ich dotyka
-      // (w srodku, nie na endpoincie). To generuje T-junctions.
-      const onSegmentStrict = (s: number[], px: number, py: number): boolean => {
-        if (s[1] === s[3] && py === s[1]) {
-          const xmin = Math.min(s[0]!, s[2]!);
-          const xmax = Math.max(s[0]!, s[2]!);
-          return px > xmin && px < xmax;
-        }
-        if (s[0] === s[2] && px === s[0]) {
-          const ymin = Math.min(s[1]!, s[3]!);
-          const ymax = Math.max(s[1]!, s[3]!);
-          return py > ymin && py < ymax;
-        }
-        return false;
-      };
-      const touchPts = pts.map((pt) => ({ x: Math.round(pt.x), y: Math.round(pt.y) }));
-      for (const pt of touchPts) {
-        const next: number[][] = [];
-        for (const s of target.segments) {
-          if (onSegmentStrict(s, pt.x, pt.y)) {
-            next.push([s[0]!, s[1]!, pt.x, pt.y]);
-            next.push([pt.x, pt.y, s[2]!, s[3]!]);
-          } else {
-            next.push(s);
-          }
-        }
-        target.segments = next as Array<[number, number, number, number]>;
-      }
-
-      // Merge any net we want renamed into winner (loser explicit + netA if winner is brand-new).
-      const toMerge = new Set<string>();
-      if (loser) toMerge.add(loser);
-      if (winner !== netA) toMerge.add(netA);
-      if (winner !== (netB ?? winner) && netB) toMerge.add(netB);
-      toMerge.delete(winner);
-
-      for (const old of toMerge) {
-        const oldRec = p.nets[old];
-        if (oldRec) {
-          if (oldRec.segments) target.segments = (target.segments ?? []).concat(oldRec.segments);
-          if (oldRec.junctions) target.junctions = (target.junctions ?? []).concat(oldRec.junctions);
-          delete p.nets[old];
-        }
-        for (const g of p.gates) for (const pin of g.pins) if (pin.net === old) pin.net = winner;
-        for (const port of p.ports ?? []) if (port.net === old) port.net = winner;
-        for (const cr of p.cross_refs ?? []) if (cr.net === old) cr.net = winner;
-      }
-
-      // Po wszystkich modyfikacjach (split + merge): zsnapuj bliskie endpointy,
-      // dropnij zerowe, zwin wspolliniowe deg=2.
-      snapClose();
-      collapseColinear();
-
-      // Force-assign net to ANY pin/port/cross_ref AT start or end coord.
-      // Tolerance = PIN_NUDGE: jezeli pin jest blisko, dociagnij go na os ścieżki.
-      const endsCoords = [
-        { x: Math.round(pts[0]!.x), y: Math.round(pts[0]!.y) },
-        { x: Math.round(pts[pts.length - 1]!.x), y: Math.round(pts[pts.length - 1]!.y) },
-      ];
-      const matchPt = (a: { x: number; y: number }, bx: number, by: number, tol = PIN_NUDGE): boolean =>
-        Math.abs(a.x - bx) <= tol && Math.abs(a.y - by) <= tol;
-      for (const pt of endsCoords) {
-        for (const g of p.gates) {
-          for (const pin of g.pins) {
-            if (matchPt(pt, pin.px, pin.py)) {
-              if (pin.px !== pt.x || pin.py !== pt.y) {
-                const oldX = pin.px;
-                const oldY = pin.py;
-                pin.px = pt.x;
-                pin.py = pt.y;
-                for (const net of Object.values(p.nets)) {
-                  if (net.segments) {
-                    for (const s of net.segments) {
-                      if (s[0] === oldX && s[1] === oldY) { s[0] = pt.x; s[1] = pt.y; }
-                      if (s[2] === oldX && s[3] === oldY) { s[2] = pt.x; s[3] = pt.y; }
-                    }
-                  }
-                  if (net.junctions) {
-                    for (const j of net.junctions) {
-                      if (j[0] === oldX && j[1] === oldY) { j[0] = pt.x; j[1] = pt.y; }
-                    }
-                  }
-                }
-              }
-              if (pin.net !== winner) pin.net = winner;
-            }
-          }
-        }
-        for (const port of p.ports ?? []) {
-          const oe = portOpenEndScan(port);
-          if (matchPt(pt, oe.x, oe.y)) {
-            if (oe.x !== pt.x || oe.y !== pt.y) {
-              // Shift chevron tip tak zeby open-end ladowal na endpoincie.
-              // Przesun tez wszystkie endpointy/junctions ktore byly przy STARYM open-end
-              // (zeby mikro-segmenty nie zostawaly).
-              const oldX = oe.x;
-              const oldY = oe.y;
-              port.x += pt.x - oe.x;
-              port.y += pt.y - oe.y;
-              for (const net of Object.values(p.nets)) {
-                if (net.segments) {
-                  for (const s of net.segments) {
-                    if (s[0] === oldX && s[1] === oldY) { s[0] = pt.x; s[1] = pt.y; }
-                    if (s[2] === oldX && s[3] === oldY) { s[2] = pt.x; s[3] = pt.y; }
-                  }
-                }
-                if (net.junctions) {
-                  for (const j of net.junctions) {
-                    if (j[0] === oldX && j[1] === oldY) { j[0] = pt.x; j[1] = pt.y; }
-                  }
-                }
-              }
-            }
-            if (port.net !== winner) port.net = winner;
-          }
-        }
-        for (const cr of p.cross_refs ?? []) {
-          if (matchPt(pt, cr.x, cr.y)) {
-            if (cr.x !== pt.x || cr.y !== pt.y) {
-              const oldX = cr.x;
-              const oldY = cr.y;
-              cr.x = pt.x;
-              cr.y = pt.y;
-              for (const net of Object.values(p.nets)) {
-                if (net.segments) {
-                  for (const s of net.segments) {
-                    if (s[0] === oldX && s[1] === oldY) { s[0] = pt.x; s[1] = pt.y; }
-                    if (s[2] === oldX && s[3] === oldY) { s[2] = pt.x; s[3] = pt.y; }
-                  }
-                }
-                if (net.junctions) {
-                  for (const j of net.junctions) {
-                    if (j[0] === oldX && j[1] === oldY) { j[0] = pt.x; j[1] = pt.y; }
-                  }
-                }
-              }
-            }
-            if (cr.net !== winner) cr.net = winner;
-          }
-        }
-      }
-    });
-
-    setWireDraft(null);
-    setWireCursor(null);
-  }
-
-  const onWireEndpoint = useEvent((ev: Event): void => {
-    const ce = ev as CustomEvent<{ x: number; y: number; netName: string; autoNet?: string }>;
-    if (tool !== 'wire' || !page) return;
-    const { x, y, netName, autoNet } = ce.detail;
-    if (!wireDraft) {
-      setWireDraft({
-        netName: (netName && netName.trim()) ? netName : (autoNet ?? `NET_${Date.now()}`),
-        startX: x,
-        startY: y,
-        vertices: [],
-      });
-      setWireCursor({ x, y });
-    } else {
-      commitWire({ x, y, netName });
-    }
-  });
-  useEffect(() => {
-    window.addEventListener('kronikarz:wire-endpoint-click', onWireEndpoint);
-    return () => window.removeEventListener('kronikarz:wire-endpoint-click', onWireEndpoint);
-  }, [onWireEndpoint]);
 
   const ZONE_COLORS: Record<ZoneRole, string> = {
     gates: '#22c55e',
@@ -1033,8 +643,11 @@ export function Canvas(): JSX.Element {
     }
   }
 
+  const placingAny = placingGate || placingXref || placingPort || placingAnn || !!placingDeco || !!placingPower;
   const onMouseDownStage = (e: Konva.KonvaEventObject<MouseEvent>): void => {
-    if (tool === 'select' && e.evt.button === 0 && !e.evt.ctrlKey && !e.evt.metaKey && !spaceDown) {
+    wire.onMouseDown(e.evt);
+    const bandTool = tool === 'select' || (tool === 'edit' && !placingAny);
+    if (bandTool && e.evt.button === 0 && !e.evt.ctrlKey && !e.evt.metaKey && !spaceDown) {
       // Rubber-band selection: tylko gdy klik na pustym tle (nie na obiekcie)
       if (e.target === e.target.getStage()) {
         const p = ptrScan();
@@ -1070,19 +683,6 @@ export function Canvas(): JSX.Element {
       setZoneDraft({ role: 'gates', x: Math.round(p.x), y: Math.round(p.y), w: 0, h: 0 });
       return;
     }
-    if (tool === 'wire' && wireDraft) {
-      if (e.evt.button !== 0 || e.evt.ctrlKey || e.evt.metaKey) return;
-      const cls = (e.target as Konva.Node).getClassName?.() ?? '';
-      if (cls === 'Circle') return;
-      const p = ptrScan();
-      if (!p) return;
-      e.evt.preventDefault();
-      const anchor = lastWireAnchor() ?? p;
-      const free = e.evt.shiftKey || !wireOrtho;
-      const snapped = snapOrtho(anchor, p, free);
-      setWireDraft({ ...wireDraft, vertices: [...wireDraft.vertices, { x: Math.round(snapped.x), y: Math.round(snapped.y) }] });
-      return;
-    }
     if (tool !== 'roi') return;
     if (e.evt.button !== 0 || e.evt.ctrlKey || e.evt.metaKey) return;
     if (e.target !== e.target.getStage() && e.target.getParent()?.constructor.name !== 'Layer') {
@@ -1096,6 +696,7 @@ export function Canvas(): JSX.Element {
   };
 
   const onMouseMoveStage = (e?: Konva.KonvaEventObject<MouseEvent>): void => {
+    wire.onMouseMove(!!e?.evt?.shiftKey);
     if (selectDragRef.current) {
       const p = ptrScan();
       if (!p) return;
@@ -1147,15 +748,6 @@ export function Canvas(): JSX.Element {
       setZoneDraft({ role: 'gates', x, y, w, h });
       return;
     }
-    if (tool === 'wire' && wireDraft) {
-      const p = ptrScan();
-      if (p) {
-        const anchor = lastWireAnchor() ?? p;
-        const free = !wireOrtho;
-        const snapped = snapOrtho(anchor, p, free);
-        setWireCursor({ x: Math.round(snapped.x), y: Math.round(snapped.y) });
-      }
-    }
     const s = roiDragRef.current;
     if (!s) return;
     const p = ptrScan();
@@ -1167,14 +759,19 @@ export function Canvas(): JSX.Element {
     setRoiRect({ x, y, w, h });
   };
 
-  const onMouseUpStage = async (): Promise<void> => {
+  const onMouseUpStage = async (e: Konva.KonvaEventObject<MouseEvent>): Promise<void> => {
+    wire.onMouseUp(e.evt);
     if (selectDragRef.current && selectRect && page) {
       const r = selectRect;
       selectDragRef.current = null;
       setSelectRect(null);
       if (r.w < 4 || r.h < 4) return;
-      // Priorytet: bramki, porty, odsyłacze — tylko edytowalne w bieżącym kroku.
-      setMulti(rubberBand(page, r, useDocStore.getState().currentStep));
+      // Priorytet: bramki, porty, odsyłacze — tylko edytowalne w bieżącym kroku; potem
+      // druty (③ / bez kroku; Alt = dotknięte, Shift = przełącz) — stepView.bandSelection.
+      const st = useDocStore.getState();
+      const res = bandSelection(page, r, st.currentStep, { shift: e.evt.shiftKey, alt: e.evt.altKey }, st.wireSel);
+      if ('wire' in res) st.setWireSel(res.wire);
+      else setMulti(res.multi);
       return;
     }
     if (placingDeco && decoDragRef.current && decoDraft) {
@@ -1383,26 +980,7 @@ export function Canvas(): JSX.Element {
                 stroke="#1a7a0a"
                 strokeWidth={1 / view.scale}
               />
-              {wireDraft && page && (() => {
-                const pts: number[] = [wireDraft.startX, wireDraft.startY];
-                for (const v of wireDraft.vertices) pts.push(v.x, v.y);
-                if (wireCursor) pts.push(wireCursor.x, wireCursor.y);
-                return (
-                  <Group>
-                    <Line points={pts} stroke="#FF9800" strokeWidth={2 / view.scale} />
-                    {wireDraft.vertices.map((v, i) => (
-                      <Rect
-                        key={`wv-${i}`}
-                        x={v.x - 3 / view.scale}
-                        y={v.y - 3 / view.scale}
-                        width={6 / view.scale}
-                        height={6 / view.scale}
-                        fill="#FF9800"
-                      />
-                    ))}
-                  </Group>
-                );
-              })()}
+              <WireOverlay zoom={view.scale} />
               {selectRect && (
                 <Rect
                   x={selectRect.x}
@@ -1574,11 +1152,10 @@ export function Canvas(): JSX.Element {
           przeciągnij prostokąt nad bramką · Esc = wyjdź
         </div>
       )}
-      {tool === 'wire' && (
+      <WireToast />
+      {wire.hint && (
         <div className="pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 border border-phosphor bg-bg-panel px-2 py-1 text-xs text-phosphor">
-          {wireDraft
-            ? `wire net=${wireDraft.netName} · klik=wierzchołek · klik pin=zakończ · Backspace=cofnij · Esc=anuluj`
-            : 'klik na pin = zacznij ścieżkę · Esc = wyjdź'}
+          {wire.hint}
         </div>
       )}
       {tool === 'zones' && (

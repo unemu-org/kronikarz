@@ -26,6 +26,7 @@ import {
   type StepStatus,
 } from '@kronikarz/shared';
 import type { MultiSelect, Route, Selection, Tool } from './store.ts';
+import { combineWireSel, wiresInBox, type WireSel } from './wireEdit.ts';
 
 export type ViewStep = StepName | 'kicad';
 export const isStepName = (s: ViewStep | null): s is StepName => s !== null && s !== 'kicad';
@@ -869,7 +870,7 @@ const ASPECTS: Readonly<Record<ElementKind, readonly Aspect[]>> = {
   pin: ['text', 'net'],
   segment: ['geom'],
   junction: ['geom'],
-  net: ['geom', 'net'],
+  net: ['net', 'geom'], // podstawowy aspekt netu = przypisanie (⑤); geometria — 'geom' jawnie
   port: ['label', 'net'],
   cross_ref: ['label', 'net'],
   power: ['label', 'net'],
@@ -897,7 +898,8 @@ export function aspectStep(kind: ElementKind, aspect?: Aspect): StepName | null 
 
 /**
  * Czy w kroku wolno zmienić aspekt elementu (przeciągnąć, usunąć, wpisać):
- * bez kroku — wszystko; ⑥ — nic; inaczej tylko aspekt bieżącego kroku.
+ * bez kroku — wszystko; ⑥ — nic; inaczej tylko aspekt bieżącego kroku
+ * (wyjątek: geometria drutów — w ③ i w ⑤).
  * Części „kontekstu” (np. ramki w ③) są widoczne i klikalne (zaznaczenie,
  * przyciąganie drutu), ale tylko do odczytu.
  */
@@ -905,12 +907,14 @@ export function canEditElement(step: ViewStep | null, kind: ElementKind, aspect?
   if (step === null) return true;
   if (step === 'kicad') return false;
   if (aspect === undefined && ASPECTS[kind].length === 0) return false;
+  // Geometria drutów także w ⑤ (kr-9p8.25, USER): poprawki drutów przy składaniu netów.
+  if ((aspect ?? ASPECTS[kind][0]) === 'geom' && step === 'nets') return true;
   return aspectStep(kind, aspect) === step;
 }
 
 /**
  * Panel zaznaczenia ma coś do edycji: któryś aspekt elementu należy do kroku.
- * Panel bramki: ①②⑤; segmentu: ③; netu: ③ i ⑤; końcówki: ④ i ⑤. Które
+ * Panel bramki: ①②⑤; segmentu: ③⑤; netu: ③ i ⑤; końcówki: ④ i ⑤. Które
  * pola w panelu — `fieldEditable`.
  */
 export function panelEditable(step: ViewStep | null, kind: ElementKind): boolean {
@@ -985,6 +989,28 @@ export function rubberBand(
     if (c.length) return { kind: 'cross_ref', indices: c };
   }
   return null;
+}
+
+/**
+ * Prostokąt w V / E (kr-9p8.25): bez Shift jak dotąd bramki / porty /
+ * odsyłacze (`rubberBand`); gdy żadnych — druty (odcinki i kropki), o ile
+ * geometria drutów jest w kroku edytowalna (③, „wszystko”). Odcinek wpada,
+ * gdy oba końce są w prostokącie; z Alt — gdy prostokąt go dotyka. Shift:
+ * tylko druty, przełącza je w bieżącym zaznaczeniu drutów.
+ */
+export function bandSelection(
+  page: Page,
+  r: Box,
+  step: ViewStep | null,
+  mods: { shift: boolean; alt: boolean },
+  cur: WireSel | null,
+): { multi: MultiSelect } | { wire: WireSel | null } {
+  if (!mods.shift) {
+    const m = rubberBand(page, r, step);
+    if (m) return { multi: m };
+  }
+  if (!canEditElement(step, 'segment', 'geom')) return { multi: null };
+  return { wire: combineWireSel(cur, wiresInBox(page, r, mods.alt), mods.shift) };
 }
 
 /** Akcje strony na pasku narzędzi: cleanup nets w ③ / ⑤ / bez kroku; vision i .bak tylko bez kroku. */

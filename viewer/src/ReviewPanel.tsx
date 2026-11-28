@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { stepStatus } from '@kronikarz/shared';
 import { isLocked, parsePageFilePath, useDocStore } from './store.ts';
 import { plainKey } from './hotkeys.ts';
+import { liveSuspicious, useWireUi } from './useWireEditing.tsx';
 import {
   PROV_COLORS,
   STATUS_COLOR,
@@ -34,6 +35,9 @@ export function ReviewPanel(): JSX.Element | null {
   const editPage = useDocStore((s) => s.editPage);
   const locked = useDocStore(isLocked);
   const [cur, setCur] = useState(-1);
+  // Scalenia dwóch netów z ≥ 2 końcówkami każdy (W / J / przeciągnięcie końca) — tylko ta sesja.
+  const suspiciousAll = useWireUi((s) => s.suspicious);
+  const suspicious = currentStep === 'wires' || currentStep === 'nets' ? liveSuspicious(suspiciousAll, page, pagePath) : [];
   const step = isStepName(currentStep) ? currentStep : null;
   const queue = useMemo(() => (page && step ? reviewQueue(page, step, issues) : []), [page, step, issues]);
   useEffect(() => setCur(-1), [step, pagePath]);
@@ -94,7 +98,24 @@ export function ReviewPanel(): JSX.Element | null {
         </div>
       </div>
       <ul className="min-h-0 flex-1 overflow-y-auto p-1">
-        {queue.length === 0 && (
+        {suspicious.map((m, i) => (
+          <li
+            key={`sm-${i}`}
+            onClick={() => {
+              useDocStore.getState().setSelection({ kind: 'net', name: m.into });
+              window.dispatchEvent(new CustomEvent('kronikarz:zoom-to', { detail: { x: m.x - 120, y: m.y - 90, w: 240, h: 180 } }));
+            }}
+            className="mb-0.5 cursor-pointer border-l-2 border-l-warning bg-bg-main px-1.5 py-0.5 hover:bg-bg-accent"
+            title="scalenie dwóch netów, z których każdy miał ≥ 2 końcówki — sprawdź, czy drut nie trafił w zły net (Ctrl+Z cofa, J / T / X rozdziela)"
+            data-testid="suspicious-merge"
+          >
+            <div className="truncate text-text-main">
+              ⚠ scalono {m.from.join(', ')} → {m.into}
+            </div>
+            <div className="truncate text-[10px] text-warning">{m.endpoints} końcówek · podejrzane scalenie (ta sesja)</div>
+          </li>
+        ))}
+        {queue.length === 0 && suspicious.length === 0 && (
           <li className="border border-dashed border-bg-accent p-2 text-text-dim">
             {st === 'todo' ? 'krok jeszcze nie uruchomiony — „Uruchom krok” na pasku kroków' : 'brak elementów auto do przeglądu w tym kroku'}
           </li>
@@ -135,6 +156,14 @@ export function ReviewPanel(): JSX.Element | null {
         <div className="text-[10px] text-text-dim">
           <kbd>N</kbd> / <kbd>Shift+N</kbd> następny / poprzedni · klik = zaznacz i przybliż
         </div>
+        {(step === 'wires' || step === 'nets') && (
+          <div className="text-[10px] text-text-dim" data-testid="wire-keys">
+            druty (V / E / W, kursor nad drutem): <kbd>X</kbd> usuń · <kbd>J</kbd> kropka na skrzyżowaniu / T (dodaj / usuń) ·{' '}
+            <kbd>T</kbd> przetnij · <kbd>W</kbd> rysuj: klik–klik, przyciąga do pinów / końców / drutów, 2×klik / Enter =
+            wolny koniec, Esc · prostokąt (Alt = dotknięte, Shift = dodaj / zdejmij) + <kbd>Del</kbd> · E: przeciągnij koniec
+            zaznaczonego odcinka · <kbd>Ctrl+Z</kbd> cofa każdą akcję
+          </div>
+        )}
       </div>
     </section>
   );

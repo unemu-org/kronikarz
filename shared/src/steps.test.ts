@@ -12,6 +12,9 @@ import {
   elementSrc,
   markEdited,
   markStaleAfter,
+  labelAnchorEnds,
+  labelEndsChanged,
+  staleTargets,
   nextRunnableStep,
   stepStatus,
 } from './steps.ts';
@@ -298,14 +301,60 @@ test('applyHumanEdit: druty — przesunięty odcinek edited, reszta auto, przeni
     q.nets.N1!.segments = [];
   });
   assert.equal('auto_segments' in r.next.nets.N1!, false);
-  // Zmiana drutu przy zatwierdzonym labels → labels stale.
+  // Zmiana drutu z dala od portów / odsyłaczy / zasilania przy zatwierdzonych ④ i ⑤ → tylko ⑤ stale (kr-9p8.25).
   const p2 = load();
   p2.steps!.labels!.status = 'approved';
+  p2.steps!.nets = { status: 'approved' };
   r = edit(p2, (q) => {
     q.nets.N2!.junctions = [];
   });
-  assert.deepEqual(r.stale, ['labels']);
+  assert.deepEqual(r.stale, ['nets']);
+  assert.equal(r.next.steps!.labels!.status, 'approved');
   assert.equal('auto_junctions' in r.next.nets.N2!, false);
+});
+
+test('labelAnchorEnds / staleTargets: ④ stale tylko gdy koniec drutu przy kotwicy pojawi się albo zniknie (odsunie > 8 px)', () => {
+  const p = load();
+  p.steps!.labels!.status = 'approved';
+  p.steps!.nets = { status: 'approved' };
+  assert.deepEqual(labelAnchorEnds(p), []); // odsyłacz -X (900,100) bez drutu
+  // Pojawia się wolny koniec przy odsyłaczu → ④ i ⑤ stale.
+  let r = edit(p, (q) => {
+    q.nets.N2!.segments!.push([800, 100, 900, 100]);
+  });
+  assert.deepEqual(r.stale.sort(), ['labels', 'nets']);
+  const withEnd = r.next;
+  withEnd.steps!.labels!.status = 'approved';
+  withEnd.steps!.nets!.status = 'approved';
+  assert.deepEqual(labelAnchorEnds(withEnd), [[900, 100]]);
+  // Przesunięcie o ≤ 8 px: ④ zostaje.
+  r = edit(withEnd, (q) => {
+    q.nets.N2!.segments![3]![2] = 905;
+  });
+  assert.deepEqual(r.stale, ['nets']);
+  // Przesunięcie o > 8 px (koniec odjeżdża od kotwicy): ④ stale.
+  r = edit(withEnd, (q) => {
+    q.nets.N2!.segments![3]![2] = 880;
+  });
+  assert.deepEqual(r.stale.sort(), ['labels', 'nets']);
+  // Koniec przestaje być wolny (dochodzi drugi odcinek w tym punkcie): też zmiana.
+  // Drugi koniec (tego samego albo innego netu) w tym samym punkcie / ≤ 8 px nie ukrywa kotwicy.
+  const two = clone(withEnd);
+  two.nets.N2!.segments!.push([900, 100, 900, 200]);
+  assert.deepEqual(labelAnchorEnds(two), [[900, 100]]);
+  assert.equal(labelEndsChanged(withEnd, two), false);
+  const other = clone(withEnd);
+  other.nets.X = { pins: [], segments: [[905, 104, 905, 300]], junctions: null };
+  other.nets.N2!.segments![3]![2] = 700; // własny koniec odjeżdża, ale koniec innego netu jest ≤ 8 px
+  assert.equal(labelEndsChanged(withEnd, other), false);
+  other.nets.X.segments = [[950, 100, 950, 300]];
+  assert.equal(labelEndsChanged(withEnd, other), true);
+  // Port bez klucza pin: `${undefined}` → "Aundefined" → otwarty koniec x = 198 (jak _steps.py).
+  const noPin = { ports: [{ connector: 'A', label: '', net: '', x: 10, y: 90, side: 'left' }], nets: { Q: { pins: [], segments: [[198, 90, 300, 90]], junctions: null } } } as unknown as Page;
+  assert.deepEqual(labelAnchorEnds(noPin), [[198, 90]]);
+  assert.deepEqual(staleTargets('wires', false), ['nets']);
+  assert.deepEqual(staleTargets('wires', true), ['labels', 'nets']);
+  assert.deepEqual(staleTargets('text', false), ['wires', 'labels', 'nets']);
 });
 
 test('applyHumanEdit: strona bez src/steps (dane v1.1) — bez zmian', () => {

@@ -424,9 +424,11 @@ def merge_wires(page: dict, cv_nets: list[dict]) -> tuple[dict, dict]:
 
 
 def set_step(page: dict, step: str, run: str, at: str, *, forced_approved: bool,
-             changed: bool) -> list[str]:
-    """steps[step] = {status: auto, run, at}; późniejsze 'approved' → 'stale', gdy krok był
-    zatwierdzony (--force) albo zmieniła się jego treść. Zwraca kroki oznaczone 'stale'."""
+             changed: bool, label_ends_changed: bool = True) -> list[str]:
+    """steps[step] = {status: auto, run, at}; gdy krok był zatwierdzony (--force) albo
+    zmieniła się jego treść, zatwierdzone kroki z `_steps.stale_targets` → 'stale' (zwykle
+    każdy późniejszy; wires: nets, a labels tylko gdy `label_ends_changed` — wolne końce
+    przy portach / odsyłaczach / zasilaniu). Zwraca kroki oznaczone 'stale'."""
     if not isinstance(page.get("steps"), dict):
         # brak (albo zła wartość — i tak znaczy 'todo') — sekcja zaraz po scan_size
         items = [(k, v) for k, v in page.items() if k != "steps"]
@@ -438,7 +440,8 @@ def set_step(page: dict, step: str, run: str, at: str, *, forced_approved: bool,
                 page["steps"], placed = {}, True
         if not placed:
             page["steps"] = {}
-    stale = _steps.mark_stale_after(page, step, at) if (forced_approved or changed) else []
+    targets = _steps.stale_targets(step, label_ends_changed)
+    stale = _steps.mark_stale(page, targets, at) if (forced_approved or changed) else []
     page["steps"][step] = {"status": "auto", "run": run, "at": at}
     return stale
 
@@ -567,6 +570,7 @@ def run_page(ctx: dict, entry: dict, step_arg: str) -> dict:
         at = ctx["at"]
         run = ctx["run"]
         before = _steps.step_fingerprint(page, step)
+        ends_before = _steps.label_anchor_ends(page)
         was_approved = _steps.step_status(page, step) == "approved"
         if step == "gates":
             det = detect_gates(gray)
@@ -586,7 +590,9 @@ def run_page(ctx: dict, entry: dict, step_arg: str) -> dict:
                 return rep
             page["nets"] = nets
         changed = _steps.step_fingerprint(page, step) != before
-        stale = set_step(page, step, run, at, forced_approved=was_approved, changed=changed)
+        ends_changed = _steps.ends_changed(ends_before, _steps.label_anchor_ends(page))
+        stale = set_step(page, step, run, at, forced_approved=was_approved, changed=changed,
+                         label_ends_changed=ends_changed)
         snap = snapshot_path(ctx["data"], ctx["pkg"], pid, step, run)
         rep.update(counts=counts, run=run, stale=stale, changed=changed, snapshot=str(snap))
         new_text = _jsyaml.splice(orig_text, page)  # sprawdzony: wczytuje się jako `page`

@@ -10,6 +10,12 @@ Port tych funkcji z `shared/src/steps.ts`, które są potrzebne przy ZAPISIE wyn
                                  tylko z force
   next_runnable_step(page)       nextRunnableStep (STEP=next)
   mark_stale_after(page, step)   markStaleAfter: każdy PÓŹNIEJSZY 'approved' → 'stale'
+  stale_targets(step, label_ends) staleTargets: które kroki unieważnia zmiana kroku (③ → ⑤,
+                                 ④ tylko przy zmianie wolnych końców przy kotwicach)
+  mark_stale(page, steps)        markStale: wskazane 'approved' → 'stale'
+  label_anchor_ends(page)        labelAnchorEnds: kotwice (porty / odsyłacze / zasilanie)
+                                 z końcem drutu w ≤ CONNECT_TOL
+  label_ends_changed(a, b)       labelEndsChanged
   aspect_empty(kind, el, field)  aspectEmpty: czy CAŁY aspekt elementu jest pusty
   is_segment / is_junction       4 / 2 skończone liczby (bool to nie liczba, jak w JS)
   segment_key / junction_key     odcinek bez względu na kierunek
@@ -224,3 +230,106 @@ def step_fingerprint(page: dict, step: str) -> list:
     else:
         raise ValueError(f"step_fingerprint: krok {step!r} nie jest zaimplementowany w Pythonie")
     return sorted(out)
+
+
+# --- które kroki unieważnia zmiana kroku (kr-9p8.25; jak steps.ts) ---
+
+CONNECT_TOL = 8  # px, Chebyshev — jak walidator / viewer
+
+
+def _js_round(v: float) -> float:
+    """Math.round z JS (połówki w górę, także dla ujemnych)."""
+    return float(math.floor(v + 0.5))
+
+
+_MISSING = object()  # brak klucza = `undefined` w JS
+
+
+def _js_str(v: Any) -> str:
+    """`${v}` z JS dla wartości z YAML (liczba całkowita bez .0; brak klucza = "undefined")."""
+    if v is _MISSING:
+        return "undefined"
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, float) and math.isfinite(v) and v == int(v):
+        return str(int(v))
+    if v is None:
+        return "null"
+    return str(v)
+
+
+def _finite(v: Any) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+
+def _port_open_end(p: dict) -> tuple | None:
+    if not (_finite(p.get("x")) and _finite(p.get("y"))):
+        return None
+    pid = _js_str(p.get("connector", _MISSING)) + _js_str(p.get("pin", _MISSING))
+    label_width = max(60, len(pid) * 16 + 12)
+    bw = label_width + 16
+    side = p.get("side")
+    rot = 0 if side == "left" else 180 if side == "right" else 90 if side == "top" else 270
+    rad = rot * math.pi / 180
+    return (_js_round(p["x"] + bw * math.cos(rad)), _js_round(p["y"] + bw * math.sin(rad)))
+
+
+def _near(a: tuple, b: tuple) -> bool:
+    return abs(a[0] - b[0]) <= CONNECT_TOL and abs(a[1] - b[1]) <= CONNECT_TOL
+
+
+def label_anchor_ends(page: dict) -> list[tuple]:
+    """Kotwice końcówek (otwarty koniec portu, odsyłacz, zasilanie), przy których (≤ CONNECT_TOL,
+    Chebyshev) jest jakikolwiek koniec odcinka dowolnego netu. Posortowane punkty kotwic."""
+    anchors: list[tuple] = []
+    for p in list_of(page.get("ports")):
+        o = _port_open_end(p) if isinstance(p, dict) else None
+        if o:
+            anchors.append(o)
+    for e in list_of(page.get("cross_refs")) + list_of(page.get("power")):
+        if isinstance(e, dict) and _finite(e.get("x")) and _finite(e.get("y")):
+            anchors.append((float(e["x"]), float(e["y"])))
+    if not anchors:
+        return []
+    ends: list[tuple] = []
+    nets = page.get("nets")
+    for n in (nets.values() if isinstance(nets, dict) else []):
+        for sg in list_of(n.get("segments") if isinstance(n, dict) else None):
+            if is_segment(sg):
+                ends += [(float(sg[0]), float(sg[1])), (float(sg[2]), float(sg[3]))]
+    return sorted(a for a in anchors if any(_near(e, a) for e in ends))
+
+
+def label_ends_changed(prev: dict, nxt: dict) -> bool:
+    """Czy zmieniło się, które kotwice ④ mają przy sobie koniec drutu."""
+    return ends_changed(label_anchor_ends(prev), label_anchor_ends(nxt))
+
+
+def ends_changed(a: list[tuple], b: list[tuple]) -> bool:
+    """Dwie listy z label_anchor_ends (te same kotwice → porównanie wprost)."""
+    return a != b
+
+
+def stale_targets(step: str, label_ends: bool) -> list[str]:
+    """Kroki unieważniane przez zmianę kroku `step`: zwykle każdy późniejszy; zmiana drutów
+    (wires) — tylko nets, a labels tylko gdy zmieniły się wolne końce przy kotwicach."""
+    later = list(STEP_ORDER[STEP_ORDER.index(step) + 1 :])
+    if step != "wires":
+        return later
+    return [s for s in later if s != "labels" or label_ends]
+
+
+def mark_stale(page: dict, steps: list[str], at: str | None = None) -> list[str]:
+    """Zatwierdzone kroki z `steps` → 'stale'. Zwraca kroki, które zmienił."""
+    changed: list[str] = []
+    st_all = page.get("steps")
+    if not isinstance(st_all, dict):
+        return changed
+    for s in steps:
+        st = st_all.get(s)
+        if isinstance(st, dict) and st.get("status") == "approved":
+            st["status"] = "stale"
+            if at is not None:
+                st["at"] = at
+            changed.append(s)
+    return changed
