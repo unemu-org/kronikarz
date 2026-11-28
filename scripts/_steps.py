@@ -22,7 +22,8 @@ Port tych funkcji z `shared/src/steps.ts`, które są potrzebne przy ZAPISIE wyn
   auto_segment_mask / auto_junction_mask
                                  dopasowanie `auto_segments` / `auto_junctions` po wartości,
                                  z krotnością
-  step_fingerprint(page, step)   stepFingerprint dla kroków, które pisze Python (gates, wires)
+  step_fingerprint(page, step)   stepFingerprint dla kroków, które pisze Python (gates, text,
+                                 wires)
 
 Klucze w Pythonie to krotki liczb `float` (110 == 110.0, jak w JS), nie JSON — porównujemy
 je tylko między sobą. Czyste funkcje, bez I/O.
@@ -213,14 +214,34 @@ def _gate_box_key(g: dict) -> tuple:
                                    0 if rot is None else rot))
 
 
+def _gate_text_key(g: dict) -> tuple:
+    return tuple(_num(g.get(f)) for f in ("ref", "gate", "value", "label_left", "label_right"))
+
+
+def _rel(a: Any, b: Any) -> Any:
+    """`p.px - g.x` z JS: liczba albo NaN (tu None) przy braku którejś."""
+    return _num(a - b) if _is_num(a) and _is_num(b) else None
+
+
+def _pin_text_key(g: dict, p: dict) -> tuple:
+    return (_num(p.get("num")), p.get("side"), _rel(p.get("px"), g.get("x")),
+            _rel(p.get("py"), g.get("y")), p.get("disconnected") is True)
+
+
 def step_fingerprint(page: dict, step: str) -> list:
     """Multizbiór kluczy aspektów kroku (jak stepFingerprint w steps.ts), posortowany.
-    Zaimplementowane: gates, wires."""
+    Zaimplementowane: gates, text, wires."""
     out: list = []
     if step == "gates":
         for g in list_of(page.get("gates")):
             if isinstance(g, dict):
                 out.append(repr(_gate_box_key(g)))
+    elif step == "text":
+        for g in list_of(page.get("gates")):
+            if isinstance(g, dict):
+                pins = sorted(repr(_pin_text_key(g, p)) for p in list_of(g.get("pins"))
+                              if isinstance(p, dict))
+                out.append(repr((_gate_text_key(g), pins)))
     elif step == "wires":
         nets = page.get("nets")
         for n in (nets.values() if isinstance(nets, dict) else []):

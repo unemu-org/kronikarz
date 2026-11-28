@@ -430,11 +430,11 @@ def test_cli_approved_needs_force_then_stale(data, fake_cv):
 
 def test_cli_not_implemented_exit_3(data, fake_cv, capsys):
     t0 = tree(data)
-    for step in ("text", "labels", "nets"):
+    for step in ("labels", "nets"):
         assert run(data, "--page", "2-1", "--step", step) == 3
     assert "nie jest jeszcze zaimplementowany" in capsys.readouterr().err
-    # next → text (gates zatwierdzony) → 3, nic nie zapisane
-    p = page_doc(steps={"gates": {"status": "approved"}})
+    # next → labels (①–③ zatwierdzone) → 3, nic nie zapisane
+    p = page_doc(steps={s: {"status": "approved"} for s in ("gates", "text", "wires")})
     page_path(data).write_text(auto.dump_yaml(p))
     t0 = tree(data)
     assert run(data, "--page", "2-1", "--step", "next") == 3

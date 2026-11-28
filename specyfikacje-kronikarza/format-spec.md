@@ -431,6 +431,27 @@ steps:
 `at` — czas ISO ostatniej zmiany stanu. Nieznany krok albo status →
 ostrzeżenie `STEP_INVALID`, krok traktowany jak `todo`.
 
+`steps.text.uncertain` (opcjonalne, kr-9p8.27) — bramki z przebiegu `run`
+kroku ② do przejrzenia: odczyt niezgodny z `ic_map` / rejestrem pakietu
+(np. typ z nadruku ≠ `components[ref].ic`, piny spoza bramki, litera
+niejednoznaczna, bramka w rejestrze na innej stronie) albo błąd modelu.
+Odczyt i tak jest zapisany w bramce (poza błędem modelu — wtedy bramka zostaje
+bez zmian). Klucz to środek ramki `x`, `y` (② ramek nie rusza); wpis dotyczy
+bramki tylko, dopóki jej `text_src` jest `auto` **albo jej aspekt tekstu jest
+pusty** (`MODEL_ERROR` / `MODEL_EMPTY` dotyczą bramek, których ② nie wypełnił) —
+poprawka człowieka go unieważnia. Nie jest treścią kroku (nie wchodzi do `stepFingerprint`), viewer
+przy zatwierdzaniu zachowuje pole (`{...steps[krok], status}`).
+
+```yaml
+steps:
+  text:
+    status: auto
+    run: "20261128T133942"
+    at: "2026-11-28T13:39:42Z"
+    uncertain:
+      - { ref: M18, gate: A, x: 1210, y: 640, why: ["TYPE_MISMATCH: nadruk 74 ≠ rejestr 174"] }
+```
+
 Reguły (`shared/src/steps.ts`):
 - krok przebiega, gdy poprzedni jest `approved` (wyjątek: `--draft`);
   krok `approved` tylko z `--force` (`canRun`);

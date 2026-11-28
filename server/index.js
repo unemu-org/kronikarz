@@ -185,15 +185,41 @@ export const BACKUP_KEEP = 50;
 // Script timeouts (ms). Each Vite proxy timeout (viewer/vite.config.ts) is
 // this + 2 × killGraceMs + margin, so the client gets the server's 504 rather
 // than a proxy abort (which would also kill the job). /auto: per page of the
-// request, capped at autoMax (proxy: 3600 s).
+// request (autoPerPage, or autoPerPageStep[step] for slow steps — `text` runs
+// a local VLM on every gate crop, ~3 min/sheet plus model load; `next` may land
+// on any step, so it gets the largest), capped at autoMax (proxy: 3600 s).
 export const SCRIPT_TIMEOUTS = {
   aiDetect: 110_000,
   visionPage: 230_000,
   visionZones: 290_000,
   yoloExport: 110_000,
   autoPerPage: 120_000,
+  autoPerPageStep: { text: 600_000 },
   autoMax: 3_000_000,
 };
+
+// Heavy Python environments (mlx-vlm for step `text`, ~0.8 GB) belong on the
+// model disk, never in ~/.cache (maintainer rule): every `uv` the server runs
+// gets UV_CACHE_DIR = $UV_CACHE_DIR, else LLM_UV_CACHE when that directory
+// exists, else uv's default. createApp({uvCacheDir}) overrides (tests).
+export const LLM_UV_CACHE = '/Volumes/Dane/llm/uv-cache';
+export function defaultUvCacheDir(env = process.env, exists = existsSync) {
+  if (env.UV_CACHE_DIR) return env.UV_CACHE_DIR;
+  return exists(LLM_UV_CACHE) ? LLM_UV_CACHE : null;
+}
+
+// Step `text` (and `next`, which may land on it) needs mlx-vlm; auto.py does
+// not declare it (gates / wires stay light), the server adds it per run.
+export const AUTO_VLM_WITH = 'mlx-vlm==0.8.1';
+export const autoNeedsVlm = (step) => step === 'text' || step === 'next';
+
+// Per-page /auto timeout for a step (ms).
+export function autoPageTimeout(step, timeouts = SCRIPT_TIMEOUTS) {
+  const per = { ...SCRIPT_TIMEOUTS.autoPerPageStep, ...(timeouts.autoPerPageStep ?? {}) };
+  const base = timeouts.autoPerPage ?? SCRIPT_TIMEOUTS.autoPerPage;
+  if (step === 'next') return Math.max(base, ...Object.values(per));
+  return per[step] ?? base;
+}
 
 export function createApp({
   root,
@@ -208,8 +234,10 @@ export function createApp({
   maxStdout = 16 * 1024 * 1024,
   maxStderr = 64 * 1024,
   groupAlive: groupAliveOpt = null,
+  uvCacheDir = defaultUvCacheDir(),
 } = {}) {
 const ROOT = path.resolve(root ?? path.join(REPO, 'data'));
+const SPAWN_ENV = uvCacheDir ? { ...process.env, UV_CACHE_DIR: uvCacheDir } : process.env;
 const TIMEOUTS = { ...SCRIPT_TIMEOUTS, ...timeoutsOpt };
 const groupAlive = groupAliveOpt ?? defaultGroupAlive;
 
@@ -383,7 +411,7 @@ function spawnAndWait(args, { stdin, timeoutMs, signal, job }) {
   return new Promise((resolve) => {
     let proc;
     try {
-      proc = spawnFn(cmd, argv, { cwd: REPO, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
+      proc = spawnFn(cmd, argv, { cwd: REPO, detached: true, stdio: ['pipe', 'pipe', 'pipe'], env: SPAWN_ENV });
     } catch (e) {
       return resolve({ status: 'spawn-error', error: e.message });
     }
@@ -944,11 +972,12 @@ app.get('/yolo-stats', async (_req, res) => {
 const AUTO_SCRIPT = path.join(REPO, 'scripts/auto.py');
 const AUTO_STEPS = new Set(['gates', 'text', 'wires', 'labels', 'nets', 'next']);
 
-// Cost hook for paid VLM steps (text, labels; also `next` landing on them).
-// auto.py does not implement them yet (exit 3 → 501, nothing spent). When it
-// does: estimate the cost (dry run), require an explicit confirmation field
-// in the body and a budget limit here, and refuse (e.g. 402) without them —
-// docs/auto-digitalizacja.md „Uruchamianie”.
+// Cost hook for paid VLM steps. `text` runs a local model (auto.py default,
+// no cost) and the server never passes --model / --allow-paid, so nothing here
+// can spend money; `labels` is not implemented (exit 3 → 501). If a paid model
+// is ever wired in (auto.py paid_model_refusal): estimate the cost (dry run),
+// require an explicit confirmation field in the body and a budget limit here,
+// and refuse (e.g. 402) without them — docs/auto-digitalizacja.md „Uruchamianie”.
 function paidStepRefusal(_body) {
   return null;
 }
@@ -1023,15 +1052,20 @@ async function postAuto(req, res) {
   if (!existsSync(AUTO_SCRIPT)) return res.status(500).json({ error: 'auto script missing' });
 
   const keys = targets.map((t) => t.abs);
-  const args = ['run', AUTO_SCRIPT, '--data', ROOT, '--pkg', pkg, '--page', page, '--step', step];
+  // One local-model job at a time (each loads ~17 GB): a virtual lock key
+  // shared by every text / next run, whatever the package or page.
+  const vlm = autoNeedsVlm(step);
+  const jobKeys = vlm ? [...keys, path.join(ROOT, '.auto', 'vlm')] : keys;
+  const args = ['run', ...(vlm ? ['--with', AUTO_VLM_WITH] : []), AUTO_SCRIPT,
+    '--data', ROOT, '--pkg', pkg, '--page', page, '--step', step];
   if (force) args.push('--force');
   if (draft) args.push('--draft');
   if (dryRun) args.push('--dry-run');
   args.push('--json');
   const r = await runScript(args, {
-    lockKey: keys,
+    lockKey: jobKeys,
     fileLocks: dryRun ? [] : keys,
-    timeoutMs: Math.min(TIMEOUTS.autoPerPage * Math.max(1, targets.length), TIMEOUTS.autoMax),
+    timeoutMs: Math.min(autoPageTimeout(step, TIMEOUTS) * Math.max(1, targets.length), TIMEOUTS.autoMax),
     signal: clientGone(res),
     kind: 'auto',
     info: { pkg, page, step, dryRun, pages: targets.map((t) => t.id) },

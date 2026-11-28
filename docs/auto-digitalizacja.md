@@ -149,13 +149,16 @@ przebieg → 409 `{error: 'busy', job}`, `GET /auto/status` pokazuje trwające z
 bez `dryRun` czeka na trwający PUT strony, a w trakcie przebiegu PUT / DELETE / make-bak /
 restore-bak tej strony dostają od razu 409 busy (viewer ponawia zapis; jeśli przebieg zmienił
 stronę, ponowienie kończy się zwykłym konfliktem → przeładowanie). Timeout 120 s × liczba
-stron, najwyżej 3000 s (proxy Vite: 3600 s) → 504 (proces zabity); zamknięcie karty też
+stron (krok `text` i `next`: 600 s × liczba stron — `SCRIPT_TIMEOUTS.autoPerPageStep`,
+`autoPageTimeout`; kr-9p8.27), najwyżej 3000 s (proxy Vite: 3600 s) → 504 (proces zabity);
+`text` na `all` mieści się więc w ~15 arkuszach po ~3 min — większe wsady z CLI; zamknięcie karty też
 zabija przebieg. Przebieg zabity między snapshotem a zapisem strony zostawia snapshot
 `.auto/<pkg>/<strona>/<krok>-<run>.yaml` bez zapisanej strony (strona nietknięta). Exit 0 → 200
 (podsumowanie JSON), 2 → 409 `{error: 'refused', reasons, result}`, 3 → 501, 1 albo wyjście bez
 pasującego JSON (np. błąd samego `uv`) → 500 z końcówką stderr. Przy `all` część stron mogła
 się zapisać mimo 409/500 — `result.pages[].written`. Potwierdzenie kosztu: hak
-`paidStepRefusal` w `server/index.js` (dziś `text`/`labels` → 501, nic nie kosztuje).
+`paidStepRefusal` w `server/index.js` (dziś nic nie kosztuje: `text` działa na lokalnym
+modelu, serwer nie przekazuje `--model` / `--allow-paid`; `labels` → 501).
 
 Ten sam kod z CLI (praca wsadowa, testy):
 
@@ -171,8 +174,9 @@ Każdy przebieg wypisuje: strony, krok, liczbę elementów `auto`, liczbę niepe
 ### Uruchomienie (kr-9p8.21)
 
 `scripts/auto.py` — wspólne wejście CLI i (kr-9p8.19) serwera. Zaimplementowane kroki:
-① `gates` (`cv-gates.py`) i ③ `wires` (`cv-wires.py` tryb (a) na **bieżących** bramkach
-strony, z pinami, jeśli są). `text`, `labels`, `nets` są rozpoznawane i odrzucane z exit 3.
+① `gates` (`cv-gates.py`), ② `text` (lokalny VLM na wycinkach bramek, kr-9p8.27 — niżej
+„Krok ② (kr-9p8.27)”) i ③ `wires` (`cv-wires.py` tryb (a) na **bieżących** bramkach
+strony, z pinami, jeśli są). `labels`, `nets` są rozpoznawane i odrzucane z exit 3.
 Reguły kroków (`canRun`, `nextRunnableStep`, `markStaleAfter`, `aspectEmpty`, druty po
 wartości, liczby jak w JS: 545.0 = 545, -0 = 0) są przeniesione do `scripts/_steps.py` — te
 same co w `shared/src/steps.ts`.
@@ -180,16 +184,19 @@ same co w `shared/src/steps.ts`.
 ```bash
 just auto PKG=P-R3-2 PAGE=2-58 STEP=gates [DATA=<kopia>] [--dry-run]   # bez --dry-run ostrzega: pisze do danych
 uv run scripts/auto.py --data <DATA_ROOT> --pkg P-R3-2 --page 2-58|all \
-    --step gates|wires|next [--force] [--draft] [--dry-run] [--json]
+    --step gates|wires [--force] [--draft] [--dry-run] [--json]
+UV_CACHE_DIR=/Volumes/Dane/llm/uv-cache uv run --with mlx-vlm==0.8.1 scripts/auto.py \
+    --data <DATA_ROOT> --pkg P-R3-2 --page 2-58|all --step text|next [...] \
+    [--model mlx:/Volumes/Dane/llm/<katalog>] [--gate-timeout 120]
 PYTHONDONTWRITEBYTECODE=1 uv run --with pytest --with pyyaml --with numpy \
-    --with opencv-python-headless pytest -p no:cacheprovider \
-    scripts/test_auto.py scripts/test_steps.py scripts/test_jsyaml.py
+    --with opencv-python-headless --with pillow pytest -p no:cacheprovider \
+    scripts/test_auto.py scripts/test_auto_text.py scripts/test_steps.py scripts/test_jsyaml.py
 ```
 
 - Pakiet: `<DATA_ROOT>/<moduł>/<pkg>/package.yaml`, gdzie moduł ma `project.yaml`
   (`data/gold` nie jest modułem). Strony i skany ze ścieżek w `package.yaml`.
 - Exit: 0 ok (także `--step next`, gdy wszystko zatwierdzone); 1 błąd; 2 odmowa (`canRun`
-  albo ochrona kroku ⑤, niżej); 3 krok niezaimplementowany. Przy `--page all` wygrywa
+  albo ochrona kroku ⑤, niżej, albo płatny model w ② bez zgody); 3 krok niezaimplementowany. Przy `--page all` wygrywa
   najpoważniejszy: 1 > 3 > 2 > 0. Błąd użycia (argparse) też daje 1, bo 2 znaczy odmowę.
 - Zapis:
   1. Tuż przed zapisem strona jest czytana jeszcze raz; jeśli zmieniła się od wczytania
@@ -263,6 +270,118 @@ wszystkie 10 wykrytych ramek odrzucone, ręczne zostały). Czas ①+③: 0,4–0
 Ponowny przebieg obu kroków daje tę samą treść. `--step gates` na kopii ręcznych stron P-R3-2:
 na 2-58…2-62, 2-64…2-66 diff to tylko dopisana sekcja `steps` (5 linii); na 2-63, 2-67, 2-68,
 2-69 zmienione tylko sekcje `gates` i `steps`.
+
+### Krok ② (kr-9p8.27)
+
+`auto.py --step text` czyta tekst bramek **lokalnym** modelem (decyzja opiekuna: żadnych
+płatnych wywołań). Wspólny kod z bake-offem jest w `scripts/_vlm.py` (geometria i render
+wycinka, prompty, parsowanie, adapter MLX); `vlm-bakeoff.py` go importuje.
+
+- **Model:** zwycięzca bake-offu — Qwen3.8-27B 4-bit
+  (`/Volumes/Dane/llm/models/lmstudio-community/Qwen3.8-27B-MLX-4bit`, `--model mlx:<katalog>`
+  albo `KRONIKARZ_VLM`; katalog musi leżeć pod `/Volumes/Dane/llm`, inaczej odmowa — exit 2),
+  `mlx-vlm==0.8.1` (macOS arm64), prompt v3,
+  skala 2, temperatura 0, myślenie wyłączone, `max_tokens` 300. `_vlm.llm_env()` ustawia przed
+  importem `mlx_vlm` cache HF na `/Volumes/Dane/llm/hf` i tryb offline (nic nie jest
+  pobierane). Model ładuje się raz na przebieg (~22 s), także przy `--page all`; strona bez
+  bramek do przeczytania go nie ładuje, a nieudane ładowanie nie jest ponawiane na kolejnych
+  stronach (każda dostaje ten sam błąd, exit 1).
+- **mlx-vlm nie jest zależnością `auto.py`** (wtedy każdy przebieg ① / ③, `/auto` i test
+  integracyjny serwera budowałyby ~0,8 GB środowiska, z `opencv-python` obok
+  `opencv-python-headless`). Dokłada je wywołujący, tylko dla `text` i `next`: serwer
+  (`AUTO_VLM_WITH` w `server/index.js`) i `just auto` uruchamiają `uv run --with
+  mlx-vlm==0.8.1 scripts/auto.py …`; ręcznie trzeba to samo. Bez niego krok kończy się
+  exit 1 z podpowiedzią. Serwer (i `just auto`) uruchamia każdy `uv` z
+  `UV_CACHE_DIR=$UV_CACHE_DIR`, a gdy nieustawione — `/Volumes/Dane/llm/uv-cache`, jeśli
+  istnieje (`defaultUvCacheDir`; ciężkie środowiska na dysku modeli, nie w `~/.cache`).
+- **Hak płatnego modelu:** `--model` spoza `mlx:` → odmowa (exit 2); z `--allow-paid` → exit 3
+  (`paid_model_refusal`: adapter płatny niepodłączony). Podłączenie wymaga szacunku kosztu,
+  jawnego potwierdzenia i limitu budżetu — także w `paidStepRefusal` serwera, który dziś
+  `--model` / `--allow-paid` nie przekazuje.
+- **Które bramki:** z ramką, których aspekt tekstu jest cały pusty (`aspectEmpty`, także
+  bramka dorysowana przez człowieka) albo jest wynikiem tego kroku (`text_src: auto`, każdy pin
+  `src: auto`, nety pinów puste albo `auto` z niezatwierdzonego ⑤ — jak przy usuwaniu bramek
+  w ①). Tekst ludzki (także częściowy) zostaje. `canRun`, `--force`, `--draft`, stale (każdy
+  późniejszy zatwierdzony krok, gdy zmieniła się treść ② albo ② był zatwierdzony) — jak
+  w ① / ③; odcisk treści `text` przeniesiony do `_steps.step_fingerprint`.
+  **Uwaga:** zatwierdzenie nie zmienia `text_src` — odczyt sprawdzony i nietknięty przez
+  człowieka zostaje `auto`. Krok `approved` przebiega tylko z `--force`, ale krok `auto` albo
+  `stale` przebiega bez `--force` i zastępuje wszystkie odczyty `text_src: auto`, także te,
+  które opiekun kiedyś zatwierdził, zanim ① oznaczył ② jako `stale`. Poprawki człowieka
+  (`edited`) zostają zawsze.
+- **Wycinek:** jak w bake-offie — ramka (`gate_rect`, autoBox viewera przy braku w/h) + 36 px
+  w poziomie, 10 px w górę, 4 px w dół, a pionowo każdy kandydat pinu bocznego `py − 22 … py + 4`.
+  Kandydaci pinów to `cv_pins` z kroku ①: ze snapshotu `gates-<steps.gates.run>.yaml`, a gdy go
+  nie ma — ze świeżej detekcji `cv-gates` (deterministyczna, < 1 s), dopasowanej do ramki jak
+  duplikat w ① (IoU ≥ 0,5 albo środek w środku).
+- **Samokorekta** (`check_text`): typ przez `resolve_ic_key` (port `resolveIcKey`); typ do
+  sprawdzania pinów = z rejestru (`components[ref].ic`), a gdy go nie ma — odczytany. Litera
+  **nie jest czytana z rysunku** (prompt v3 jej nie ma, na arkuszach jej nie ma): wynika z
+  numerów pinów — jedyna bramka `ic_map.gate_pins`, która zawiera wszystkie odczytane piny;
+  remis rozstrzyga rejestr (jedyna z tych liter zapisana na tej stronie), piny spoza typu →
+  najlepsze jednoznaczne pokrycie. Odczyt zostaje, jaki jest, a niezgodność trafia do
+  `steps.text.uncertain` (format-spec v1.2, `{ref, gate, x, y, why: ["KOD: opis"]}`, klucz =
+  środek ramki) i do snapshotu. Kody: `REF_EMPTY`, `REF_UNKNOWN` (ref spoza rejestru),
+  `TYPE_EMPTY`, `TYPE_UNKNOWN`, `TYPE_MISMATCH` (nadruk ≠ rejestr), `REGISTRY_TYPE_UNKNOWN`,
+  `SYMBOL_MISMATCH`, `NO_PINS`, `PIN_DUPLICATE`, `PINS_NOT_IN_IC_MAP`, `LETTER_AMBIGUOUS`,
+  `NO_GATE_PINS`, `PINS_MISSING` (bramka ma piny, których nie odczytano), `PIN_SIDE` (wyjście
+  z lewej / wejście z prawej), `LETTER_NOT_IN_REGISTRY`, `LETTER_WRONG_PAGE`, `DUPLICATE` (ta
+  sama bramka dwa razy na stronie), `IC_MAP_MISSING`, `MODEL_ERROR` (wyjątek, limit czasu,
+  odpowiedź bez JSON — bramka zostaje bez zmian), `MODEL_EMPTY` (ani ref, ani pinów — aspekt
+  zostaje pusty, bez `text_src`).
+- **Zapis:** `ref`, `gate` (litera albo `null`), `pins` (`{num, side, net: "", px, py, src:
+  auto}`) i `text_src: auto`; przy zastępowaniu wyniku `auto` znikają też `value` /
+  `label_left` / `label_right` (aspekt jest zastępowany cały). `label_left` / `label_right` nie
+  są pisane — w danych ręcznych to niejednolite notatki, numery są w `pins`. Ramka, `verified`,
+  `note`, nety i druty nietknięte. Typ z nadruku nie ma pola na stronie (typ jest w rejestrze);
+  jest w snapshocie i w `TYPE_MISMATCH`.
+- **Piny:** na bokach ramki w kolejności odczytu (lewy i prawy z góry na dół, górny od lewej):
+  w miejscach `cv_pins` z ①, gdy na danym boku jest ich dokładnie tyle, ile odczytanych pinów;
+  inaczej równo wzdłuż boku. Końców drutów z ③ nie ma (③ biegnie po ②); ③ maskuje bramki
+  razem z pinami, więc piny w miejscach drutów pomagają ③.
+- **Snapshot** `.auto/<pkg>/<strona>/text-<run>.yaml`: na każdą czytaną bramkę kadr (`crop`,
+  `scale`, `png_sha256` — bez obrazu), surowa odpowiedź, JSON, `pred`, czas, tokeny,
+  `cv_pins`, wynik i `uncertain`; w `auto_run.params` model, prompt (z sha256), skala, limit.
+- **Odporność:** limit czasu na bramkę `--gate-timeout` (domyślnie 120 s; SIGALRM przerywa
+  generację między tokenami), błąd jednej bramki nie psuje strony; błąd ładowania modelu =
+  exit 1 i nic nie zapisane. Postęp na stderr (`[n/N] (x,y) M3 typ 04 piny [3]/[4] — 4,2 s`),
+  `--json`: `counts` (`gates`, `targets`, `filled`, `replaced`, `kept_human`, `uncertain`,
+  `errors`, `empty_reads`, `pins_from_cv`, `pins_even`, `model_s`, `cv_pins`), `uncertain`,
+  `time_s` strony, a na poziomie przebiegu `vlm` (model, `load_s`) i `time_s`.
+- **Serwer:** timeout `/auto` dla `text` (i `next`) 600 s × strony (`autoPerPageStep`), limit
+  3000 s bez zmian. Naraz najwyżej jeden przebieg ładujący model (~17 GB): każdy `text` /
+  `next` trzyma dodatkowo wirtualną blokadę `<DATA>/.auto/vlm` — drugi dostaje 409 `busy`
+  z opisem trwającego zadania (także na innej stronie / w innym pakiecie); ① / ③ jej nie
+  biorą.
+
+Pomiar (MEASURED, 2026-11-28, kopia danych w scratchpadzie; strony 2-60, 2-61, 2-63 —
+held-out bake-offu — zredukowane do samych ramek z ręcznych stron: `ref: ""`, `gate: null`,
+`pins: []`, `note: null`, `src: auto`, `steps.gates: approved`; bez snapshotu ①, więc
+`cv_pins` ze świeżej detekcji; potem `--step text`):
+
+- **Pola** (39 bramek, prawda bake-offu = wzorzec + `TRUTH_OVERRIDES`): ref 39/39, litera
+  39/39, typ odczytany 39/39, symbol 39/39, piny (listy lewa/prawa/góra z kolejnością) 39/39.
+  Względem samego wzorca piny 37/39: 2-63 M30 A (pin 4) i M8 A (3/6/11/14) mają we wzorcu
+  piny, których nie narysowano — obie oflagowane `PINS_MISSING`.
+- **`eval-digitize`** (te same ramki co wzorzec, więc gateP/R = 1,000): ref 1,000, litera
+  1,000, pinP 1,000, pinR 1,000 / 1,000 / 0,958 (2-60 / 2-61 / 2-63; brakują te nienarysowane),
+  mediana błędu położenia pinu 3,0 / 2,2 / 3,2 px (101 z 213 pinów w miejscach `cv_pins`,
+  reszta równo). Metryki netów (`ep`, pary) nic tu nie mówią — `pin.net` jest pusty do ⑤.
+- **Flaga `uncertain`:** 8 z 39 bramek, 0 błędów odczytu wśród nich ani poza nimi — każda
+  flaga to niespójność danych, nie modelu:
+  - 4× `PIN_SIDE` na 74170 (M47, M48, M36, M37): `ic_map['170'].gate_pins` nie zgadza się
+    z rysunkiem (na rysunku 5 = RA wejście z lewej, 10 = Q1 wyjście z prawej; w `ic_map` 5 to
+    `q`, 10 to `re`) — do poprawy `ic_map` (wg karty SN74170, ASSUMED z pamięci: D 15/1/2/3,
+    WA/WB 14/13, GW 12, RA/RB 5/4, GR 11, Q 10/9/7/6);
+  - 2× `LETTER_WRONG_PAGE`: rejestr ma M2 A na 2-58 (wzorzec: 2-61) i M41 A na 2-61
+    (wzorzec: 2-63) — do sprawdzenia w `package.yaml`;
+  - 2× `PINS_MISSING`: M30 A, M8 A (wyżej).
+- **Czas** (M5 Pro, ściana całego `uv run`, z ładowaniem modelu ~22 s): 66 / 65 / 104 s na
+  2-60 / 2-61 / 2-63 (10 / 11 / 18 bramek); sam model 44 / 42 / 82 s, ~4,3 s na bramkę.
+  Bake-off liczył 178 s na arkusz, ale z portami i cross-refami.
+- **2-62** (bez wzorca, ręczna strona do porównania): 10 bramek, ref i litera zgodne z ręczną
+  stroną na 10/10; oflagowane 3 (M24 A, M25 A `PIN_SIDE` — 74170 jak wyżej; M2 B
+  `LETTER_WRONG_PAGE` — rejestr: 2-58); 67 s.
 
 ### Viewer
 

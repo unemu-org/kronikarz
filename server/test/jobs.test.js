@@ -10,7 +10,10 @@ import path from 'node:path';
 import url from 'node:url';
 import { createHash } from 'node:crypto';
 
-import { createApp, parseLastJson, PARSE_LAST_JSON_TRIES } from '../index.js';
+import {
+  createApp, parseLastJson, PARSE_LAST_JSON_TRIES, autoPageTimeout, SCRIPT_TIMEOUTS,
+  defaultUvCacheDir, LLM_UV_CACHE, AUTO_VLM_WITH,
+} from '../index.js';
 
 const origLog = console.log;
 const origWarn = console.warn;
@@ -104,7 +107,7 @@ before(async () => {
   await fs.mkdir(root);
   server = await listen(createApp({
     root, spawn: fakeSpawn, uvCommand: fakeUv, killGraceMs: 50,
-    scriptTimeouts: { visionPage: 2000, autoPerPage: 2000 },
+    scriptTimeouts: { visionPage: 2000, autoPerPage: 2000, autoPerPageStep: { text: 2000 } },
   }));
   base = `http://127.0.0.1:${server.address().port}`;
 });
@@ -553,6 +556,82 @@ test('/auto timeout per page × pages is capped at autoMax', async () => {
   });
 });
 
+test('/auto timeout per page depends on the step (text: slow local VLM; next: the largest)', async () => {
+  assert.equal(SCRIPT_TIMEOUTS.autoPerPageStep.text, 600_000);
+  assert.equal(autoPageTimeout('gates'), SCRIPT_TIMEOUTS.autoPerPage);
+  assert.equal(autoPageTimeout('text'), 600_000);
+  assert.equal(autoPageTimeout('next'), 600_000);
+  assert.equal(autoPageTimeout('wires', { autoPerPage: 7 }), 7);
+  assert.equal(autoPageTimeout('text', { autoPerPage: 7, autoPerPageStep: { text: 9 } }), 9);
+  assert.equal(autoPageTimeout('next', { autoPerPage: 70, autoPerPageStep: { text: 9 } }), 70);
+  await withServer({ scriptTimeouts: { autoPerPage: 1000, autoPerPageStep: { text: 1300 }, autoMax: 2000 } }, async (b) => {
+    behave = hang;
+    for (const [step, page, want] of [['text', 'p1', 1300], ['gates', 'p1', 1000], ['next', 'p1', 1300], ['text', 'all', 2000]]) {
+      const job = post('/auto', { pkg: PKG, page, step }, b);
+      await waitFor(() => calls.length === 1);
+      assert.equal((await json(await fetch(`${b}/auto/status`))).body.jobs[0].timeoutMs, want, `${step} ${page}`);
+      calls[0].proc.reply(autoOut(0, []));
+      await job;
+      calls.length = 0;
+    }
+  });
+});
+
+test('/auto text/next: uv run --with mlx-vlm only for steps that load the model', async () => {
+  behave = replyWith(autoOut(0, []));
+  for (const [step, vlm] of [['text', true], ['next', true], ['gates', false], ['wires', false]]) {
+    calls.length = 0;
+    const r = await json(await post('/auto', { pkg: PKG, page: 'p1', step, draft: step === 'wires' }));
+    assert.equal(r.status, 200, step);
+    const args = calls[0].args;
+    const at = args.findIndex((a) => a.endsWith('scripts/auto.py'));
+    assert.deepEqual(args.slice(0, at), vlm ? ['run', '--with', AUTO_VLM_WITH] : ['run'], step);
+    assert.equal(args[args.indexOf('--step') + 1], step);
+  }
+  assert.equal(AUTO_VLM_WITH, 'mlx-vlm==0.8.1');
+});
+
+test('/auto text/next: one model-loading job at a time (virtual lock), other steps unaffected', async () => {
+  behave = hang;
+  const a = post('/auto', { pkg: PKG, page: 'p1', step: 'text' });
+  await waitFor(() => calls.length === 1);
+  for (const body of [{ page: 'p2', step: 'text' }, { page: 'p2', step: 'next' }]) {
+    const r = await json(await post('/auto', { pkg: PKG, ...body }));
+    assert.equal(r.status, 409, body.step);
+    assert.equal(r.body.error, 'busy');
+    assert.equal(r.body.job.step, 'text');
+    assert.deepEqual(r.body.job.pages, ['p1']);
+    assert.ok(r.body.job.locks.includes(path.join('.auto', 'vlm')), JSON.stringify(r.body.job.locks));
+  }
+  const g = post('/auto', { pkg: PKG, page: 'p2', step: 'gates' });
+  await waitFor(() => calls.length === 2);
+  for (const c of calls) c.proc.reply(autoOut(0, []));
+  assert.equal((await a).status, 200);
+  assert.equal((await g).status, 200);
+  // po zakończeniu blokada zwolniona
+  behave = replyWith(autoOut(0, []));
+  assert.equal((await json(await post('/auto', { pkg: PKG, page: 'p2', step: 'text' }))).status, 200);
+});
+
+test('uv runs with UV_CACHE_DIR on the model disk (env wins; none → uv default)', async () => {
+  assert.equal(defaultUvCacheDir({ UV_CACHE_DIR: '/x/c' }, () => true), '/x/c');
+  assert.equal(defaultUvCacheDir({}, (p) => p === LLM_UV_CACHE), LLM_UV_CACHE);
+  assert.equal(defaultUvCacheDir({}, () => false), null);
+  assert.equal(LLM_UV_CACHE, '/Volumes/Dane/llm/uv-cache');
+  behave = replyWith(autoOut(0, []));
+  await withServer({ uvCacheDir: '/tmp/uvc-test' }, async (b) => {
+    calls.length = 0;
+    await json(await post('/auto', { pkg: PKG, page: 'p1', step: 'gates' }, b));
+    assert.equal(calls[0].opts.env.UV_CACHE_DIR, '/tmp/uvc-test');
+    assert.equal(calls[0].opts.env.PATH, process.env.PATH);
+  });
+  await withServer({ uvCacheDir: null }, async (b) => {
+    calls.length = 0;
+    await json(await post('/auto', { pkg: PKG, page: 'p1', step: 'gates' }, b));
+    assert.equal(calls[0].opts.env, process.env);
+  });
+});
+
 // --- POST /auto: locks ---------------------------------------------------------
 
 test('/auto vs /auto: same page → 409 busy (job info); other page runs; status shows both', async () => {
@@ -805,7 +884,9 @@ test('integration: real auto.py --dry-run via POST /auto (synthetic data root)',
     assert.equal(await fs.readFile(path.join(pkgDir, 'pages', 's1.sch.yaml'), 'utf-8'), pageText, 'dry run wrote nothing');
     assert.equal(existsSync(path.join(iroot, '.auto')), false, 'no snapshot');
 
-    const nf = await json(await post('/auto', { pkg: 'P-I', page: 's1', step: 'text', dryRun: true }, b));
+    // (krok text nie tutaj: --with mlx-vlm zbudowałoby ciężkie środowisko — argumenty
+    // i odmowę kroku sprawdzają testy z fałszywym spawn i scripts/test_auto_text.py)
+    const nf = await json(await post('/auto', { pkg: 'P-I', page: 's1', step: 'labels', dryRun: true }, b));
     assert.equal(nf.status, 501);
   } finally {
     await new Promise((r) => s.close(r));

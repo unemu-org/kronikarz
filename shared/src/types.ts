@@ -118,6 +118,19 @@ export interface StepState {
   status: StepStatus;
   run?: string; // id przebiegu (snapshot data/.auto/<pakiet>/<strona>/<krok>-<run>.yaml)
   at?: string; // ISO czas ostatniej zmiany stanu
+  // Krok `text` (kr-9p8.27): bramki do przejrzenia z przebiegu `run` — odczyt niezgodny
+  // z ic_map / rejestrem pakietu albo błąd modelu. Klucz: środek ramki (x, y), bo ② ramek
+  // nie zmienia. Wpis dotyczy bramki tylko, dopóki jej `text_src` jest `auto` albo jej aspekt
+  // tekstu jest pusty (MODEL_ERROR / MODEL_EMPTY — bramka niewypełniona).
+  uncertain?: StepUncertain[];
+}
+
+export interface StepUncertain {
+  ref: string;
+  gate: string | null;
+  x: number;
+  y: number;
+  why: string[]; // „KOD: opis”, np. "TYPE_MISMATCH: nadruk 74 ≠ rejestr 174"
 }
 
 // Brak kroku (albo całej sekcji) = `todo`.

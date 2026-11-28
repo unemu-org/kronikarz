@@ -234,3 +234,65 @@ def test_label_anchor_ends_and_stale_targets_like_ts():
     assert S.stale_targets("text", False) == ["wires", "labels", "nets"]
     assert S.mark_stale(p, ["nets"], "T") == ["nets"]
     assert p["steps"]["labels"]["status"] == "approved" and p["steps"]["nets"] == {"status": "stale", "at": "T"}
+
+
+# --- parzystość odcisku z steps.ts (node) ---
+
+def _variants():
+    base_pin = {"num": 3, "side": "left", "net": "", "px": 70, "py": 100}
+    base = {"ref": "M1", "gate": "B", "x": 100, "y": 100, "w": 60, "h": 90, "rotation": 0}
+
+    def page(pin_over=None, gate_over=None, drop=()):
+        pin = {**base_pin, **(pin_over or {})}
+        g = {**base, **(gate_over or {}), "pins": [pin]}
+        for d in drop:
+            (pin if d in base_pin else g).pop(d, None)
+        return {"gates": [g], "nets": {}}
+
+    return [
+        page(), page({"src": "auto"}), page({"px": 70.0}), page({"px": None}), page(drop=("px",)),
+        page({"px": "70"}), page({"px": 0}), page({"px": 71}), page({"num": 3.0}), page({"num": 4}),
+        page({"side": None}), page(drop=("side",)), page({"disconnected": True}),
+        page({"disconnected": False}), page(gate_over={"x": 101}), page(gate_over={"x": None}),
+        page(gate_over={"ref": None}), page(drop=("ref",)), page(gate_over={"gate": None}),
+        page(drop=("gate",)), page(gate_over={"value": "1k"}), page(gate_over={"label_left": None}),
+        page(gate_over={"y": -0.0}), page(gate_over={"y": 0}), page(gate_over={"w": None}),
+        page(drop=("w",)), page(gate_over={"rotation": None}),
+    ]
+
+
+def test_step_fingerprint_parity_with_steps_ts(tmp_path):
+    """Te same strony → te same równości odcisków (gates, text) w Pythonie i w steps.ts."""
+    import json
+    import shutil
+    import subprocess
+
+    import pytest
+
+    node = shutil.which("node")
+    ts = Path(__file__).resolve().parent.parent / "shared" / "src" / "steps.ts"
+    if not node or not ts.is_file():
+        pytest.skip("brak node albo shared/src/steps.ts")
+    pages = _variants()
+    inp, out, js = tmp_path / "in.json", tmp_path / "out.json", tmp_path / "fp.mjs"
+    inp.write_text(json.dumps(pages))
+    js.write_text(
+        "import fs from 'node:fs';\n"
+        f"const {{ stepFingerprint }} = await import({json.dumps(str(ts))});\n"
+        "const pages = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));\n"
+        "fs.writeFileSync(process.argv[3], JSON.stringify(pages.map((p) =>\n"
+        "  ['gates', 'text'].map((s) => stepFingerprint(p, s)))));\n")
+    r = subprocess.run([node, "--experimental-strip-types", "--no-warnings", str(js), str(inp), str(out)],
+                       capture_output=True, text=True)
+    if r.returncode != 0 and "strip-types" in r.stderr:
+        pytest.skip("node bez --experimental-strip-types")
+    assert r.returncode == 0, r.stderr
+    ts_fp = json.loads(out.read_text())
+    for si, step in enumerate(("gates", "text")):
+        py = [S.step_fingerprint(json.loads(json.dumps(p)), step) for p in pages]
+        for i in range(len(pages)):
+            for j in range(i + 1, len(pages)):
+                assert (py[i] == py[j]) == (ts_fp[i][si] == ts_fp[j][si]), (step, pages[i], pages[j])
+    # null i brak px to to samo; 0 — co innego
+    text = [S.step_fingerprint(p, "text") for p in pages]
+    assert text[3] == text[4] != text[6]

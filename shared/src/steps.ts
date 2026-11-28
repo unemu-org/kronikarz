@@ -172,9 +172,13 @@ const k = (...a: unknown[]): string => JSON.stringify(a);
 const gateBoxKey = (g: Gate) => k(g.x, g.y, g.w ?? null, g.h ?? null, g.rotation ?? 0);
 const gateTextKey = (g: Gate) =>
   k(g.ref, g.gate ?? null, g.value ?? null, g.label_left ?? null, g.label_right ?? null);
+// Położenie pinu względem środka bramki; brak / null / nie-liczba po którejś stronie = null
+// (bez tego `null - x` w JS daje -x, a Python — scripts/_steps.py `_rel` — None).
+const rel = (a: unknown, b: unknown): number | null =>
+  typeof a === 'number' && typeof b === 'number' && Number.isFinite(a) && Number.isFinite(b) ? a - b : null;
 const pinTextKey = (g: Gate, p: Pin) =>
-  k(p.num, p.side, p.px - g.x, p.py - g.y, p.disconnected === true);
-const pinGeomKey = (g: Gate, p: Pin) => k(p.side, p.px - g.x, p.py - g.y);
+  k(p.num, p.side, rel(p.px, g.x), rel(p.py, g.y), p.disconnected === true);
+const pinGeomKey = (g: Gate, p: Pin) => k(p.side, rel(p.px, g.x), rel(p.py, g.y));
 const pinNetKey = (p: Pin) => k(p.net, p.cross ?? null);
 const portLabelKey = (p: Port) => k(p.connector, p.pin, p.label, p.x, p.y, p.side);
 const crossRefLabelKey = (c: CrossRef) => k(c.label, c.pages, c.x, c.y, c.side);
